@@ -1,0 +1,10 @@
+build/
+build-*/
+build_ossfuzz/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+compile_commands.json
+/.ccache

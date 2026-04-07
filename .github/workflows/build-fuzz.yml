@@ -1,0 +1,24 @@
+name: Build Fuzz
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-fuzz:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Docker image
+        run: docker build -t solidity-ossfuzz -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz .
+
+      - name: Build fuzzer
+        run: |
+          docker run --rm -v "$(pwd)":/src/solidity-fuzzing solidity-ossfuzz \
+            /src/solidity-fuzzing/scripts/build_ossfuzz.sh

@@ -1,0 +1,795 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+
+syntax = "proto2";
+
+// ======================= TYPES =======================
+
+message IntegerType {
+	// All 32 valid Solidity integer widths: 8, 16, 24, ..., 256
+	// Converter maps: enum_value -> (enum_value + 1) * 8
+	enum Width {
+		W8 = 0;
+		W16 = 1;
+		W24 = 2;
+		W32 = 3;
+		W40 = 4;
+		W48 = 5;
+		W56 = 6;
+		W64 = 7;
+		W72 = 8;
+		W80 = 9;
+		W88 = 10;
+		W96 = 11;
+		W104 = 12;
+		W112 = 13;
+		W120 = 14;
+		W128 = 15;
+		W136 = 16;
+		W144 = 17;
+		W152 = 18;
+		W160 = 19;
+		W168 = 20;
+		W176 = 21;
+		W184 = 22;
+		W192 = 23;
+		W200 = 24;
+		W208 = 25;
+		W216 = 26;
+		W224 = 27;
+		W232 = 28;
+		W240 = 29;
+		W248 = 30;
+		W256 = 31;
+	}
+	required Width width = 1;
+	required bool is_signed = 2;
+}
+
+message FixedBytesType {
+	// All 32 valid Solidity fixed bytes widths: bytes1 through bytes32
+	// Converter maps: enum_value -> enum_value + 1
+	enum Width {
+		B1 = 0;
+		B2 = 1;
+		B3 = 2;
+		B4 = 3;
+		B5 = 4;
+		B6 = 5;
+		B7 = 6;
+		B8 = 7;
+		B9 = 8;
+		B10 = 9;
+		B11 = 10;
+		B12 = 11;
+		B13 = 12;
+		B14 = 13;
+		B15 = 14;
+		B16 = 15;
+		B17 = 16;
+		B18 = 17;
+		B19 = 18;
+		B20 = 19;
+		B21 = 20;
+		B22 = 21;
+		B23 = 22;
+		B24 = 23;
+		B25 = 24;
+		B26 = 25;
+		B27 = 26;
+		B28 = 27;
+		B29 = 28;
+		B30 = 29;
+		B31 = 30;
+		B32 = 31;
+	}
+	required Width width = 1;
+}
+
+// Empty marker type for bool (value is irrelevant, only oneof case matters)
+message BoolType {}
+
+message ElementaryType {
+	oneof type_oneof {
+		BoolType bool_type = 1;
+		IntegerType int_type = 2;
+		// true = address payable, false = address
+		bool address_payable = 3;
+		FixedBytesType fixed_bytes = 4;
+		// true = string, false = bytes
+		bool is_string = 5;
+	}
+}
+
+message ArrayType {
+	required ElementaryType base = 1;
+	// Omitted = dynamic array
+	optional uint32 length = 2;
+}
+
+message MappingType {
+	required ElementaryType key = 1;
+	required ElementaryType value = 2;
+}
+
+message TypeName {
+	oneof type_oneof {
+		ElementaryType elementary = 1;
+		ArrayType array = 2;
+		MappingType mapping = 3;
+		uint32 struct_ref = 4;
+		uint32 enum_ref = 5;
+	}
+}
+
+// ======================= EXPRESSIONS =======================
+
+message BoolLiteral {
+	required bool val = 1;
+}
+
+message IntegerLiteral {
+	required uint64 val = 1;
+	required bool negative = 2;
+	// Optional ether denomination suffix: wei, gwei, ether
+	enum EtherUnit {
+		WEI = 0;
+		GWEI = 1;
+		ETHER = 2;
+	}
+	optional EtherUnit ether_unit = 3;
+}
+
+message StringLiteral {
+	// Converter generates deterministic string from seed
+	required uint32 seed = 1;
+}
+
+message AddressLiteral {
+	// Converter generates a valid checksummed address
+	required uint64 val = 1;
+}
+
+message Literal {
+	oneof lit_oneof {
+		BoolLiteral bool_lit = 1;
+		IntegerLiteral int_lit = 2;
+		StringLiteral str_lit = 3;
+		AddressLiteral addr_lit = 4;
+	}
+}
+
+// References a variable in the current scope
+message VarRef {
+	required uint32 index = 1;
+}
+
+message BinaryOp {
+	enum Op {
+		// Arithmetic (integer operands -> integer result)
+		ADD = 0;
+		SUB = 1;
+		MUL = 2;
+		DIV = 3;
+		MOD = 4;
+		EXP = 5;
+		// Bitwise (integer operands -> integer result)
+		BIT_AND = 6;
+		BIT_OR = 7;
+		BIT_XOR = 8;
+		SHL = 9;
+		SHR = 10;
+		// Comparison (integer operands -> bool result)
+		LT = 11;
+		GT = 12;
+		LTE = 13;
+		GTE = 14;
+		EQ = 15;
+		NEQ = 16;
+		// Logical (bool operands -> bool result)
+		AND = 17;
+		OR = 18;
+	}
+	required Op op = 1;
+	required Expression left = 2;
+	required Expression right = 3;
+}
+
+message UnaryOp {
+	enum Op {
+		LNOT = 0;     // !x (bool -> bool)
+		BNOT = 1;     // ~x (integer -> integer)
+		NEG = 2;      // -x (signed integer)
+		INC_PRE = 3;  // ++x
+		DEC_PRE = 4;  // --x
+		INC_POST = 5; // x++
+		DEC_POST = 6; // x--
+	}
+	required Op op = 1;
+	required Expression operand = 2;
+}
+
+message TernaryOp {
+	required Expression cond = 1;
+	required Expression true_val = 2;
+	required Expression false_val = 3;
+}
+
+// Call a function defined in the current contract
+message FuncCallExpr {
+	required uint32 func_id = 1;
+	repeated Expression args = 2;
+	// When true, use named argument syntax: func({p0: val, p1: val})
+	optional bool use_named_args = 3;
+}
+
+message IndexAccessExpr {
+	required Expression base = 1;
+	required Expression index = 2;
+}
+
+message TypeConvExpr {
+	required ElementaryType to_type = 1;
+	required Expression arg = 2;
+}
+
+// msg.sender, msg.value, msg.sig, msg.data
+message MsgExpr {
+	enum Field {
+		SENDER = 0;
+		VALUE = 1;
+		SIG = 2;
+		DATA = 3;
+	}
+	required Field field = 1;
+}
+
+// block.timestamp, block.number, etc.
+message BlockExpr {
+	enum Field {
+		TIMESTAMP = 0;
+		NUMBER = 1;
+		CHAINID = 2;
+		BASEFEE = 3;
+		PREVRANDAO = 4;
+		GASLIMIT = 5;
+		COINBASE = 6;
+		BLOBBASEFEE = 7;
+	}
+	required Field field = 1;
+}
+
+// tx.origin, tx.gasprice
+message TxExpr {
+	enum Field {
+		ORIGIN = 0;
+		GASPRICE = 1;
+	}
+	required Field field = 1;
+}
+
+// abi.encode, abi.encodePacked, abi.encodeWithSelector, abi.encodeWithSignature
+message AbiEncodeExpr {
+	enum Kind {
+		ENCODE = 0;
+		ENCODE_PACKED = 1;
+		ENCODE_WITH_SELECTOR = 2;
+		ENCODE_WITH_SIGNATURE = 3;
+	}
+	required Kind kind = 1;
+	repeated Expression args = 2;
+}
+
+// abi.decode(abi.encode(val), (uint256)) — round-trip encode/decode
+// Returns uint256 by decoding from encoded bytes
+message AbiDecodeExpr {
+	required Expression value = 1;
+}
+
+// abi.encodeCall(this.funcName, (args)) — type-safe function call encoding
+// Returns bytes, hashed to uint256 for the expression context
+message AbiEncodeCallExpr {
+	required uint32 func_id = 1;
+	repeated Expression args = 2;
+}
+
+// keccak256(abi.encode(...)), sha256(...), ripemd160(...)
+message HashExpr {
+	enum Kind {
+		KECCAK256 = 0;
+		SHA256 = 1;
+		RIPEMD160 = 2;
+	}
+	required Kind kind = 1;
+	required Expression arg = 2;
+}
+
+// addmod(x, y, m), mulmod(x, y, m)
+message MathExpr {
+	enum Kind {
+		ADDMOD = 0;
+		MULMOD = 1;
+	}
+	required Kind kind = 1;
+	required Expression x = 2;
+	required Expression y = 3;
+	required Expression mod = 4;
+}
+
+// gasleft(), blockhash(uint), blobhash(uint), address(this).balance,
+// calldataload(offset), msg.data.length
+message BuiltinExpr {
+	enum Kind {
+		GASLEFT = 0;
+		BLOCKHASH = 1;
+		BLOBHASH = 2;
+		THIS_BALANCE = 3;
+		CALLDATALOAD = 4;
+		CALLDATASIZE = 5;
+	}
+	required Kind kind = 1;
+	// Used as argument for blockhash/blobhash/calldataload
+	optional Expression arg = 2;
+}
+
+// ecrecover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) -> address
+message EcrecoverExpr {
+	required Expression hash = 1;
+	required Expression v = 2;
+	required Expression r = 3;
+	required Expression s = 4;
+}
+
+// type(uintN).min, type(uintN).max
+message TypeInfoExpr {
+	enum Kind {
+		MIN = 0;
+		MAX = 1;
+	}
+	required Kind kind = 1;
+	required IntegerType int_type = 2;
+}
+
+// Assignment: x = expr, x += expr, etc.
+message AssignExpr {
+	enum Op {
+		ASSIGN = 0;
+		ADD_ASSIGN = 1;
+		SUB_ASSIGN = 2;
+		MUL_ASSIGN = 3;
+		DIV_ASSIGN = 4;
+		MOD_ASSIGN = 5;
+		AND_ASSIGN = 6;
+		OR_ASSIGN = 7;
+		XOR_ASSIGN = 8;
+		SHL_ASSIGN = 9;
+		SHR_ASSIGN = 10;
+	}
+	required Op op = 1;
+	required VarRef lhs = 2;
+	required Expression rhs = 3;
+}
+
+// Access a struct field: structVar.fieldName
+message StructMemberAccess {
+	required VarRef struct_var = 1;
+	required uint32 field_idx = 2;
+}
+
+// Reference an enum member as a uint256: uint256(EnumName.MemberName)
+message EnumLiteral {
+	required uint32 enum_idx = 1;
+	required uint32 member_idx = 2;
+}
+
+// super.funcName(args...) — call a base contract's function via the
+// inheritance chain. Only valid inside contracts that have a base.
+message SuperCallExpr {
+	required uint32 func_idx = 1;
+	repeated Expression args = 2;
+}
+
+// Library member call via `using LibName for uint256`: receiver.libFunc(args...)
+// The receiver is the implicit first argument to the library function.
+message LibMemberCallExpr {
+	required Expression receiver = 1;
+	required uint32 func_idx = 2;
+	repeated Expression args = 3;
+}
+
+// bytes.concat() / string.concat() — hashed to uint256
+message ConcatExpr {
+	enum Kind {
+		BYTES_CONCAT = 0;
+		STRING_CONCAT = 1;
+	}
+	required Kind kind = 1;
+	repeated Expression args = 2;
+}
+
+// this.funcName.selector — 4-byte function selector as uint256
+message SelectorExpr {
+	required uint32 func_idx = 1;
+}
+
+// NOTE: We intentionally do NOT fuzz inline assembly blocks (beyond the
+// minimal _cdl/_cds helpers). Inline assembly is YOLO: it bypasses all
+// Solidity-level compiler invariants (type system, memory management,
+// stack layout, control flow analysis). Generating arbitrary assembly
+// would produce programs that violate the assumptions the optimizer and
+// codegen rely on, leading to false-positive "miscompilation" reports
+// that are actually just the fuzzer breaking the compiler's contract.
+// The _cdl/_cds helpers are the sole exception because they are trivial,
+// well-understood wrappers around single opcodes.
+
+message Expression {
+	oneof expr_oneof {
+		Literal lit = 1;
+		VarRef var_ref = 2;
+		BinaryOp bin_op = 3;
+		UnaryOp un_op = 4;
+		TernaryOp ternary = 5;
+		FuncCallExpr func_call = 6;
+		IndexAccessExpr index_access = 7;
+		TypeConvExpr type_conv = 8;
+		MsgExpr msg_expr = 9;
+		BlockExpr block_expr = 10;
+		TxExpr tx_expr = 11;
+		AbiEncodeExpr abi_encode = 12;
+		HashExpr hash_expr = 13;
+		MathExpr math_expr = 14;
+		BuiltinExpr builtin = 15;
+		AssignExpr assign = 16;
+		StructMemberAccess struct_access = 17;
+		EnumLiteral enum_lit = 18;
+		EcrecoverExpr ecrecover = 19;
+		TypeInfoExpr type_info = 20;
+		SuperCallExpr super_call = 21;
+		LibMemberCallExpr lib_member_call = 22;
+		ConcatExpr concat = 23;
+		SelectorExpr selector = 24;
+		ArrayLengthExpr array_length = 25;
+		AbiDecodeExpr abi_decode = 26;
+		AbiEncodeCallExpr abi_encode_call = 27;
+		// UDVT wrap/unwrap: MyUint.wrap(val) returns MyUint, MyUint.unwrap(x) returns uint256
+		UdvtExpr udvt_expr = 28;
+	}
+}
+
+// User-defined value type expression: wrap or unwrap
+message UdvtExpr {
+	required Expression inner = 1;
+	// true = wrap(inner), false = unwrap(wrap(inner)) [round-trip to uint256]
+	required bool wrap_only = 2;
+}
+
+// ======================= STATEMENTS =======================
+
+message VarDeclStmt {
+	// All local vars are uint256
+	reserved 1;  // was: TypeName type
+	optional Expression init = 2;
+}
+
+message ExprStmt {
+	required Expression expr = 1;
+}
+
+message IfStmt {
+	required Expression cond = 1;
+	required Block if_body = 2;
+	optional Block else_body = 3;
+}
+
+message ForStmt {
+	// Always generates a bounded loop; init/cond/post are not used
+	reserved 1, 2, 3;  // was: init, cond, post
+	required Block body = 4;
+}
+
+message WhileStmt {
+	required Expression cond = 1;
+	required Block body = 2;
+}
+
+message DoWhileStmt {
+	required Expression cond = 1;
+	required Block body = 2;
+}
+
+message ReturnStmt {
+	optional Expression val = 1;
+}
+
+message BreakStmt {}
+message ContinueStmt {}
+
+message RequireStmt {
+	required Expression cond = 1;
+	// true = assert, false = require
+	required bool is_assert = 2;
+	// When true and is_assert is false, add a string message:
+	// require(cond, "msg_N")
+	optional bool with_message = 3;
+	// When set and is_assert is false, use a custom error:
+	// require(cond, ErrorName(args))
+	optional uint32 error_id = 4;
+	// When true and error_id is set, uses named parameter syntax:
+	// require(cond, ErrorName({param1: val1, ...}))
+	optional bool use_named_args = 5;
+}
+
+// selfdestruct(payable(address(...)))
+message SelfdestructStmt {
+	required Expression beneficiary = 1;
+}
+
+message EmitStmt {
+	required uint32 event_id = 1;
+	repeated Expression args = 2;
+}
+
+message RevertStmt {
+	required uint32 error_id = 1;
+	repeated Expression args = 2;
+	// When true, uses named parameter syntax: revert Err({name: val, ...})
+	optional bool use_named_args = 3;
+}
+
+message DeleteStmt {
+	required VarRef target = 1;
+}
+
+message TryCatchStmt {
+	required uint32 func_id = 1;
+	repeated Expression args = 2;
+	required Block try_body = 3;
+	required Block catch_body = 4;
+}
+
+message Block {
+	repeated Statement stmts = 1;
+}
+
+message UncheckedBlock {
+	required Block body = 1;
+}
+
+// Index assignment: stateVar[index] = value (for arrays and mappings)
+message IndexAssignStmt {
+	required uint32 var_idx = 1;
+	required Expression index = 2;
+	required Expression value = 3;
+}
+
+// Tuple assignment: (a, b) = (expr1, expr2) — tests tuple packing/unpacking
+message TupleAssignStmt {
+	required Expression val1 = 1;
+	required Expression val2 = 2;
+}
+
+// Push to a dynamic storage array: arr.push(value) or arr.push()
+message ArrayPushStmt {
+	required uint32 var_idx = 1;
+	optional Expression value = 2;
+}
+
+// Pop from a dynamic storage array: arr.pop()
+message ArrayPopStmt {
+	required uint32 var_idx = 1;
+}
+
+// Destructure a multi-return function call: (a, b) = f(args)
+message TupleDestructStmt {
+	required uint32 func_id = 1;
+	repeated Expression args = 2;
+}
+
+// Array length expression: arr.length
+message ArrayLengthExpr {
+	required uint32 var_idx = 1;
+}
+
+message Statement {
+	oneof stmt_oneof {
+		VarDeclStmt var_decl = 1;
+		ExprStmt expr_stmt = 2;
+		IfStmt if_stmt = 3;
+		ForStmt for_stmt = 4;
+		WhileStmt while_stmt = 5;
+		DoWhileStmt do_while = 6;
+		ReturnStmt return_stmt = 7;
+		EmitStmt emit_stmt = 8;
+		RevertStmt revert_stmt = 9;
+		Block block = 10;
+		UncheckedBlock unchecked = 11;
+		BreakStmt break_stmt = 12;
+		ContinueStmt continue_stmt = 13;
+		RequireStmt require_stmt = 14;
+		DeleteStmt delete_stmt = 15;
+		TryCatchStmt try_catch = 16;
+		IndexAssignStmt index_assign = 17;
+		TupleAssignStmt tuple_assign = 18;
+		SelfdestructStmt selfdestruct_stmt = 19;
+		ArrayPushStmt array_push = 20;
+		ArrayPopStmt array_pop = 21;
+		TupleDestructStmt tuple_destruct = 22;
+	}
+}
+
+// ======================= CONTRACT ELEMENTS =======================
+
+message StructField {
+	required ElementaryType type = 1;
+}
+
+message StructDef {
+	// Converter ensures at least 1 field
+	repeated StructField fields = 1;
+}
+
+message EnumDef {
+	// Converter clamps to 1..256
+	required uint32 num_members = 1;
+}
+
+message EventDef {
+	// All event params are uint256
+	required uint32 num_params = 1;
+	// Per-parameter indexed flag (max 3 indexed per event)
+	repeated bool indexed_params = 2;
+}
+
+message ErrorDef {
+	// All error params are uint256
+	required uint32 num_params = 1;
+}
+
+enum Visibility {
+	PUBLIC = 0;
+	EXTERNAL = 1;
+	INTERNAL = 2;
+	PRIVATE = 3;
+}
+
+enum StateMutability {
+	PURE = 0;
+	VIEW = 1;
+	PAYABLE = 2;
+	NONPAYABLE = 3;
+}
+
+message ModifierDef {
+	required Block body = 1;
+}
+
+message ReceiveDef {
+	required Block body = 1;
+}
+
+message FallbackDef {
+	required Block body = 1;
+}
+
+// Type of a function parameter.  The function body always converts non-uint256
+// parameters to a uint256 shadow variable, so expressions stay uniform.
+enum ParamType {
+	PARAM_UINT256 = 0;
+	PARAM_BOOL = 1;
+	PARAM_ADDRESS = 2;
+	PARAM_BYTES32 = 3;
+}
+
+message FunctionDef {
+	// All params are uint256; all functions return uint256
+	required uint32 num_params = 1;
+	reserved 2, 5;  // was: returns, is_virtual
+	required Visibility vis = 3;
+	required StateMutability mut = 4;
+	required Block body = 6;
+	// Index into contract's modifiers list
+	optional uint32 modifier_id = 7;
+	// When true and there is a previous function in the same contract,
+	// share its name (creating an overloaded function). The param count
+	// is forced to differ from the previous function.
+	optional bool share_name_with_prev = 8;
+	// Type for each parameter.  If fewer entries than num_params, the
+	// remaining parameters default to uint256.
+	repeated ParamType param_types = 9;
+	// When true, function returns (uint256, uint256) instead of uint256
+	optional bool returns_two = 10;
+}
+
+message ConstructorDef {
+	required Block body = 1;
+	required bool payable = 2;
+	// When true, constructor takes a uint256 parameter.
+	// Tests constructor parameter handling and inheritance.
+	optional bool has_param = 3;
+}
+
+message StateVarDecl {
+	required TypeName type = 1;
+	// All state vars are public
+	reserved 2, 3, 4;  // was: vis, is_constant, is_immutable
+	// When true, the variable uses transient storage (tstore/tload under the hood).
+	// Syntax: `uint256 transient public svN;`
+	// Requires EVM >= Cancun (we always target the latest EVM version).
+	optional bool is_transient = 5;
+	// Compile-time constant: `uint256 constant public svN = LITERAL;`
+	// Only for elementary value types. Mutually exclusive with transient/immutable.
+	optional bool is_constant = 6;
+	// Set once in constructor: `uint256 immutable public svN;`
+	// Only for elementary value types. Mutually exclusive with transient/constant.
+	optional bool is_immutable = 7;
+}
+
+// ======================= CONTRACTS =======================
+
+message ContractDef {
+	enum Kind {
+		CONTRACT = 0;
+		LIBRARY = 1;
+	}
+	required Kind kind = 1;
+	// Indices of base contracts (for inheritance)
+	repeated uint32 bases = 2;
+	repeated StructDef structs = 3;
+	repeated EnumDef enums = 4;
+	repeated StateVarDecl state_vars = 5;
+	repeated FunctionDef functions = 6;
+	repeated EventDef events = 7;
+	repeated ErrorDef errors = 8;
+	optional ConstructorDef constructor = 9;
+	repeated ModifierDef modifiers = 10;
+	optional ReceiveDef receive = 11;
+	optional FallbackDef fallback_func = 12;
+}
+
+// Free function: file-level, implicitly internal, always pure
+message FreeFunctionDef {
+	required uint32 num_params = 1;
+	required Block body = 2;
+}
+
+// ======================= TOP-LEVEL =======================
+
+message Program {
+	repeated ContractDef contracts = 1;
+	required uint64 seed = 2;
+	required bool via_ir = 3;
+	required bool optimize = 4;
+	// Random bytes appended after the 4-byte selector when calling test().
+	// Accessible via calldataload/calldatasize in generated expressions.
+	optional bytes calldata_data = 5;
+	// Salt for CREATE2 deployment in the test contract.
+	// When present, contracts are deployed with new C{salt: ...}().
+	optional bytes create2_salt = 6;
+	// File-level free functions (implicitly internal, pure)
+	repeated FreeFunctionDef free_functions = 7;
+	// Whether to generate a user-defined value type (UDVT) wrapping uint256
+	// and user-defined operators for it
+	optional bool gen_udvt = 10;
+	// Custom Yul optimizer step sequence (mapped to step abbreviations).
+	// When empty, the default optimizer sequence is used.
+	repeated uint32 optimiser_seq = 8;
+	// Custom Yul optimizer cleanup step sequence.
+	repeated uint32 optimiser_cleanup_seq = 9;
+}
+
+package solidity.test.sol2protofuzzer;
