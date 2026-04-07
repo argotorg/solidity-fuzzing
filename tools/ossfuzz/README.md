@@ -108,13 +108,6 @@ Firstly, whenever relevant we ONLY use latest EVM version.
 - `solc_mutator_ossfuzz` (from `solc_ossfuzz.cpp`). Same as previous, but with
   a custom mutator included.
 
-### Using AFL
-- `solfuzzer` (from `solfuzzer.cpp`). AFL-based fuzzer that reads Solidity
-  source from stdin or a file, compiles it, and signals a failure on internal
-  errors. Supports `--standard-json` (test via JSON interface), `--const-opt`
-  (test the constant optimizer), and `--without-optimizer` modes. Built by
-  the normal (non-ossfuzz) cmake build.
-
 ## Debugging solidity issues with `sol_debug_runner`
 
 `sol_debug_runner` is a standalone tool for debugging differential testing
@@ -282,40 +275,6 @@ make -j$(nproc) yul_debug_runner
 | 2 | Normal compilation failure / file error |
 | 3 | Internal compiler error (assertion failure, crash) |
 
-## Quick corpus check with check_diversity_and_errors.sh
-
-`check_diversity_and_errors.sh` is a convenience wrapper that dumps `.sol`
-files from a fuzzer corpus and pipes them through `check_sol_proto_files.py`
-in one step. It picks N random corpus entries, runs the fuzzer binary to dump
-their Solidity source, compiles them with `solc`, and reports errors + feature
-diversity.
-
-### Usage
-
-```bash
-# Default fuzzer (sol_proto_ossfuzz_evmone), 300 files:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300
-
-# Explicit fuzzer binary:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300 \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone
-
-# viaIR variant:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone_viair 300 \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
-```
-
-### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `<corpus_dir>` | Directory containing fuzzer corpus files (required) |
-| `<num_files>` | Number of random corpus entries to sample (required) |
-| `[fuzzer_binary]` | Path to fuzzer binary (default: `./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone`) |
-
-The script expects `./build/solc/solc` for compilation checks and
-`./tools/ossfuzz/check_sol_proto_files.py` for the analysis. Dumped
-files go into a temporary directory that is cleaned up automatically.
 
 ## Checking generated Solidity with check_sol_proto_files.py
 
@@ -393,26 +352,37 @@ Features showing `(none)` indicate the fuzzer corpus hasn't grown large
 enough to produce those protobuf field combinations yet — this is normal for
 a young corpus.
 
-# Coverage report generation for isoltest/fuzzer
+## Quick corpus check with check_diversity_and_errors.sh
 
-## 1. Reset counters (clean slate)
-```
-lcov --zerocounters --directory build
+`check_diversity_and_errors.sh` is a convenience wrapper that dumps `.sol`
+files from a fuzzer corpus and pipes them through `check_sol_proto_files.py`
+in one step. It picks N random corpus entries, runs the fuzzer binary to dump
+their Solidity source, compiles them with `solc`, and reports errors + feature
+diversity.
+
+### Usage
+
+```bash
+# Default fuzzer (sol_proto_ossfuzz_evmone), 300 files:
+./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300
+
+# Explicit fuzzer binary:
+./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300 \
+  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone
+
+# viaIR variant:
+./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone_viair 300 \
+  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
 ```
 
-## 2. Run isoltest (or solc many times, or both — they all accumulate)
-```
-./build/test/tools/isoltest --accept-updates --no-smt
-```
+### Arguments
 
-## 3. Capture & generate HTML
-```
-lcov --capture --directory build \
-  --output-file coverage.info --ignore-errors inconsistent
-lcov --remove coverage.info '/usr/*' '*/test/*' '*/deps/*' \
-  --output-file coverage_filtered.info --ignore-errors inconsistent
-genhtml coverage_filtered.info \
-  --output-directory coverage_html --ignore-errors inconsistent
-```
+| Argument | Description |
+|----------|-------------|
+| `<corpus_dir>` | Directory containing fuzzer corpus files (required) |
+| `<num_files>` | Number of random corpus entries to sample (required) |
+| `[fuzzer_binary]` | Path to fuzzer binary (default: `./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone`) |
 
-Then open coverage_html/index.html.
+The script expects `./build/solc/solc` for compilation checks and
+`./tools/ossfuzz/check_sol_proto_files.py` for the analysis. Dumped
+files go into a temporary directory that is cleaned up automatically.
