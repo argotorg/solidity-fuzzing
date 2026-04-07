@@ -154,7 +154,8 @@ differential comparisons pass or fail.
    - `<config>.bytecode.hex` — compiled bytecode in hex
    - `<config>.log` — full execution details (status, output, logs, storage)
 
-### CLI options
+<details>
+<summary>CLI options and exit codes</summary>
 
 ```
 ./build/sol_debug_runner <file.sol> [--output-dir <dir>] [--via-ir true|false] [--calldata <hex>] [--quiet]
@@ -169,14 +170,14 @@ differential comparisons pass or fail.
 - `--quiet` — suppress all output except a one-line summary (`OK`,
   `MISMATCH`, or `INTERNAL_ERROR`). Used by the delta debugger.
 
-### Exit codes
-
 | Code | Meaning |
 |------|---------|
 | 0 | All match — no bug |
 | 1 | Differential mismatch found |
 | 2 | Normal compilation failure / file error |
 | 3 | Internal compiler error (assertion failure, crash) |
+
+</details>
 
 
 ## Debugging Yul issues with `yul_debug_runner`
@@ -253,7 +254,8 @@ make -j$(nproc) yul_debug_runner
      ./build/yul_debug_runner bad.yul --output-dir /tmp/debug-output
    ```
 
-### CLI options
+<details>
+<summary>CLI options and exit codes</summary>
 
 ```
 ./build/yul_debug_runner <file.yul> [--output-dir <dir>] [--calldata <hex>] [--quiet]
@@ -266,14 +268,14 @@ make -j$(nproc) yul_debug_runner
 - `--quiet` — suppress all output except a one-line summary (`OK`,
   `MISMATCH`, or `INTERNAL_ERROR`). Used by delta debuggers.
 
-### Exit codes
-
 | Code | Meaning |
 |------|---------|
 | 0 | All match — no bug |
 | 1 | Differential mismatch found |
 | 2 | Normal compilation failure / file error |
 | 3 | Internal compiler error (assertion failure, crash) |
+
+</details>
 
 
 ## Checking generated Solidity with check_sol_proto_files.py
@@ -313,7 +315,8 @@ python3 tools/ossfuzz/check_sol_proto_files.py tmp/ \
 - `--no-compile` — skip compilation, only tally features
 - `--max-files <N>` — process at most N files (default: all)
 
-### Output
+<details>
+<summary>Example output</summary>
 
 The tool prints two sections:
 
@@ -351,6 +354,8 @@ occurrence count and how many files contain it. Example:
 Features showing `(none)` indicate the fuzzer corpus hasn't grown large
 enough to produce those protobuf field combinations yet — this is normal for
 a young corpus.
+
+</details>
 
 ## Quick corpus check with check_diversity_and_errors.sh
 
