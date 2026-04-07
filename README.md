@@ -15,13 +15,15 @@ git submodule update --init --recursive
 ```
 
 Make sure to have the following installed:
-* gcc / g++
-* cmake
+* gcc / g++ (C++20 support required, i.e. GCC 10+)
+* cmake (>= 3.13)
 * make
+* libboost-dev, libboost-program-options-dev, libboost-filesystem-dev
 * linux-perf
 * gdb
 * protobuf-compiler (protoc)
 * ccache
+* docker
 
 ## Building Solidity and the Debug Tools, i.e. "normal build"
 
@@ -38,8 +40,8 @@ make -j$(nproc)
 ```
 
 This builds the following debug tools:
-- `sol_debug_runner` — reproduces `sol_proto_ossfuzz_evmone` findings
-- `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone` findings
+- `sol_debug_runner` — reproduces `sol_proto_ossfuzz_evmone*` findings
+- `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
 
 ## Building OSS-Fuzz Docker Image
 
@@ -83,8 +85,6 @@ fuzzers and the documentation on how to use the debug tools.
 ## FAQ
 
 ### Why the elaborate docker image to build fuzzers?
-
-For the following reasons:
 
 - Fuzzing binaries **must** link against libc++ and not libstdc++
   This is [because][2] (1) MemorySanitizer (which flags uses of
