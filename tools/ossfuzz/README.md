@@ -1,43 +1,7 @@
-## Intro
-
-[oss-fuzz][1] is Google's fuzzing infrastructure that performs continuous
-fuzzing. What this means is that, each and every upstream commit is
-automatically fetched by the infrastructure and fuzzed on a daily basis.
-
-## What does the ossfuzz directory contain?
-
-To help oss-fuzz do this, we (as project maintainers) need to provide the
-following:
-
-- test harnesses: C/C++ tests that define the `LLVMFuzzerTestOneInput` API.
-  This determines what is to be fuzz tested.
-- build infrastructure: (c)make targets per fuzzing binary. Fuzzing requires
-  coverage and memory instrumentation of the code to be fuzzed.
-- configuration files: These are files with the `.options` extension that are
-  parsed by oss-fuzz. The only option that we use currently is the `dictionary`
-  option that asks the fuzzing engines behind oss-fuzz to use the specified
-  dictionary. The specified dictionary happens to be `solidity.dict`.
-
-`solidity.dict` contains Solidity-specific syntactical tokens that are more
-likely to guide the fuzzer towards generating parseable and varied Solidity
-input.
-
-To be consistent and aid better evaluation of the utility of the fuzzing
-dictionary, we stick to the following rules-of-thumb:
-  - Full tokens such as `block.number` are preceded and followed by a
-    whitespace
-  - Incomplete tokens including function calls such as `msg.sender.send()`
-    are abbreviated `.send(` to provide some leeway to the fuzzer to
-    synthesize variants such as `address(this).send()`
-  - Language keywords are suffixed by a whitespace with the exception of
-    those that end a line of code such as `break;` and `continue;`
-
-[1]: https://github.com/google/oss-fuzz
-[2]: https://github.com/google/oss-fuzz/issues/1114#issuecomment-360660201
-
 ## Executables generated
 
-> All differential fuzzers use the latest EVM version.
+This directory contain test harnesses in  C/C++ that define the `LLVMFuzzerTestOneInput` API.
+All differential fuzzers use the latest EVM version.
 
 ### Differential fuzzers (LibFuzzer + EVMOne)
 
@@ -68,6 +32,7 @@ done
 | `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, `FUZZER_MODE_CHECK_STACK_ALLOC` | Opt with stack alloc off vs on (legacy codegen) |
 | `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Single config: `test()` must not revert and must return 0 |
 
+
 ### Crash-only fuzzers (LibFuzzer, no EVMOne)
 
 | Executable | Source | What it feeds random bytes to |
@@ -77,6 +42,11 @@ done
 | `const_opt_ossfuzz` | `const_opt_ossfuzz.cpp` | Constant optimizer |
 | `solc_ossfuzz` | `solc_ossfuzz.cpp` | Solidity compiler |
 | `solc_mutator_ossfuzz` | `solc_ossfuzz.cpp` + custom mutator | Solidity compiler |
+
+
+`solidity.dict` contains Solidity-specific syntactical tokens that are more
+likely to guide the fuzzer towards generating parseable and varied Solidity
+input.
 
 ## Debugging solidity issues with `sol_debug_runner`
 
@@ -356,3 +326,18 @@ diversity.
 The script expects `./build/solc/solc` for compilation checks and
 `./tools/ossfuzz/check_sol_proto_files.py` for the analysis. Dumped
 files go into a temporary directory that is cleaned up automatically.
+
+## OSSFuzz notes
+
+[oss-fuzz][1] is Google's fuzzing infrastructure that performs continuous
+fuzzing. What this means is that, each and every upstream commit is
+automatically fetched by the infrastructure and fuzzed on a daily basis.
+
+We have configuration files:here with the `.options` extension that are
+parsed by oss-fuzz. The only option that we use currently is the `dictionary`
+option that asks the fuzzing engines behind oss-fuzz to use the specified
+dictionary. The specified dictionary happens to be `solidity.dict`.
+
+[1]: https://github.com/google/oss-fuzz
+[2]: https://github.com/google/oss-fuzz/issues/1114#issuecomment-360660201
+
