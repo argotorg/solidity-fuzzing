@@ -17,28 +17,30 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 # Find Boost for our own targets (solidity finds it too but imported targets are dir-scoped)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options)
 
-# Build solidity as a submodule — libraries only (no tests, solc CLI, or tools)
-set(ONLY_BUILD_SOLIDITY_LIBRARIES ON CACHE BOOL "" FORCE)
+# Build solidity as a submodule — skip tests (they conflict with our evmc targets)
+set(TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(solidity)
 
-# evmc is defined in solidity/test/evmc/ but not built when ONLY_BUILD_SOLIDITY_LIBRARIES=ON.
+# evmc is defined in solidity/test/evmc/ but not built when tests are off.
 # We define it ourselves since the original CMakeLists.txt uses PROJECT_SOURCE_DIR
 # which doesn't work when added from a parent project.
-set(EVMC_DIR ${CMAKE_SOURCE_DIR}/solidity/test/evmc)
-add_library(evmc_loader STATIC ${EVMC_DIR}/loader.h ${EVMC_DIR}/loader.c)
-set_target_properties(evmc_loader PROPERTIES LINKER_LANGUAGE C POSITION_INDEPENDENT_CODE TRUE)
-target_link_libraries(evmc_loader INTERFACE ${CMAKE_DL_LIBS})
-target_include_directories(evmc_loader PUBLIC ${CMAKE_SOURCE_DIR}/solidity/test/)
+if (NOT TARGET evmc)
+    set(EVMC_DIR ${CMAKE_SOURCE_DIR}/solidity/test/evmc)
+    add_library(evmc_loader STATIC ${EVMC_DIR}/loader.h ${EVMC_DIR}/loader.c)
+    set_target_properties(evmc_loader PROPERTIES LINKER_LANGUAGE C POSITION_INDEPENDENT_CODE TRUE)
+    target_link_libraries(evmc_loader INTERFACE ${CMAKE_DL_LIBS})
+    target_include_directories(evmc_loader PUBLIC ${CMAKE_SOURCE_DIR}/solidity/test/)
 
-add_library(evmc INTERFACE)
-target_sources(evmc INTERFACE
-    ${EVMC_DIR}/evmc.h
-    ${EVMC_DIR}/evmc.hpp
-    ${EVMC_DIR}/helpers.h
-    ${EVMC_DIR}/utils.h
-)
-target_include_directories(evmc INTERFACE ${CMAKE_SOURCE_DIR}/solidity/test/)
-target_link_libraries(evmc INTERFACE evmc_loader)
+    add_library(evmc INTERFACE)
+    target_sources(evmc INTERFACE
+        ${EVMC_DIR}/evmc.h
+        ${EVMC_DIR}/evmc.hpp
+        ${EVMC_DIR}/helpers.h
+        ${EVMC_DIR}/utils.h
+    )
+    target_include_directories(evmc INTERFACE ${CMAKE_SOURCE_DIR}/solidity/test/)
+    target_link_libraries(evmc INTERFACE evmc_loader)
+endif()
 
 # Include paths:
 #   1. ${CMAKE_SOURCE_DIR} for our <tools/...> headers
