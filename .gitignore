@@ -10,3 +10,4 @@ compile_commands.json
 /.ccache
 sol_debug_out*/
 yul_debug_out*/
+/corpuses
