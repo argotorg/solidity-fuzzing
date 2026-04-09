@@ -54,5 +54,35 @@ set(EVMHOST_CPP ${CMAKE_SOURCE_DIR}/tools/common/EVMHost.cpp)
 # Path to TestCaseReader.cpp in the solidity submodule
 set(TESTCASEREADER_CPP ${CMAKE_SOURCE_DIR}/solidity/test/TestCaseReader.cpp)
 
+# --- Build evmone from submodule (or use user-provided path) ---
+# Runners load libevmone.so at runtime via dlopen. We build evmone as an
+# external project and bake its lib directory into the runners' RPATH so
+# LD_LIBRARY_PATH is not needed.
+if (NOT EVMONE_LIB_DIR)
+    if (EXISTS "${CMAKE_SOURCE_DIR}/evmone/CMakeLists.txt")
+        include(ExternalProject)
+        set(EVMONE_BUILD_DIR "${CMAKE_BINARY_DIR}/evmone-build")
+        ExternalProject_Add(evmone_external
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}/evmone"
+            BINARY_DIR "${EVMONE_BUILD_DIR}"
+            CMAKE_ARGS
+                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
+                -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                -DEVMONE_TESTING=OFF
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS "${EVMONE_BUILD_DIR}/lib/libevmone.so"
+        )
+        set(EVMONE_LIB_DIR "${EVMONE_BUILD_DIR}/lib")
+        set(EVMONE_TARGET evmone_external)
+    else()
+        message(WARNING "evmone submodule not found and EVMONE_LIB_DIR not set. "
+            "Runners will not find libevmone.so at runtime. "
+            "Run: git submodule update --init evmone")
+    endif()
+endif()
+
 # --- All tools (runners, AFL fuzzers, OSS-Fuzz targets, stack shuffler) ---
 add_subdirectory(tools)

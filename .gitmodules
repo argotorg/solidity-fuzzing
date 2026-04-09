@@ -2,3 +2,6 @@
 	path = solidity
 	url = https://github.com/argotorg/solidity.git
 	branch = develop
+[submodule "evmone"]
+	path = evmone
+	url = https://github.com/ipsilon/evmone.git
