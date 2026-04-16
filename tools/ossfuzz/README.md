@@ -42,11 +42,59 @@ done
 | `const_opt_ossfuzz` | `const_opt_ossfuzz.cpp` | Constant optimizer |
 | `solc_ossfuzz` | `solc_ossfuzz.cpp` | Solidity compiler |
 | `solc_mutator_ossfuzz` | `solc_ossfuzz.cpp` + custom mutator | Solidity compiler |
+| `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` + `shufflerProto.proto` | SSA stack shuffler (protobuf-mutator generates inputs; harness replays emitted ops and checks admissibility independently). "Stack too deep" assertions are silenced pending shuffler improvements — define `FUZZER_MODE_STACK_TOO_DEEP_IS_BUG` to treat them as crashes. |
 
 
 `solidity.dict` contains Solidity-specific syntactical tokens that are more
 likely to guide the fuzzer towards generating parseable and varied Solidity
 input.
+
+## Debugging stack-shuffler crashes with `stackshuffler`
+
+`shuffler_proto_ossfuzz` finds crashes in the SSA stack shuffler. Each crash
+artifact is a raw protobuf — to inspect it by eye, or to feed it to the
+standalone `stackshuffler` CLI, dump it to the `.stack` file format first:
+
+```bash
+# 1. Build the standalone shuffler (from a normal, non-ossfuzz build):
+mkdir -p build && cd build && cmake .. && make -j$(nproc) stackshuffler && cd ..
+
+# 2. Dump the crash input to a .stack file. The fuzzer recognises
+#    PROTO_FUZZER_DUMP_PATH: when set, it writes the converted shuffler input
+#    (initial, targetStackTop, targetStackTailSet, targetStackSize) to that
+#    path, then proceeds with the same run that originally crashed.
+PROTO_FUZZER_DUMP_PATH=bad.stack \
+  ./build_ossfuzz/tools/ossfuzz/shuffler_proto_ossfuzz crash-<hash>
+
+# 3. Reproduce outside the fuzzer with the standalone CLI. --verbose prints
+#    the full trace table (initial stack, every emitted op, final row).
+./build/tools/shuffler-fuzzer/stackshuffler --verbose bad.stack
+```
+
+Example `bad.stack`:
+
+```
+initial: [v0, JUNK]
+targetStackTop: []
+targetStackTailSet: {lit10}
+targetStackSize: 1
+```
+
+Exit code `1` + `Status: MaxIterationsReached` means the shuffler gave up; exit
+code `0` + `Status: Admissible` means it converged. Note that only a subset of
+shuffler bugs surface in the standalone tool — the fuzzer also checks an
+independent replay oracle (see `shufflerProtoFuzzer.cpp`) that the standalone
+CLI does not run.
+
+### Stack-too-deep suppression
+
+The fuzzer currently silences exceptions whose message contains "stack too
+deep" (case-insensitive) — those cases are honest shuffler give-ups, not bugs,
+until the shuffler learns to handle them. To flip this off and treat every
+shuffler-thrown assertion as a crash, add
+`-DFUZZER_MODE_STACK_TOO_DEEP_IS_BUG` to `shuffler_proto_ossfuzz` in
+`tools/ossfuzz/CMakeLists.txt` (mirroring the pattern used by
+`yul_proto_ossfuzz_evmone_ssacfg` etc.) and rebuild.
 
 ## Debugging solidity issues with `sol_debug_runner`
 
