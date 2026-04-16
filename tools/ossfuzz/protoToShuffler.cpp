@@ -54,28 +54,31 @@ StackSlot protoSlotToStackSlot(ProtoSlot const& _slot)
 	return StackSlot::makeJunk();
 }
 
-/// A V or PHI slot can only appear in target_top / tail_set if it's present on
-/// the initial stack — the shuffler cannot synthesise SSA values. Literals and
-/// junk are freely generatable, so they're always OK.
-bool isAvailable(StackSlot const& _slot, std::unordered_set<std::uint64_t> const& _initialValueKeys)
-{
-	if (_slot.isJunk())
-		return true;
-	if (!_slot.isValueID())
-		return true;
-	ValueId const vid = _slot.valueID();
-	if (vid.kind() == ValueId::Kind::Literal)
-		return true;
-	std::uint64_t const key =
-		(static_cast<std::uint64_t>(static_cast<std::uint8_t>(vid.kind())) << 32) |
-		static_cast<std::uint64_t>(vid.value());
-	return _initialValueKeys.contains(key);
-}
-
 std::uint64_t valueKey(ValueId const& _vid)
 {
 	return (static_cast<std::uint64_t>(static_cast<std::uint8_t>(_vid.kind())) << 32) |
 		static_cast<std::uint64_t>(_vid.value());
+}
+
+/// Does this slot either appear on the initial stack, or is it a JUNK
+/// placeholder?
+///
+/// Strictly speaking the shuffler's precondition check also accepts anything
+/// for which canBeFreelyGenerated() holds (literals, junk,
+/// FunctionCallReturnLabel). But in practice the shuffler does not know how to
+/// *push* a literal to satisfy a liveness-only demand — fixTailSlot only DUPs
+/// existing slots or pushes JUNK, so a literal that appears only in tail_set
+/// (or a literal in target_top combined with a non-empty tail_set that forces
+/// it out of reach) loops forever. Until the shuffler grows that capability
+/// we require every non-JUNK slot referenced in target_top or tail_set to be
+/// physically present on the initial stack.
+bool isOnInitialOrJunk(StackSlot const& _slot, std::unordered_set<std::uint64_t> const& _initialValueKeys)
+{
+	if (_slot.isJunk())
+		return true;
+	if (!_slot.isValueID())
+		return false; // we don't generate other slot kinds from proto
+	return _initialValueKeys.contains(valueKey(_slot.valueID()));
 }
 
 } // anonymous namespace
@@ -96,21 +99,17 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 			out.initial.push_back(protoSlotToStackSlot(_input.initial(static_cast<int>(i))));
 	}
 
-	// Build a fast lookup of V/PHI values present on the initial stack.
-	// (Literals and junk are freely generatable so we don't need to track them.)
+	// Build a fast lookup of every value id (Variable/Phi/Literal) present on
+	// the initial stack. Anything not in this set, and not JUNK, is off-limits
+	// for target_top / tail_set — see isOnInitialOrJunk() for the reasoning.
 	std::unordered_set<std::uint64_t> initialValueKeys;
 	initialValueKeys.reserve(out.initial.size());
 	for (auto const& slot: out.initial)
 		if (slot.isValueID())
-		{
-			ValueId const vid = slot.valueID();
-			if (vid.kind() == ValueId::Kind::Variable || vid.kind() == ValueId::Kind::Phi)
-				initialValueKeys.insert(valueKey(vid));
-		}
+			initialValueKeys.insert(valueKey(slot.valueID()));
 
 	// --- 2. target top ---
-	// Cap size, then replace unavailable V/PHI slots with JUNK so the shuffler
-	// precondition "every arg is on stack or freely generatable" holds.
+	// Cap size, then replace unavailable slots with JUNK.
 	{
 		std::size_t const n = std::min<std::size_t>(
 			static_cast<std::size_t>(_input.target_top_size()),
@@ -120,7 +119,7 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 		for (std::size_t i = 0; i < n; ++i)
 		{
 			StackSlot slot = protoSlotToStackSlot(_input.target_top(static_cast<int>(i)));
-			if (!isAvailable(slot, initialValueKeys))
+			if (!isOnInitialOrJunk(slot, initialValueKeys))
 				slot = StackSlot::makeJunk();
 			out.targetTop.push_back(slot);
 		}
@@ -129,7 +128,7 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 	// --- 3. tail set (liveness) ---
 	// Rules:
 	//   * No JUNK (parseLiveness in the upstream test harness asserts this).
-	//   * Value ids only — V/PHI must be on the initial stack; Literals are OK.
+	//   * Every value id must be on the initial stack (see isOnInitialOrJunk).
 	//   * Deduplicate by value id.
 	LivenessAnalysis::LivenessData::LiveCounts liveCounts;
 	{
@@ -142,8 +141,8 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 			if (!slot.isValueID())
 				continue; // drop JUNK
 			ValueId const vid = slot.valueID();
-			if (!isAvailable(slot, initialValueKeys))
-				continue; // drop V/PHI not on initial stack
+			if (!isOnInitialOrJunk(slot, initialValueKeys))
+				continue; // drop slots not physically on the initial stack
 			std::uint64_t const key = valueKey(vid);
 			if (!seen.insert(key).second)
 				continue; // dedupe
