@@ -42,7 +42,7 @@ done
 | `const_opt_ossfuzz` | `const_opt_ossfuzz.cpp` | Constant optimizer |
 | `solc_ossfuzz` | `solc_ossfuzz.cpp` | Solidity compiler |
 | `solc_mutator_ossfuzz` | `solc_ossfuzz.cpp` + custom mutator | Solidity compiler |
-| `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` + `shufflerProto.proto` | SSA stack shuffler (protobuf-mutator generates inputs; harness replays emitted ops and checks admissibility independently). "Stack too deep" assertions are silenced pending shuffler improvements — define `FUZZER_MODE_STACK_TOO_DEEP_IS_BUG` to treat them as crashes. |
+| `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` | SSA stack shuffler |
 
 
 `solidity.dict` contains Solidity-specific syntactical tokens that are more
