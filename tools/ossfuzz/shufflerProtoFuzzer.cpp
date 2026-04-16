@@ -226,21 +226,6 @@ std::string toStackFileFormat(ConvertedInput const& _t)
 	return out.str();
 }
 
-/// Returns true if the exception's comment contains "stack too deep"
-/// (case-insensitive). Used to silence honest shuffler give-ups that aren't
-/// yet expected to be handled.
-bool isStackTooDeep(util::Exception const& _e)
-{
-	std::string const* comment = _e.comment();
-	if (!comment)
-		return false;
-	std::string lc;
-	lc.reserve(comment->size());
-	for (char c: *comment)
-		lc.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-	return lc.find("stack too deep") != std::string::npos;
-}
-
 } // anonymous namespace
 
 DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
@@ -272,24 +257,28 @@ DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
 	RecordingCallbacks callbacks{&ops};
 	RecStack stack(stackData, callbacks);
 
-	try
+	// Internal yulAssert trips propagate as exceptions to libfuzzer — real bugs.
+	auto const shuffleResult = StackShuffler<RecordingCallbacks>::shuffle(
+		stack,
+		converted.targetTop,
+		converted.targetTail,
+		converted.targetStackSize
+	);
+
+	switch (shuffleResult.status)
 	{
-		StackShuffler<RecordingCallbacks>::shuffle(
-			stack,
-			converted.targetTop,
-			converted.targetTail,
-			converted.targetStackSize
-		);
-	}
-	catch (util::Exception const& e)
-	{
+	case StackShufflerResult::Status::Admissible:
+		break;
+	case StackShufflerResult::Status::StackTooDeep:
 #ifdef FUZZER_MODE_STACK_TOO_DEEP_IS_BUG
-		throw; // every shuffler-thrown assertion is a bug
+		solAssert(false, "Shuffler returned StackTooDeep");
 #else
-		if (isStackTooDeep(e))
-			return; // honest give-up: ignore for now
-		throw; // MaxIterations / "reached final and forbidden state" / etc.
+		return; // honest give-up: ignore for now
 #endif
+	case StackShufflerResult::Status::MaxIterationsReached:
+		solAssert(false, "Shuffler hit MaxIterationsReached");
+	case StackShufflerResult::Status::Continue:
+		solAssert(false, "Unexpected Continue status from shuffle()");
 	}
 
 	// --- Oracle 1: replay the emitted opcodes and check we end up where the

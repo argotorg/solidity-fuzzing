@@ -126,41 +126,41 @@ Allowed options)",
 
 		auto stackData = *testConfig.initial;
 		std::ostringstream traceOutput;
-		bool maxIterationsReached = false;
-
+		StackShufflerResult shuffleResult;
 		{
 			TraceRecorder trace(traceOutput, *testConfig.targetStackTop, testConfig.targetStackTailSet, *testConfig.targetStackSize);
 			trace.record("(initial)", *testConfig.initial);
 			StackManipulationCallbacks callbacks;
 			callbacks.hook = [&](std::string const& op){ trace.record(op, stackData); };
 			TestStack stack(stackData, std::move(callbacks));
-			try
-			{
-				StackShuffler<StackManipulationCallbacks>::shuffle(
-					stack,
-					*testConfig.targetStackTop,
-					testConfig.targetStackTailSet,
-					*testConfig.targetStackSize
-				);
-			}
-			catch (...)
-			{
-				maxIterationsReached = true;
-			}
+			shuffleResult = StackShuffler<StackManipulationCallbacks>::shuffle(
+				stack,
+				*testConfig.targetStackTop,
+				testConfig.targetStackTailSet,
+				*testConfig.targetStackSize
+			);
 			// TraceRecorder destructor fires here, writing the trace table to traceOutput
 		}
 
 		if (verbose)
 			std::cout << traceOutput.str();
 
-		if (maxIterationsReached)
+		switch (shuffleResult.status)
 		{
+		case StackShufflerResult::Status::Admissible:
+			std::cout << "Status: Admissible" << std::endl;
+			return 0;
+		case StackShufflerResult::Status::StackTooDeep:
+			std::cout << fmt::format("Status: StackTooDeep (culprit: {})", slotToString(shuffleResult.culprit)) << std::endl;
+			return 1;
+		case StackShufflerResult::Status::MaxIterationsReached:
 			std::cout << "Status: MaxIterationsReached" << std::endl;
 			return 1;
+		case StackShufflerResult::Status::Continue:
+			std::cerr << "Error: Unexpected Continue status from shuffle()" << std::endl;
+			return 2;
 		}
-
-		std::cout << "Status: Admissible" << std::endl;
-		return 0;
+		return 2;
 	}
 	catch (po::error const& _exception)
 	{
