@@ -128,6 +128,9 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 	// --- 3. tail set (liveness) ---
 	// Rules:
 	//   * No JUNK (parseLiveness in the upstream test harness asserts this).
+	//   * No literals: liveness is a property of non-constant values, and
+	//     literals in a tail set don't correspond to anything the shuffler is
+	//     meant to preserve.
 	//   * Every value id must be on the initial stack (see isOnInitialOrJunk).
 	//   * Deduplicate by value id.
 	LivenessAnalysis::LivenessData::LiveCounts liveCounts;
@@ -141,6 +144,8 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 			if (!slot.isValueID())
 				continue; // drop JUNK
 			ValueId const vid = slot.valueID();
+			if (vid.isLiteral())
+				continue; // drop literals
 			if (!isOnInitialOrJunk(slot, initialValueKeys))
 				continue; // drop slots not physically on the initial stack
 			std::uint64_t const key = valueKey(vid);
