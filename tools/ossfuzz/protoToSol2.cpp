@@ -2414,24 +2414,36 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 	}
 	case Expression::kConcat:
 	{
-		// bytes.concat() or string.concat() — hash result to uint256
+		// bytes.concat() or string.concat() — hash result to uint256.
+		// Named-arg form is always invalid (these builtins are variadic
+		// with no parameter names) but exercises #16617.
 		auto const& cc = _e.concat();
 		unsigned numArgs = std::min(static_cast<unsigned>(cc.args_size()), 3u);
+		bool named = cc.has_use_named_args() && cc.use_named_args();
 		std::ostringstream args;
 		if (numArgs == 0)
-			args << (cc.kind() == ConcatExpr::STRING_CONCAT ? "\"\"" : "bytes(\"\")");
+		{
+			if (named)
+				args << "{}";
+			else
+				args << (cc.kind() == ConcatExpr::STRING_CONCAT ? "\"\"" : "bytes(\"\")");
+		}
 		else
 		{
+			if (named) args << "{";
 			for (unsigned i = 0; i < numArgs; i++)
 			{
 				if (i > 0) args << ", ";
 				std::string inner = visitUintExpr(cc.args(i));
-				if (cc.kind() == ConcatExpr::STRING_CONCAT)
-					// Convert uint to a deterministic string
-					args << "string(abi.encode(" << inner << "))";
+				std::string val = (cc.kind() == ConcatExpr::STRING_CONCAT)
+					? "string(abi.encode(" + inner + "))"
+					: "abi.encode(" + inner + ")";
+				if (named)
+					args << "a" << i << ": " << val;
 				else
-					args << "abi.encode(" << inner << ")";
+					args << val;
 			}
+			if (named) args << "}";
 		}
 		if (cc.kind() == ConcatExpr::BYTES_CONCAT)
 			result = "uint256(keccak256(bytes.concat(" + args.str() + ")))";

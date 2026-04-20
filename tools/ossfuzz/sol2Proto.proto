@@ -420,6 +420,11 @@ message ConcatExpr {
 	}
 	required Kind kind = 1;
 	repeated Expression args = 2;
+	// When true, emit arguments in named-arg form (`{a0: x, a1: y}`).
+	// `string.concat` / `bytes.concat` have no named parameters, so this
+	// always fails type-check — but the named-arg path ICEs in
+	// TypeChecker::typeCheckStringConcatFunction (#16617).
+	optional bool use_named_args = 3;
 }
 
 // this.funcName.selector — 4-byte function selector as uint256
