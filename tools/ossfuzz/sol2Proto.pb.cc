@@ -1114,6 +1114,39 @@ struct StateVarDeclDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 StateVarDeclDefaultTypeInternal _StateVarDecl_default_instance_;
+PROTOBUF_CONSTEXPR UsingForBinding::UsingForBinding(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_._has_bits_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_.function_idx_)*/0u
+  , /*decltype(_impl_.operator_kind_)*/0} {}
+struct UsingForBindingDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR UsingForBindingDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~UsingForBindingDefaultTypeInternal() {}
+  union {
+    UsingForBinding _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 UsingForBindingDefaultTypeInternal _UsingForBinding_default_instance_;
+PROTOBUF_CONSTEXPR UsingForDirective::UsingForDirective(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_._has_bits_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_.bindings_)*/{}
+  , /*decltype(_impl_.target_type_idx_)*/0u
+  , /*decltype(_impl_.is_global_)*/false
+  , /*decltype(_impl_.allow_invalid_external_)*/false
+  , /*decltype(_impl_.allow_self_referential_)*/false} {}
+struct UsingForDirectiveDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR UsingForDirectiveDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~UsingForDirectiveDefaultTypeInternal() {}
+  union {
+    UsingForDirective _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 UsingForDirectiveDefaultTypeInternal _UsingForDirective_default_instance_;
 PROTOBUF_CONSTEXPR ContractDef::ContractDef(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_._has_bits_)*/{}
@@ -1126,6 +1159,7 @@ PROTOBUF_CONSTEXPR ContractDef::ContractDef(
   , /*decltype(_impl_.events_)*/{}
   , /*decltype(_impl_.errors_)*/{}
   , /*decltype(_impl_.modifiers_)*/{}
+  , /*decltype(_impl_.using_for_)*/{}
   , /*decltype(_impl_.constructor_)*/nullptr
   , /*decltype(_impl_.receive_)*/nullptr
   , /*decltype(_impl_.fallback_func_)*/nullptr
@@ -1162,6 +1196,7 @@ PROTOBUF_CONSTEXPR Program::Program(
   , /*decltype(_impl_.free_functions_)*/{}
   , /*decltype(_impl_.optimiser_seq_)*/{}
   , /*decltype(_impl_.optimiser_cleanup_seq_)*/{}
+  , /*decltype(_impl_.file_using_for_)*/{}
   , /*decltype(_impl_.calldata_data_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.create2_salt_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.seed_)*/uint64_t{0u}
@@ -1180,8 +1215,8 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORIT
 }  // namespace sol2protofuzzer
 }  // namespace test
 }  // namespace solidity
-static ::_pb::Metadata file_level_metadata_sol2Proto_2eproto[77];
-static const ::_pb::EnumDescriptor* file_level_enum_descriptors_sol2Proto_2eproto[19];
+static ::_pb::Metadata file_level_metadata_sol2Proto_2eproto[79];
+static const ::_pb::EnumDescriptor* file_level_enum_descriptors_sol2Proto_2eproto[20];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_sol2Proto_2eproto = nullptr;
 
 const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
@@ -1960,6 +1995,32 @@ const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABL
   1,
   2,
   3,
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForBinding, _impl_._has_bits_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForBinding, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForBinding, _impl_.function_idx_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForBinding, _impl_.operator_kind_),
+  0,
+  1,
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_._has_bits_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_.target_type_idx_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_.bindings_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_.is_global_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_.allow_invalid_external_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::UsingForDirective, _impl_.allow_self_referential_),
+  0,
+  ~0u,
+  1,
+  2,
+  3,
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _impl_._has_bits_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -1978,6 +2039,7 @@ const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABL
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _impl_.modifiers_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _impl_.receive_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _impl_.fallback_func_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ContractDef, _impl_.using_for_),
   3,
   ~0u,
   ~0u,
@@ -1990,6 +2052,7 @@ const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABL
   ~0u,
   1,
   2,
+  ~0u,
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FreeFunctionDef, _impl_._has_bits_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FreeFunctionDef, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -2016,6 +2079,7 @@ const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABL
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::Program, _impl_.gen_udvt_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::Program, _impl_.optimiser_seq_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::Program, _impl_.optimiser_cleanup_seq_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::Program, _impl_.file_using_for_),
   ~0u,
   2,
   3,
@@ -2024,6 +2088,7 @@ const uint32_t TableStruct_sol2Proto_2eproto::offsets[] PROTOBUF_SECTION_VARIABL
   1,
   ~0u,
   5,
+  ~0u,
   ~0u,
   ~0u,
 };
@@ -2102,9 +2167,11 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 727, 741, -1, sizeof(::solidity::test::sol2protofuzzer::FunctionDef)},
   { 749, 758, -1, sizeof(::solidity::test::sol2protofuzzer::ConstructorDef)},
   { 761, 771, -1, sizeof(::solidity::test::sol2protofuzzer::StateVarDecl)},
-  { 775, 793, -1, sizeof(::solidity::test::sol2protofuzzer::ContractDef)},
-  { 805, 813, -1, sizeof(::solidity::test::sol2protofuzzer::FreeFunctionDef)},
-  { 815, 831, -1, sizeof(::solidity::test::sol2protofuzzer::Program)},
+  { 775, 783, -1, sizeof(::solidity::test::sol2protofuzzer::UsingForBinding)},
+  { 785, 796, -1, sizeof(::solidity::test::sol2protofuzzer::UsingForDirective)},
+  { 801, 820, -1, sizeof(::solidity::test::sol2protofuzzer::ContractDef)},
+  { 833, 841, -1, sizeof(::solidity::test::sol2protofuzzer::FreeFunctionDef)},
+  { 843, 860, -1, sizeof(::solidity::test::sol2protofuzzer::Program)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -2182,6 +2249,8 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::solidity::test::sol2protofuzzer::_FunctionDef_default_instance_._instance,
   &::solidity::test::sol2protofuzzer::_ConstructorDef_default_instance_._instance,
   &::solidity::test::sol2protofuzzer::_StateVarDecl_default_instance_._instance,
+  &::solidity::test::sol2protofuzzer::_UsingForBinding_default_instance_._instance,
+  &::solidity::test::sol2protofuzzer::_UsingForDirective_default_instance_._instance,
   &::solidity::test::sol2protofuzzer::_ContractDef_default_instance_._instance,
   &::solidity::test::sol2protofuzzer::_FreeFunctionDef_default_instance_._instance,
   &::solidity::test::sol2protofuzzer::_Program_default_instance_._instance,
@@ -2510,47 +2579,65 @@ const char descriptor_table_protodef_sol2Proto_2eproto[] PROTOBUF_SECTION_VARIAB
   "5\n\004type\030\001 \002(\0132\'.solidity.test.sol2protof"
   "uzzer.TypeName\022\024\n\014is_transient\030\005 \001(\010\022\023\n\013"
   "is_constant\030\006 \001(\010\022\024\n\014is_immutable\030\007 \001(\010J"
-  "\004\010\002\020\003J\004\010\003\020\004J\004\010\004\020\005\"\344\005\n\013ContractDef\022=\n\004kin"
-  "d\030\001 \002(\0162/.solidity.test.sol2protofuzzer."
-  "ContractDef.Kind\022\r\n\005bases\030\002 \003(\r\0229\n\007struc"
-  "ts\030\003 \003(\0132(.solidity.test.sol2protofuzzer"
-  ".StructDef\0225\n\005enums\030\004 \003(\0132&.solidity.tes"
-  "t.sol2protofuzzer.EnumDef\022\?\n\nstate_vars\030"
-  "\005 \003(\0132+.solidity.test.sol2protofuzzer.St"
-  "ateVarDecl\022=\n\tfunctions\030\006 \003(\0132*.solidity"
-  ".test.sol2protofuzzer.FunctionDef\0227\n\006eve"
-  "nts\030\007 \003(\0132\'.solidity.test.sol2protofuzze"
-  "r.EventDef\0227\n\006errors\030\010 \003(\0132\'.solidity.te"
-  "st.sol2protofuzzer.ErrorDef\022B\n\013construct"
-  "or\030\t \001(\0132-.solidity.test.sol2protofuzzer"
-  ".ConstructorDef\022=\n\tmodifiers\030\n \003(\0132*.sol"
-  "idity.test.sol2protofuzzer.ModifierDef\022:"
-  "\n\007receive\030\013 \001(\0132).solidity.test.sol2prot"
-  "ofuzzer.ReceiveDef\022A\n\rfallback_func\030\014 \001("
-  "\0132*.solidity.test.sol2protofuzzer.Fallba"
-  "ckDef\"!\n\004Kind\022\014\n\010CONTRACT\020\000\022\013\n\007LIBRARY\020\001"
-  "\"Y\n\017FreeFunctionDef\022\022\n\nnum_params\030\001 \002(\r\022"
-  "2\n\004body\030\002 \002(\0132$.solidity.test.sol2protof"
-  "uzzer.Block\"\265\002\n\007Program\022=\n\tcontracts\030\001 \003"
-  "(\0132*.solidity.test.sol2protofuzzer.Contr"
-  "actDef\022\014\n\004seed\030\002 \002(\004\022\016\n\006via_ir\030\003 \002(\010\022\020\n\010"
-  "optimize\030\004 \002(\010\022\025\n\rcalldata_data\030\005 \001(\014\022\024\n"
-  "\014create2_salt\030\006 \001(\014\022F\n\016free_functions\030\007 "
-  "\003(\0132..solidity.test.sol2protofuzzer.Free"
-  "FunctionDef\022\020\n\010gen_udvt\030\n \001(\010\022\025\n\roptimis"
-  "er_seq\030\010 \003(\r\022\035\n\025optimiser_cleanup_seq\030\t "
-  "\003(\r*A\n\nVisibility\022\n\n\006PUBLIC\020\000\022\014\n\010EXTERNA"
-  "L\020\001\022\014\n\010INTERNAL\020\002\022\013\n\007PRIVATE\020\003*B\n\017StateM"
-  "utability\022\010\n\004PURE\020\000\022\010\n\004VIEW\020\001\022\013\n\007PAYABLE"
-  "\020\002\022\016\n\nNONPAYABLE\020\003*T\n\tParamType\022\021\n\rPARAM"
-  "_UINT256\020\000\022\016\n\nPARAM_BOOL\020\001\022\021\n\rPARAM_ADDR"
-  "ESS\020\002\022\021\n\rPARAM_BYTES32\020\003"
+  "\004\010\002\020\003J\004\010\003\020\004J\004\010\004\020\005\"\355\002\n\017UsingForBinding\022\024\n"
+  "\014function_idx\030\001 \002(\r\022R\n\roperator_kind\030\002 \001"
+  "(\0162;.solidity.test.sol2protofuzzer.Using"
+  "ForBinding.OperatorKind\"\357\001\n\014OperatorKind"
+  "\022\013\n\007OP_NONE\020\000\022\n\n\006OP_ADD\020\001\022\n\n\006OP_SUB\020\002\022\n\n"
+  "\006OP_MUL\020\003\022\n\n\006OP_DIV\020\004\022\n\n\006OP_MOD\020\005\022\t\n\005OP_"
+  "EQ\020\006\022\n\n\006OP_NEQ\020\007\022\t\n\005OP_LT\020\010\022\t\n\005OP_GT\020\t\022\n"
+  "\n\006OP_LTE\020\n\022\n\n\006OP_GTE\020\013\022\016\n\nOP_BIT_AND\020\014\022\r"
+  "\n\tOP_BIT_OR\020\r\022\016\n\nOP_BIT_XOR\020\016\022\016\n\nOP_BIT_"
+  "NOT\020\017\022\022\n\016OP_UNARY_MINUS\020\020\"\301\001\n\021UsingForDi"
+  "rective\022\027\n\017target_type_idx\030\001 \002(\r\022@\n\010bind"
+  "ings\030\002 \003(\0132..solidity.test.sol2protofuzz"
+  "er.UsingForBinding\022\021\n\tis_global\030\003 \001(\010\022\036\n"
+  "\026allow_invalid_external\030\004 \001(\010\022\036\n\026allow_s"
+  "elf_referential\030\005 \001(\010\"\251\006\n\013ContractDef\022=\n"
+  "\004kind\030\001 \002(\0162/.solidity.test.sol2protofuz"
+  "zer.ContractDef.Kind\022\r\n\005bases\030\002 \003(\r\0229\n\007s"
+  "tructs\030\003 \003(\0132(.solidity.test.sol2protofu"
+  "zzer.StructDef\0225\n\005enums\030\004 \003(\0132&.solidity"
+  ".test.sol2protofuzzer.EnumDef\022\?\n\nstate_v"
+  "ars\030\005 \003(\0132+.solidity.test.sol2protofuzze"
+  "r.StateVarDecl\022=\n\tfunctions\030\006 \003(\0132*.soli"
+  "dity.test.sol2protofuzzer.FunctionDef\0227\n"
+  "\006events\030\007 \003(\0132\'.solidity.test.sol2protof"
+  "uzzer.EventDef\0227\n\006errors\030\010 \003(\0132\'.solidit"
+  "y.test.sol2protofuzzer.ErrorDef\022B\n\013const"
+  "ructor\030\t \001(\0132-.solidity.test.sol2protofu"
+  "zzer.ConstructorDef\022=\n\tmodifiers\030\n \003(\0132*"
+  ".solidity.test.sol2protofuzzer.ModifierD"
+  "ef\022:\n\007receive\030\013 \001(\0132).solidity.test.sol2"
+  "protofuzzer.ReceiveDef\022A\n\rfallback_func\030"
+  "\014 \001(\0132*.solidity.test.sol2protofuzzer.Fa"
+  "llbackDef\022C\n\tusing_for\030\r \003(\01320.solidity."
+  "test.sol2protofuzzer.UsingForDirective\"!"
+  "\n\004Kind\022\014\n\010CONTRACT\020\000\022\013\n\007LIBRARY\020\001\"Y\n\017Fre"
+  "eFunctionDef\022\022\n\nnum_params\030\001 \002(\r\0222\n\004body"
+  "\030\002 \002(\0132$.solidity.test.sol2protofuzzer.B"
+  "lock\"\377\002\n\007Program\022=\n\tcontracts\030\001 \003(\0132*.so"
+  "lidity.test.sol2protofuzzer.ContractDef\022"
+  "\014\n\004seed\030\002 \002(\004\022\016\n\006via_ir\030\003 \002(\010\022\020\n\010optimiz"
+  "e\030\004 \002(\010\022\025\n\rcalldata_data\030\005 \001(\014\022\024\n\014create"
+  "2_salt\030\006 \001(\014\022F\n\016free_functions\030\007 \003(\0132..s"
+  "olidity.test.sol2protofuzzer.FreeFunctio"
+  "nDef\022\020\n\010gen_udvt\030\n \001(\010\022\025\n\roptimiser_seq\030"
+  "\010 \003(\r\022\035\n\025optimiser_cleanup_seq\030\t \003(\r\022H\n\016"
+  "file_using_for\030\013 \003(\01320.solidity.test.sol"
+  "2protofuzzer.UsingForDirective*A\n\nVisibi"
+  "lity\022\n\n\006PUBLIC\020\000\022\014\n\010EXTERNAL\020\001\022\014\n\010INTERN"
+  "AL\020\002\022\013\n\007PRIVATE\020\003*B\n\017StateMutability\022\010\n\004"
+  "PURE\020\000\022\010\n\004VIEW\020\001\022\013\n\007PAYABLE\020\002\022\016\n\nNONPAYA"
+  "BLE\020\003*T\n\tParamType\022\021\n\rPARAM_UINT256\020\000\022\016\n"
+  "\nPARAM_BOOL\020\001\022\021\n\rPARAM_ADDRESS\020\002\022\021\n\rPARA"
+  "M_BYTES32\020\003"
   ;
 static ::_pbi::once_flag descriptor_table_sol2Proto_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_sol2Proto_2eproto = {
-    false, false, 14264, descriptor_table_protodef_sol2Proto_2eproto,
+    false, false, 14971, descriptor_table_protodef_sol2Proto_2eproto,
     "sol2Proto.proto",
-    &descriptor_table_sol2Proto_2eproto_once, nullptr, 0, 77,
+    &descriptor_table_sol2Proto_2eproto_once, nullptr, 0, 79,
     schemas, file_default_instances, TableStruct_sol2Proto_2eproto::offsets,
     file_level_metadata_sol2Proto_2eproto, file_level_enum_descriptors_sol2Proto_2eproto,
     file_level_service_descriptors_sol2Proto_2eproto,
@@ -3093,9 +3180,60 @@ constexpr ConcatExpr_Kind ConcatExpr::Kind_MIN;
 constexpr ConcatExpr_Kind ConcatExpr::Kind_MAX;
 constexpr int ConcatExpr::Kind_ARRAYSIZE;
 #endif  // (__cplusplus < 201703) && (!defined(_MSC_VER) || (_MSC_VER >= 1900 && _MSC_VER < 1912))
-const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* ContractDef_Kind_descriptor() {
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* UsingForBinding_OperatorKind_descriptor() {
   ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_sol2Proto_2eproto);
   return file_level_enum_descriptors_sol2Proto_2eproto[15];
+}
+bool UsingForBinding_OperatorKind_IsValid(int value) {
+  switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+      return true;
+    default:
+      return false;
+  }
+}
+
+#if (__cplusplus < 201703) && (!defined(_MSC_VER) || (_MSC_VER >= 1900 && _MSC_VER < 1912))
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_NONE;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_ADD;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_SUB;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_MUL;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_DIV;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_MOD;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_EQ;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_NEQ;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_LT;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_GT;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_LTE;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_GTE;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_BIT_AND;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_BIT_OR;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_BIT_XOR;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_BIT_NOT;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OP_UNARY_MINUS;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OperatorKind_MIN;
+constexpr UsingForBinding_OperatorKind UsingForBinding::OperatorKind_MAX;
+constexpr int UsingForBinding::OperatorKind_ARRAYSIZE;
+#endif  // (__cplusplus < 201703) && (!defined(_MSC_VER) || (_MSC_VER >= 1900 && _MSC_VER < 1912))
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* ContractDef_Kind_descriptor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_sol2Proto_2eproto);
+  return file_level_enum_descriptors_sol2Proto_2eproto[16];
 }
 bool ContractDef_Kind_IsValid(int value) {
   switch (value) {
@@ -3116,7 +3254,7 @@ constexpr int ContractDef::Kind_ARRAYSIZE;
 #endif  // (__cplusplus < 201703) && (!defined(_MSC_VER) || (_MSC_VER >= 1900 && _MSC_VER < 1912))
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* Visibility_descriptor() {
   ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_sol2Proto_2eproto);
-  return file_level_enum_descriptors_sol2Proto_2eproto[16];
+  return file_level_enum_descriptors_sol2Proto_2eproto[17];
 }
 bool Visibility_IsValid(int value) {
   switch (value) {
@@ -3132,7 +3270,7 @@ bool Visibility_IsValid(int value) {
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* StateMutability_descriptor() {
   ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_sol2Proto_2eproto);
-  return file_level_enum_descriptors_sol2Proto_2eproto[17];
+  return file_level_enum_descriptors_sol2Proto_2eproto[18];
 }
 bool StateMutability_IsValid(int value) {
   switch (value) {
@@ -3148,7 +3286,7 @@ bool StateMutability_IsValid(int value) {
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* ParamType_descriptor() {
   ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_sol2Proto_2eproto);
-  return file_level_enum_descriptors_sol2Proto_2eproto[18];
+  return file_level_enum_descriptors_sol2Proto_2eproto[19];
 }
 bool ParamType_IsValid(int value) {
   switch (value) {
@@ -24994,6 +25132,582 @@ void StateVarDecl::InternalSwap(StateVarDecl* other) {
 
 // ===================================================================
 
+class UsingForBinding::_Internal {
+ public:
+  using HasBits = decltype(std::declval<UsingForBinding>()._impl_._has_bits_);
+  static void set_has_function_idx(HasBits* has_bits) {
+    (*has_bits)[0] |= 1u;
+  }
+  static void set_has_operator_kind(HasBits* has_bits) {
+    (*has_bits)[0] |= 2u;
+  }
+  static bool MissingRequiredFields(const HasBits& has_bits) {
+    return ((has_bits[0] & 0x00000001) ^ 0x00000001) != 0;
+  }
+};
+
+UsingForBinding::UsingForBinding(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:solidity.test.sol2protofuzzer.UsingForBinding)
+}
+UsingForBinding::UsingForBinding(const UsingForBinding& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  UsingForBinding* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){from._impl_._has_bits_}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.function_idx_){}
+    , decltype(_impl_.operator_kind_){}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::memcpy(&_impl_.function_idx_, &from._impl_.function_idx_,
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.operator_kind_) -
+    reinterpret_cast<char*>(&_impl_.function_idx_)) + sizeof(_impl_.operator_kind_));
+  // @@protoc_insertion_point(copy_constructor:solidity.test.sol2protofuzzer.UsingForBinding)
+}
+
+inline void UsingForBinding::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.function_idx_){0u}
+    , decltype(_impl_.operator_kind_){0}
+  };
+}
+
+UsingForBinding::~UsingForBinding() {
+  // @@protoc_insertion_point(destructor:solidity.test.sol2protofuzzer.UsingForBinding)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void UsingForBinding::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+}
+
+void UsingForBinding::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void UsingForBinding::Clear() {
+// @@protoc_insertion_point(message_clear_start:solidity.test.sol2protofuzzer.UsingForBinding)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000003u) {
+    ::memset(&_impl_.function_idx_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&_impl_.operator_kind_) -
+        reinterpret_cast<char*>(&_impl_.function_idx_)) + sizeof(_impl_.operator_kind_));
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* UsingForBinding::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  _Internal::HasBits has_bits{};
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // required uint32 function_idx = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 8)) {
+          _Internal::set_has_function_idx(&has_bits);
+          _impl_.function_idx_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional .solidity.test.sol2protofuzzer.UsingForBinding.OperatorKind operator_kind = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
+          uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+          if (PROTOBUF_PREDICT_TRUE(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind_IsValid(val))) {
+            _internal_set_operator_kind(static_cast<::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind>(val));
+          } else {
+            ::PROTOBUF_NAMESPACE_ID::internal::WriteVarint(2, val, mutable_unknown_fields());
+          }
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  _impl_._has_bits_.Or(has_bits);
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* UsingForBinding::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:solidity.test.sol2protofuzzer.UsingForBinding)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  // required uint32 function_idx = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(1, this->_internal_function_idx(), target);
+  }
+
+  // optional .solidity.test.sol2protofuzzer.UsingForBinding.OperatorKind operator_kind = 2;
+  if (cached_has_bits & 0x00000002u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteEnumToArray(
+      2, this->_internal_operator_kind(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:solidity.test.sol2protofuzzer.UsingForBinding)
+  return target;
+}
+
+size_t UsingForBinding::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:solidity.test.sol2protofuzzer.UsingForBinding)
+  size_t total_size = 0;
+
+  // required uint32 function_idx = 1;
+  if (_internal_has_function_idx()) {
+    total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_function_idx());
+  }
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // optional .solidity.test.sol2protofuzzer.UsingForBinding.OperatorKind operator_kind = 2;
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000002u) {
+    total_size += 1 +
+      ::_pbi::WireFormatLite::EnumSize(this->_internal_operator_kind());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData UsingForBinding::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    UsingForBinding::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*UsingForBinding::GetClassData() const { return &_class_data_; }
+
+
+void UsingForBinding::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<UsingForBinding*>(&to_msg);
+  auto& from = static_cast<const UsingForBinding&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:solidity.test.sol2protofuzzer.UsingForBinding)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000003u) {
+    if (cached_has_bits & 0x00000001u) {
+      _this->_impl_.function_idx_ = from._impl_.function_idx_;
+    }
+    if (cached_has_bits & 0x00000002u) {
+      _this->_impl_.operator_kind_ = from._impl_.operator_kind_;
+    }
+    _this->_impl_._has_bits_[0] |= cached_has_bits;
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void UsingForBinding::CopyFrom(const UsingForBinding& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:solidity.test.sol2protofuzzer.UsingForBinding)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool UsingForBinding::IsInitialized() const {
+  if (_Internal::MissingRequiredFields(_impl_._has_bits_)) return false;
+  return true;
+}
+
+void UsingForBinding::InternalSwap(UsingForBinding* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(UsingForBinding, _impl_.operator_kind_)
+      + sizeof(UsingForBinding::_impl_.operator_kind_)
+      - PROTOBUF_FIELD_OFFSET(UsingForBinding, _impl_.function_idx_)>(
+          reinterpret_cast<char*>(&_impl_.function_idx_),
+          reinterpret_cast<char*>(&other->_impl_.function_idx_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata UsingForBinding::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_sol2Proto_2eproto_getter, &descriptor_table_sol2Proto_2eproto_once,
+      file_level_metadata_sol2Proto_2eproto[74]);
+}
+
+// ===================================================================
+
+class UsingForDirective::_Internal {
+ public:
+  using HasBits = decltype(std::declval<UsingForDirective>()._impl_._has_bits_);
+  static void set_has_target_type_idx(HasBits* has_bits) {
+    (*has_bits)[0] |= 1u;
+  }
+  static void set_has_is_global(HasBits* has_bits) {
+    (*has_bits)[0] |= 2u;
+  }
+  static void set_has_allow_invalid_external(HasBits* has_bits) {
+    (*has_bits)[0] |= 4u;
+  }
+  static void set_has_allow_self_referential(HasBits* has_bits) {
+    (*has_bits)[0] |= 8u;
+  }
+  static bool MissingRequiredFields(const HasBits& has_bits) {
+    return ((has_bits[0] & 0x00000001) ^ 0x00000001) != 0;
+  }
+};
+
+UsingForDirective::UsingForDirective(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:solidity.test.sol2protofuzzer.UsingForDirective)
+}
+UsingForDirective::UsingForDirective(const UsingForDirective& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  UsingForDirective* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){from._impl_._has_bits_}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.bindings_){from._impl_.bindings_}
+    , decltype(_impl_.target_type_idx_){}
+    , decltype(_impl_.is_global_){}
+    , decltype(_impl_.allow_invalid_external_){}
+    , decltype(_impl_.allow_self_referential_){}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::memcpy(&_impl_.target_type_idx_, &from._impl_.target_type_idx_,
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.allow_self_referential_) -
+    reinterpret_cast<char*>(&_impl_.target_type_idx_)) + sizeof(_impl_.allow_self_referential_));
+  // @@protoc_insertion_point(copy_constructor:solidity.test.sol2protofuzzer.UsingForDirective)
+}
+
+inline void UsingForDirective::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.bindings_){arena}
+    , decltype(_impl_.target_type_idx_){0u}
+    , decltype(_impl_.is_global_){false}
+    , decltype(_impl_.allow_invalid_external_){false}
+    , decltype(_impl_.allow_self_referential_){false}
+  };
+}
+
+UsingForDirective::~UsingForDirective() {
+  // @@protoc_insertion_point(destructor:solidity.test.sol2protofuzzer.UsingForDirective)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void UsingForDirective::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.bindings_.~RepeatedPtrField();
+}
+
+void UsingForDirective::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void UsingForDirective::Clear() {
+// @@protoc_insertion_point(message_clear_start:solidity.test.sol2protofuzzer.UsingForDirective)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.bindings_.Clear();
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x0000000fu) {
+    ::memset(&_impl_.target_type_idx_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&_impl_.allow_self_referential_) -
+        reinterpret_cast<char*>(&_impl_.target_type_idx_)) + sizeof(_impl_.allow_self_referential_));
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* UsingForDirective::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  _Internal::HasBits has_bits{};
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // required uint32 target_type_idx = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 8)) {
+          _Internal::set_has_target_type_idx(&has_bits);
+          _impl_.target_type_idx_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // repeated .solidity.test.sol2protofuzzer.UsingForBinding bindings = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_bindings(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
+        } else
+          goto handle_unusual;
+        continue;
+      // optional bool is_global = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 24)) {
+          _Internal::set_has_is_global(&has_bits);
+          _impl_.is_global_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional bool allow_invalid_external = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 32)) {
+          _Internal::set_has_allow_invalid_external(&has_bits);
+          _impl_.allow_invalid_external_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional bool allow_self_referential = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 40)) {
+          _Internal::set_has_allow_self_referential(&has_bits);
+          _impl_.allow_self_referential_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  _impl_._has_bits_.Or(has_bits);
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* UsingForDirective::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:solidity.test.sol2protofuzzer.UsingForDirective)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  // required uint32 target_type_idx = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(1, this->_internal_target_type_idx(), target);
+  }
+
+  // repeated .solidity.test.sol2protofuzzer.UsingForBinding bindings = 2;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_bindings_size()); i < n; i++) {
+    const auto& repfield = this->_internal_bindings(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(2, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
+  // optional bool is_global = 3;
+  if (cached_has_bits & 0x00000002u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteBoolToArray(3, this->_internal_is_global(), target);
+  }
+
+  // optional bool allow_invalid_external = 4;
+  if (cached_has_bits & 0x00000004u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteBoolToArray(4, this->_internal_allow_invalid_external(), target);
+  }
+
+  // optional bool allow_self_referential = 5;
+  if (cached_has_bits & 0x00000008u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteBoolToArray(5, this->_internal_allow_self_referential(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:solidity.test.sol2protofuzzer.UsingForDirective)
+  return target;
+}
+
+size_t UsingForDirective::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:solidity.test.sol2protofuzzer.UsingForDirective)
+  size_t total_size = 0;
+
+  // required uint32 target_type_idx = 1;
+  if (_internal_has_target_type_idx()) {
+    total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_target_type_idx());
+  }
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .solidity.test.sol2protofuzzer.UsingForBinding bindings = 2;
+  total_size += 1UL * this->_internal_bindings_size();
+  for (const auto& msg : this->_impl_.bindings_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x0000000eu) {
+    // optional bool is_global = 3;
+    if (cached_has_bits & 0x00000002u) {
+      total_size += 1 + 1;
+    }
+
+    // optional bool allow_invalid_external = 4;
+    if (cached_has_bits & 0x00000004u) {
+      total_size += 1 + 1;
+    }
+
+    // optional bool allow_self_referential = 5;
+    if (cached_has_bits & 0x00000008u) {
+      total_size += 1 + 1;
+    }
+
+  }
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData UsingForDirective::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    UsingForDirective::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*UsingForDirective::GetClassData() const { return &_class_data_; }
+
+
+void UsingForDirective::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<UsingForDirective*>(&to_msg);
+  auto& from = static_cast<const UsingForDirective&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:solidity.test.sol2protofuzzer.UsingForDirective)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_impl_.bindings_.MergeFrom(from._impl_.bindings_);
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x0000000fu) {
+    if (cached_has_bits & 0x00000001u) {
+      _this->_impl_.target_type_idx_ = from._impl_.target_type_idx_;
+    }
+    if (cached_has_bits & 0x00000002u) {
+      _this->_impl_.is_global_ = from._impl_.is_global_;
+    }
+    if (cached_has_bits & 0x00000004u) {
+      _this->_impl_.allow_invalid_external_ = from._impl_.allow_invalid_external_;
+    }
+    if (cached_has_bits & 0x00000008u) {
+      _this->_impl_.allow_self_referential_ = from._impl_.allow_self_referential_;
+    }
+    _this->_impl_._has_bits_[0] |= cached_has_bits;
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void UsingForDirective::CopyFrom(const UsingForDirective& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:solidity.test.sol2protofuzzer.UsingForDirective)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool UsingForDirective::IsInitialized() const {
+  if (_Internal::MissingRequiredFields(_impl_._has_bits_)) return false;
+  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(_impl_.bindings_))
+    return false;
+  return true;
+}
+
+void UsingForDirective::InternalSwap(UsingForDirective* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  _impl_.bindings_.InternalSwap(&other->_impl_.bindings_);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(UsingForDirective, _impl_.allow_self_referential_)
+      + sizeof(UsingForDirective::_impl_.allow_self_referential_)
+      - PROTOBUF_FIELD_OFFSET(UsingForDirective, _impl_.target_type_idx_)>(
+          reinterpret_cast<char*>(&_impl_.target_type_idx_),
+          reinterpret_cast<char*>(&other->_impl_.target_type_idx_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata UsingForDirective::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_sol2Proto_2eproto_getter, &descriptor_table_sol2Proto_2eproto_once,
+      file_level_metadata_sol2Proto_2eproto[75]);
+}
+
+// ===================================================================
+
 class ContractDef::_Internal {
  public:
   using HasBits = decltype(std::declval<ContractDef>()._impl_._has_bits_);
@@ -25049,6 +25763,7 @@ ContractDef::ContractDef(const ContractDef& from)
     , decltype(_impl_.events_){from._impl_.events_}
     , decltype(_impl_.errors_){from._impl_.errors_}
     , decltype(_impl_.modifiers_){from._impl_.modifiers_}
+    , decltype(_impl_.using_for_){from._impl_.using_for_}
     , decltype(_impl_.constructor_){nullptr}
     , decltype(_impl_.receive_){nullptr}
     , decltype(_impl_.fallback_func_){nullptr}
@@ -25083,6 +25798,7 @@ inline void ContractDef::SharedCtor(
     , decltype(_impl_.events_){arena}
     , decltype(_impl_.errors_){arena}
     , decltype(_impl_.modifiers_){arena}
+    , decltype(_impl_.using_for_){arena}
     , decltype(_impl_.constructor_){nullptr}
     , decltype(_impl_.receive_){nullptr}
     , decltype(_impl_.fallback_func_){nullptr}
@@ -25109,6 +25825,7 @@ inline void ContractDef::SharedDtor() {
   _impl_.events_.~RepeatedPtrField();
   _impl_.errors_.~RepeatedPtrField();
   _impl_.modifiers_.~RepeatedPtrField();
+  _impl_.using_for_.~RepeatedPtrField();
   if (this != internal_default_instance()) delete _impl_.constructor_;
   if (this != internal_default_instance()) delete _impl_.receive_;
   if (this != internal_default_instance()) delete _impl_.fallback_func_;
@@ -25132,6 +25849,7 @@ void ContractDef::Clear() {
   _impl_.events_.Clear();
   _impl_.errors_.Clear();
   _impl_.modifiers_.Clear();
+  _impl_.using_for_.Clear();
   cached_has_bits = _impl_._has_bits_[0];
   if (cached_has_bits & 0x00000007u) {
     if (cached_has_bits & 0x00000001u) {
@@ -25303,6 +26021,19 @@ const char* ContractDef::_InternalParse(const char* ptr, ::_pbi::ParseContext* c
         } else
           goto handle_unusual;
         continue;
+      // repeated .solidity.test.sol2protofuzzer.UsingForDirective using_for = 13;
+      case 13:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 106)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_using_for(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<106>(ptr));
+        } else
+          goto handle_unusual;
+        continue;
       default:
         goto handle_unusual;
     }  // switch
@@ -25424,6 +26155,14 @@ uint8_t* ContractDef::_InternalSerialize(
         _Internal::fallback_func(this).GetCachedSize(), target, stream);
   }
 
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective using_for = 13;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_using_for_size()); i < n; i++) {
+    const auto& repfield = this->_internal_using_for(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(13, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -25503,6 +26242,13 @@ size_t ContractDef::ByteSizeLong() const {
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
   }
 
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective using_for = 13;
+  total_size += 1UL * this->_internal_using_for_size();
+  for (const auto& msg : this->_impl_.using_for_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
   cached_has_bits = _impl_._has_bits_[0];
   if (cached_has_bits & 0x00000007u) {
     // optional .solidity.test.sol2protofuzzer.ConstructorDef constructor = 9;
@@ -25553,6 +26299,7 @@ void ContractDef::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PR
   _this->_impl_.events_.MergeFrom(from._impl_.events_);
   _this->_impl_.errors_.MergeFrom(from._impl_.errors_);
   _this->_impl_.modifiers_.MergeFrom(from._impl_.modifiers_);
+  _this->_impl_.using_for_.MergeFrom(from._impl_.using_for_);
   cached_has_bits = from._impl_._has_bits_[0];
   if (cached_has_bits & 0x0000000fu) {
     if (cached_has_bits & 0x00000001u) {
@@ -25598,6 +26345,8 @@ bool ContractDef::IsInitialized() const {
     return false;
   if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(_impl_.modifiers_))
     return false;
+  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(_impl_.using_for_))
+    return false;
   if (_internal_has_constructor()) {
     if (!_impl_.constructor_->IsInitialized()) return false;
   }
@@ -25622,6 +26371,7 @@ void ContractDef::InternalSwap(ContractDef* other) {
   _impl_.events_.InternalSwap(&other->_impl_.events_);
   _impl_.errors_.InternalSwap(&other->_impl_.errors_);
   _impl_.modifiers_.InternalSwap(&other->_impl_.modifiers_);
+  _impl_.using_for_.InternalSwap(&other->_impl_.using_for_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
       PROTOBUF_FIELD_OFFSET(ContractDef, _impl_.kind_)
       + sizeof(ContractDef::_impl_.kind_)
@@ -25633,7 +26383,7 @@ void ContractDef::InternalSwap(ContractDef* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ContractDef::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_sol2Proto_2eproto_getter, &descriptor_table_sol2Proto_2eproto_once,
-      file_level_metadata_sol2Proto_2eproto[74]);
+      file_level_metadata_sol2Proto_2eproto[76]);
 }
 
 // ===================================================================
@@ -25902,7 +26652,7 @@ void FreeFunctionDef::InternalSwap(FreeFunctionDef* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata FreeFunctionDef::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_sol2Proto_2eproto_getter, &descriptor_table_sol2Proto_2eproto_once,
-      file_level_metadata_sol2Proto_2eproto[75]);
+      file_level_metadata_sol2Proto_2eproto[77]);
 }
 
 // ===================================================================
@@ -25949,6 +26699,7 @@ Program::Program(const Program& from)
     , decltype(_impl_.free_functions_){from._impl_.free_functions_}
     , decltype(_impl_.optimiser_seq_){from._impl_.optimiser_seq_}
     , decltype(_impl_.optimiser_cleanup_seq_){from._impl_.optimiser_cleanup_seq_}
+    , decltype(_impl_.file_using_for_){from._impl_.file_using_for_}
     , decltype(_impl_.calldata_data_){}
     , decltype(_impl_.create2_salt_){}
     , decltype(_impl_.seed_){}
@@ -25990,6 +26741,7 @@ inline void Program::SharedCtor(
     , decltype(_impl_.free_functions_){arena}
     , decltype(_impl_.optimiser_seq_){arena}
     , decltype(_impl_.optimiser_cleanup_seq_){arena}
+    , decltype(_impl_.file_using_for_){arena}
     , decltype(_impl_.calldata_data_){}
     , decltype(_impl_.create2_salt_){}
     , decltype(_impl_.seed_){uint64_t{0u}}
@@ -26022,6 +26774,7 @@ inline void Program::SharedDtor() {
   _impl_.free_functions_.~RepeatedPtrField();
   _impl_.optimiser_seq_.~RepeatedField();
   _impl_.optimiser_cleanup_seq_.~RepeatedField();
+  _impl_.file_using_for_.~RepeatedPtrField();
   _impl_.calldata_data_.Destroy();
   _impl_.create2_salt_.Destroy();
 }
@@ -26040,6 +26793,7 @@ void Program::Clear() {
   _impl_.free_functions_.Clear();
   _impl_.optimiser_seq_.Clear();
   _impl_.optimiser_cleanup_seq_.Clear();
+  _impl_.file_using_for_.Clear();
   cached_has_bits = _impl_._has_bits_[0];
   if (cached_has_bits & 0x00000003u) {
     if (cached_has_bits & 0x00000001u) {
@@ -26177,6 +26931,19 @@ const char* Program::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) 
         } else
           goto handle_unusual;
         continue;
+      // repeated .solidity.test.sol2protofuzzer.UsingForDirective file_using_for = 11;
+      case 11:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 90)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_file_using_for(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<90>(ptr));
+        } else
+          goto handle_unusual;
+        continue;
       default:
         goto handle_unusual;
     }  // switch
@@ -26272,6 +27039,14 @@ uint8_t* Program::_InternalSerialize(
     target = ::_pbi::WireFormatLite::WriteBoolToArray(10, this->_internal_gen_udvt(), target);
   }
 
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective file_using_for = 11;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_file_using_for_size()); i < n; i++) {
+    const auto& repfield = this->_internal_file_using_for(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(11, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -26354,6 +27129,13 @@ size_t Program::ByteSizeLong() const {
     total_size += data_size;
   }
 
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective file_using_for = 11;
+  total_size += 1UL * this->_internal_file_using_for_size();
+  for (const auto& msg : this->_impl_.file_using_for_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
   cached_has_bits = _impl_._has_bits_[0];
   if (cached_has_bits & 0x00000003u) {
     // optional bytes calldata_data = 5;
@@ -26398,6 +27180,7 @@ void Program::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOB
   _this->_impl_.free_functions_.MergeFrom(from._impl_.free_functions_);
   _this->_impl_.optimiser_seq_.MergeFrom(from._impl_.optimiser_seq_);
   _this->_impl_.optimiser_cleanup_seq_.MergeFrom(from._impl_.optimiser_cleanup_seq_);
+  _this->_impl_.file_using_for_.MergeFrom(from._impl_.file_using_for_);
   cached_has_bits = from._impl_._has_bits_[0];
   if (cached_has_bits & 0x0000003fu) {
     if (cached_has_bits & 0x00000001u) {
@@ -26436,6 +27219,8 @@ bool Program::IsInitialized() const {
     return false;
   if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(_impl_.free_functions_))
     return false;
+  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(_impl_.file_using_for_))
+    return false;
   return true;
 }
 
@@ -26449,6 +27234,7 @@ void Program::InternalSwap(Program* other) {
   _impl_.free_functions_.InternalSwap(&other->_impl_.free_functions_);
   _impl_.optimiser_seq_.InternalSwap(&other->_impl_.optimiser_seq_);
   _impl_.optimiser_cleanup_seq_.InternalSwap(&other->_impl_.optimiser_cleanup_seq_);
+  _impl_.file_using_for_.InternalSwap(&other->_impl_.file_using_for_);
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
       &_impl_.calldata_data_, lhs_arena,
       &other->_impl_.calldata_data_, rhs_arena
@@ -26468,7 +27254,7 @@ void Program::InternalSwap(Program* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Program::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_sol2Proto_2eproto_getter, &descriptor_table_sol2Proto_2eproto_once,
-      file_level_metadata_sol2Proto_2eproto[76]);
+      file_level_metadata_sol2Proto_2eproto[78]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -26771,6 +27557,14 @@ Arena::CreateMaybeMessage< ::solidity::test::sol2protofuzzer::ConstructorDef >(A
 template<> PROTOBUF_NOINLINE ::solidity::test::sol2protofuzzer::StateVarDecl*
 Arena::CreateMaybeMessage< ::solidity::test::sol2protofuzzer::StateVarDecl >(Arena* arena) {
   return Arena::CreateMessageInternal< ::solidity::test::sol2protofuzzer::StateVarDecl >(arena);
+}
+template<> PROTOBUF_NOINLINE ::solidity::test::sol2protofuzzer::UsingForBinding*
+Arena::CreateMaybeMessage< ::solidity::test::sol2protofuzzer::UsingForBinding >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::solidity::test::sol2protofuzzer::UsingForBinding >(arena);
+}
+template<> PROTOBUF_NOINLINE ::solidity::test::sol2protofuzzer::UsingForDirective*
+Arena::CreateMaybeMessage< ::solidity::test::sol2protofuzzer::UsingForDirective >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::solidity::test::sol2protofuzzer::UsingForDirective >(arena);
 }
 template<> PROTOBUF_NOINLINE ::solidity::test::sol2protofuzzer::ContractDef*
 Arena::CreateMaybeMessage< ::solidity::test::sol2protofuzzer::ContractDef >(Arena* arena) {

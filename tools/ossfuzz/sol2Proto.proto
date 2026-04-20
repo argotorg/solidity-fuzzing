@@ -739,6 +739,56 @@ message StateVarDecl {
 	optional bool is_immutable = 7;
 }
 
+// A single `funcName` or `funcName as <op>` entry inside a using-for
+// directive. Deliberately permits combinations that the type checker should
+// reject (e.g. binding a zero-param function as a binary operator): the
+// point is to exercise the `using for` analysis path that has ICE'd on
+// frontend fuzzing inputs (see #16613, #16616, #16620).
+message UsingForBinding {
+	// Index into the program's free-function list (mod size).
+	required uint32 function_idx = 1;
+	// When OP_NONE, bind as method. Otherwise bind as operator.
+	enum OperatorKind {
+		OP_NONE = 0;
+		OP_ADD = 1;
+		OP_SUB = 2;
+		OP_MUL = 3;
+		OP_DIV = 4;
+		OP_MOD = 5;
+		OP_EQ = 6;
+		OP_NEQ = 7;
+		OP_LT = 8;
+		OP_GT = 9;
+		OP_LTE = 10;
+		OP_GTE = 11;
+		OP_BIT_AND = 12;
+		OP_BIT_OR = 13;
+		OP_BIT_XOR = 14;
+		OP_BIT_NOT = 15;        // unary
+		OP_UNARY_MINUS = 16;    // unary
+	}
+	optional OperatorKind operator_kind = 2;
+}
+
+// One using-for directive: `using {f1, f2 as +} for T [global];`. Attached
+// both at file scope (Program.file_using_for) and at contract scope
+// (ContractDef.using_for). The grammar intentionally allows nonsense —
+// targets that are not UDVTs, duplicate operator bindings, operators bound
+// to zero-param functions, etc. — because those are the shapes that trip
+// the frontend asserts.
+message UsingForDirective {
+	// Mod-indexed selector over the target-type table in the converter
+	// ({uint256, bytes32, address, bool, MyUint-if-UDVT}).
+	required uint32 target_type_idx = 1;
+	repeated UsingForBinding bindings = 2;
+	// File-level only: emit the `global` keyword at the end.
+	optional bool is_global = 3;
+	// Reserved: unlocks once §9 (external free functions) lands.
+	optional bool allow_invalid_external = 4;
+	// Reserved: unlocks recursive/self-referential binding patterns.
+	optional bool allow_self_referential = 5;
+}
+
 // ======================= CONTRACTS =======================
 
 message ContractDef {
@@ -759,6 +809,8 @@ message ContractDef {
 	repeated ModifierDef modifiers = 10;
 	optional ReceiveDef receive = 11;
 	optional FallbackDef fallback_func = 12;
+	// Contract-scope using-for directives; see UsingForDirective.
+	repeated UsingForDirective using_for = 13;
 }
 
 // Free function: file-level, implicitly internal, always pure
@@ -790,6 +842,8 @@ message Program {
 	repeated uint32 optimiser_seq = 8;
 	// Custom Yul optimizer cleanup step sequence.
 	repeated uint32 optimiser_cleanup_seq = 9;
+	// File-level using-for directives; see UsingForDirective.
+	repeated UsingForDirective file_using_for = 11;
 }
 
 package solidity.test.sol2protofuzzer;

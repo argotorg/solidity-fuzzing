@@ -271,6 +271,12 @@ extern UnaryOpDefaultTypeInternal _UnaryOp_default_instance_;
 class UncheckedBlock;
 struct UncheckedBlockDefaultTypeInternal;
 extern UncheckedBlockDefaultTypeInternal _UncheckedBlock_default_instance_;
+class UsingForBinding;
+struct UsingForBindingDefaultTypeInternal;
+extern UsingForBindingDefaultTypeInternal _UsingForBinding_default_instance_;
+class UsingForDirective;
+struct UsingForDirectiveDefaultTypeInternal;
+extern UsingForDirectiveDefaultTypeInternal _UsingForDirective_default_instance_;
 class VarDeclStmt;
 struct VarDeclStmtDefaultTypeInternal;
 extern VarDeclStmtDefaultTypeInternal _VarDeclStmt_default_instance_;
@@ -358,6 +364,8 @@ template<> ::solidity::test::sol2protofuzzer::TypeName* Arena::CreateMaybeMessag
 template<> ::solidity::test::sol2protofuzzer::UdvtExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::UdvtExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::UnaryOp* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::UnaryOp>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::UncheckedBlock* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::UncheckedBlock>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::UsingForBinding* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::UsingForBinding>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::UsingForDirective* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::UsingForDirective>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::VarDeclStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::VarDeclStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::VarRef* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::VarRef>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::WhileStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::WhileStmt>(Arena*);
@@ -817,6 +825,44 @@ inline bool ConcatExpr_Kind_Parse(
     ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, ConcatExpr_Kind* value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<ConcatExpr_Kind>(
     ConcatExpr_Kind_descriptor(), name, value);
+}
+enum UsingForBinding_OperatorKind : int {
+  UsingForBinding_OperatorKind_OP_NONE = 0,
+  UsingForBinding_OperatorKind_OP_ADD = 1,
+  UsingForBinding_OperatorKind_OP_SUB = 2,
+  UsingForBinding_OperatorKind_OP_MUL = 3,
+  UsingForBinding_OperatorKind_OP_DIV = 4,
+  UsingForBinding_OperatorKind_OP_MOD = 5,
+  UsingForBinding_OperatorKind_OP_EQ = 6,
+  UsingForBinding_OperatorKind_OP_NEQ = 7,
+  UsingForBinding_OperatorKind_OP_LT = 8,
+  UsingForBinding_OperatorKind_OP_GT = 9,
+  UsingForBinding_OperatorKind_OP_LTE = 10,
+  UsingForBinding_OperatorKind_OP_GTE = 11,
+  UsingForBinding_OperatorKind_OP_BIT_AND = 12,
+  UsingForBinding_OperatorKind_OP_BIT_OR = 13,
+  UsingForBinding_OperatorKind_OP_BIT_XOR = 14,
+  UsingForBinding_OperatorKind_OP_BIT_NOT = 15,
+  UsingForBinding_OperatorKind_OP_UNARY_MINUS = 16
+};
+bool UsingForBinding_OperatorKind_IsValid(int value);
+constexpr UsingForBinding_OperatorKind UsingForBinding_OperatorKind_OperatorKind_MIN = UsingForBinding_OperatorKind_OP_NONE;
+constexpr UsingForBinding_OperatorKind UsingForBinding_OperatorKind_OperatorKind_MAX = UsingForBinding_OperatorKind_OP_UNARY_MINUS;
+constexpr int UsingForBinding_OperatorKind_OperatorKind_ARRAYSIZE = UsingForBinding_OperatorKind_OperatorKind_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* UsingForBinding_OperatorKind_descriptor();
+template<typename T>
+inline const std::string& UsingForBinding_OperatorKind_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, UsingForBinding_OperatorKind>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function UsingForBinding_OperatorKind_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    UsingForBinding_OperatorKind_descriptor(), enum_t_value);
+}
+inline bool UsingForBinding_OperatorKind_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, UsingForBinding_OperatorKind* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<UsingForBinding_OperatorKind>(
+    UsingForBinding_OperatorKind_descriptor(), name, value);
 }
 enum ContractDef_Kind : int {
   ContractDef_Kind_CONTRACT = 0,
@@ -16129,6 +16175,466 @@ class StateVarDecl final :
 };
 // -------------------------------------------------------------------
 
+class UsingForBinding final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.UsingForBinding) */ {
+ public:
+  inline UsingForBinding() : UsingForBinding(nullptr) {}
+  ~UsingForBinding() override;
+  explicit PROTOBUF_CONSTEXPR UsingForBinding(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  UsingForBinding(const UsingForBinding& from);
+  UsingForBinding(UsingForBinding&& from) noexcept
+    : UsingForBinding() {
+    *this = ::std::move(from);
+  }
+
+  inline UsingForBinding& operator=(const UsingForBinding& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline UsingForBinding& operator=(UsingForBinding&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const UsingForBinding& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const UsingForBinding* internal_default_instance() {
+    return reinterpret_cast<const UsingForBinding*>(
+               &_UsingForBinding_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    74;
+
+  friend void swap(UsingForBinding& a, UsingForBinding& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(UsingForBinding* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(UsingForBinding* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  UsingForBinding* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<UsingForBinding>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const UsingForBinding& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const UsingForBinding& from) {
+    UsingForBinding::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(UsingForBinding* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.UsingForBinding";
+  }
+  protected:
+  explicit UsingForBinding(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  typedef UsingForBinding_OperatorKind OperatorKind;
+  static constexpr OperatorKind OP_NONE =
+    UsingForBinding_OperatorKind_OP_NONE;
+  static constexpr OperatorKind OP_ADD =
+    UsingForBinding_OperatorKind_OP_ADD;
+  static constexpr OperatorKind OP_SUB =
+    UsingForBinding_OperatorKind_OP_SUB;
+  static constexpr OperatorKind OP_MUL =
+    UsingForBinding_OperatorKind_OP_MUL;
+  static constexpr OperatorKind OP_DIV =
+    UsingForBinding_OperatorKind_OP_DIV;
+  static constexpr OperatorKind OP_MOD =
+    UsingForBinding_OperatorKind_OP_MOD;
+  static constexpr OperatorKind OP_EQ =
+    UsingForBinding_OperatorKind_OP_EQ;
+  static constexpr OperatorKind OP_NEQ =
+    UsingForBinding_OperatorKind_OP_NEQ;
+  static constexpr OperatorKind OP_LT =
+    UsingForBinding_OperatorKind_OP_LT;
+  static constexpr OperatorKind OP_GT =
+    UsingForBinding_OperatorKind_OP_GT;
+  static constexpr OperatorKind OP_LTE =
+    UsingForBinding_OperatorKind_OP_LTE;
+  static constexpr OperatorKind OP_GTE =
+    UsingForBinding_OperatorKind_OP_GTE;
+  static constexpr OperatorKind OP_BIT_AND =
+    UsingForBinding_OperatorKind_OP_BIT_AND;
+  static constexpr OperatorKind OP_BIT_OR =
+    UsingForBinding_OperatorKind_OP_BIT_OR;
+  static constexpr OperatorKind OP_BIT_XOR =
+    UsingForBinding_OperatorKind_OP_BIT_XOR;
+  static constexpr OperatorKind OP_BIT_NOT =
+    UsingForBinding_OperatorKind_OP_BIT_NOT;
+  static constexpr OperatorKind OP_UNARY_MINUS =
+    UsingForBinding_OperatorKind_OP_UNARY_MINUS;
+  static inline bool OperatorKind_IsValid(int value) {
+    return UsingForBinding_OperatorKind_IsValid(value);
+  }
+  static constexpr OperatorKind OperatorKind_MIN =
+    UsingForBinding_OperatorKind_OperatorKind_MIN;
+  static constexpr OperatorKind OperatorKind_MAX =
+    UsingForBinding_OperatorKind_OperatorKind_MAX;
+  static constexpr int OperatorKind_ARRAYSIZE =
+    UsingForBinding_OperatorKind_OperatorKind_ARRAYSIZE;
+  static inline const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
+  OperatorKind_descriptor() {
+    return UsingForBinding_OperatorKind_descriptor();
+  }
+  template<typename T>
+  static inline const std::string& OperatorKind_Name(T enum_t_value) {
+    static_assert(::std::is_same<T, OperatorKind>::value ||
+      ::std::is_integral<T>::value,
+      "Incorrect type passed to function OperatorKind_Name.");
+    return UsingForBinding_OperatorKind_Name(enum_t_value);
+  }
+  static inline bool OperatorKind_Parse(::PROTOBUF_NAMESPACE_ID::ConstStringParam name,
+      OperatorKind* value) {
+    return UsingForBinding_OperatorKind_Parse(name, value);
+  }
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kFunctionIdxFieldNumber = 1,
+    kOperatorKindFieldNumber = 2,
+  };
+  // required uint32 function_idx = 1;
+  bool has_function_idx() const;
+  private:
+  bool _internal_has_function_idx() const;
+  public:
+  void clear_function_idx();
+  uint32_t function_idx() const;
+  void set_function_idx(uint32_t value);
+  private:
+  uint32_t _internal_function_idx() const;
+  void _internal_set_function_idx(uint32_t value);
+  public:
+
+  // optional .solidity.test.sol2protofuzzer.UsingForBinding.OperatorKind operator_kind = 2;
+  bool has_operator_kind() const;
+  private:
+  bool _internal_has_operator_kind() const;
+  public:
+  void clear_operator_kind();
+  ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind operator_kind() const;
+  void set_operator_kind(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind value);
+  private:
+  ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind _internal_operator_kind() const;
+  void _internal_set_operator_kind(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.UsingForBinding)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    uint32_t function_idx_;
+    int operator_kind_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class UsingForDirective final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.UsingForDirective) */ {
+ public:
+  inline UsingForDirective() : UsingForDirective(nullptr) {}
+  ~UsingForDirective() override;
+  explicit PROTOBUF_CONSTEXPR UsingForDirective(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  UsingForDirective(const UsingForDirective& from);
+  UsingForDirective(UsingForDirective&& from) noexcept
+    : UsingForDirective() {
+    *this = ::std::move(from);
+  }
+
+  inline UsingForDirective& operator=(const UsingForDirective& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline UsingForDirective& operator=(UsingForDirective&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const UsingForDirective& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const UsingForDirective* internal_default_instance() {
+    return reinterpret_cast<const UsingForDirective*>(
+               &_UsingForDirective_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    75;
+
+  friend void swap(UsingForDirective& a, UsingForDirective& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(UsingForDirective* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(UsingForDirective* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  UsingForDirective* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<UsingForDirective>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const UsingForDirective& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const UsingForDirective& from) {
+    UsingForDirective::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(UsingForDirective* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.UsingForDirective";
+  }
+  protected:
+  explicit UsingForDirective(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kBindingsFieldNumber = 2,
+    kTargetTypeIdxFieldNumber = 1,
+    kIsGlobalFieldNumber = 3,
+    kAllowInvalidExternalFieldNumber = 4,
+    kAllowSelfReferentialFieldNumber = 5,
+  };
+  // repeated .solidity.test.sol2protofuzzer.UsingForBinding bindings = 2;
+  int bindings_size() const;
+  private:
+  int _internal_bindings_size() const;
+  public:
+  void clear_bindings();
+  ::solidity::test::sol2protofuzzer::UsingForBinding* mutable_bindings(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForBinding >*
+      mutable_bindings();
+  private:
+  const ::solidity::test::sol2protofuzzer::UsingForBinding& _internal_bindings(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForBinding* _internal_add_bindings();
+  public:
+  const ::solidity::test::sol2protofuzzer::UsingForBinding& bindings(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForBinding* add_bindings();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForBinding >&
+      bindings() const;
+
+  // required uint32 target_type_idx = 1;
+  bool has_target_type_idx() const;
+  private:
+  bool _internal_has_target_type_idx() const;
+  public:
+  void clear_target_type_idx();
+  uint32_t target_type_idx() const;
+  void set_target_type_idx(uint32_t value);
+  private:
+  uint32_t _internal_target_type_idx() const;
+  void _internal_set_target_type_idx(uint32_t value);
+  public:
+
+  // optional bool is_global = 3;
+  bool has_is_global() const;
+  private:
+  bool _internal_has_is_global() const;
+  public:
+  void clear_is_global();
+  bool is_global() const;
+  void set_is_global(bool value);
+  private:
+  bool _internal_is_global() const;
+  void _internal_set_is_global(bool value);
+  public:
+
+  // optional bool allow_invalid_external = 4;
+  bool has_allow_invalid_external() const;
+  private:
+  bool _internal_has_allow_invalid_external() const;
+  public:
+  void clear_allow_invalid_external();
+  bool allow_invalid_external() const;
+  void set_allow_invalid_external(bool value);
+  private:
+  bool _internal_allow_invalid_external() const;
+  void _internal_set_allow_invalid_external(bool value);
+  public:
+
+  // optional bool allow_self_referential = 5;
+  bool has_allow_self_referential() const;
+  private:
+  bool _internal_has_allow_self_referential() const;
+  public:
+  void clear_allow_self_referential();
+  bool allow_self_referential() const;
+  void set_allow_self_referential(bool value);
+  private:
+  bool _internal_allow_self_referential() const;
+  void _internal_set_allow_self_referential(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.UsingForDirective)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForBinding > bindings_;
+    uint32_t target_type_idx_;
+    bool is_global_;
+    bool allow_invalid_external_;
+    bool allow_self_referential_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
 class ContractDef final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.ContractDef) */ {
  public:
@@ -16184,7 +16690,7 @@ class ContractDef final :
                &_ContractDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    76;
 
   friend void swap(ContractDef& a, ContractDef& b) {
     a.Swap(&b);
@@ -16295,6 +16801,7 @@ class ContractDef final :
     kEventsFieldNumber = 7,
     kErrorsFieldNumber = 8,
     kModifiersFieldNumber = 10,
+    kUsingForFieldNumber = 13,
     kConstructorFieldNumber = 9,
     kReceiveFieldNumber = 11,
     kFallbackFuncFieldNumber = 12,
@@ -16448,6 +16955,24 @@ class ContractDef final :
   const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::ModifierDef >&
       modifiers() const;
 
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective using_for = 13;
+  int using_for_size() const;
+  private:
+  int _internal_using_for_size() const;
+  public:
+  void clear_using_for();
+  ::solidity::test::sol2protofuzzer::UsingForDirective* mutable_using_for(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >*
+      mutable_using_for();
+  private:
+  const ::solidity::test::sol2protofuzzer::UsingForDirective& _internal_using_for(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForDirective* _internal_add_using_for();
+  public:
+  const ::solidity::test::sol2protofuzzer::UsingForDirective& using_for(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForDirective* add_using_for();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >&
+      using_for() const;
+
   // optional .solidity.test.sol2protofuzzer.ConstructorDef constructor = 9;
   bool has_constructor() const;
   private:
@@ -16533,6 +17058,7 @@ class ContractDef final :
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::EventDef > events_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::ErrorDef > errors_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::ModifierDef > modifiers_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective > using_for_;
     ::solidity::test::sol2protofuzzer::ConstructorDef* constructor_;
     ::solidity::test::sol2protofuzzer::ReceiveDef* receive_;
     ::solidity::test::sol2protofuzzer::FallbackDef* fallback_func_;
@@ -16598,7 +17124,7 @@ class FreeFunctionDef final :
                &_FreeFunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    77;
 
   friend void swap(FreeFunctionDef& a, FreeFunctionDef& b) {
     a.Swap(&b);
@@ -16781,7 +17307,7 @@ class Program final :
                &_Program_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    78;
 
   friend void swap(Program& a, Program& b) {
     a.Swap(&b);
@@ -16858,6 +17384,7 @@ class Program final :
     kFreeFunctionsFieldNumber = 7,
     kOptimiserSeqFieldNumber = 8,
     kOptimiserCleanupSeqFieldNumber = 9,
+    kFileUsingForFieldNumber = 11,
     kCalldataDataFieldNumber = 5,
     kCreate2SaltFieldNumber = 6,
     kSeedFieldNumber = 2,
@@ -16944,6 +17471,24 @@ class Program final :
       optimiser_cleanup_seq() const;
   ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint32_t >*
       mutable_optimiser_cleanup_seq();
+
+  // repeated .solidity.test.sol2protofuzzer.UsingForDirective file_using_for = 11;
+  int file_using_for_size() const;
+  private:
+  int _internal_file_using_for_size() const;
+  public:
+  void clear_file_using_for();
+  ::solidity::test::sol2protofuzzer::UsingForDirective* mutable_file_using_for(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >*
+      mutable_file_using_for();
+  private:
+  const ::solidity::test::sol2protofuzzer::UsingForDirective& _internal_file_using_for(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForDirective* _internal_add_file_using_for();
+  public:
+  const ::solidity::test::sol2protofuzzer::UsingForDirective& file_using_for(int index) const;
+  ::solidity::test::sol2protofuzzer::UsingForDirective* add_file_using_for();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >&
+      file_using_for() const;
 
   // optional bytes calldata_data = 5;
   bool has_calldata_data() const;
@@ -17050,6 +17595,7 @@ class Program final :
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::FreeFunctionDef > free_functions_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint32_t > optimiser_seq_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedField< uint32_t > optimiser_cleanup_seq_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective > file_using_for_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr calldata_data_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr create2_salt_;
     uint64_t seed_;
@@ -29491,6 +30037,223 @@ inline void StateVarDecl::set_is_immutable(bool value) {
 
 // -------------------------------------------------------------------
 
+// UsingForBinding
+
+// required uint32 function_idx = 1;
+inline bool UsingForBinding::_internal_has_function_idx() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool UsingForBinding::has_function_idx() const {
+  return _internal_has_function_idx();
+}
+inline void UsingForBinding::clear_function_idx() {
+  _impl_.function_idx_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline uint32_t UsingForBinding::_internal_function_idx() const {
+  return _impl_.function_idx_;
+}
+inline uint32_t UsingForBinding::function_idx() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForBinding.function_idx)
+  return _internal_function_idx();
+}
+inline void UsingForBinding::_internal_set_function_idx(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.function_idx_ = value;
+}
+inline void UsingForBinding::set_function_idx(uint32_t value) {
+  _internal_set_function_idx(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForBinding.function_idx)
+}
+
+// optional .solidity.test.sol2protofuzzer.UsingForBinding.OperatorKind operator_kind = 2;
+inline bool UsingForBinding::_internal_has_operator_kind() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool UsingForBinding::has_operator_kind() const {
+  return _internal_has_operator_kind();
+}
+inline void UsingForBinding::clear_operator_kind() {
+  _impl_.operator_kind_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind UsingForBinding::_internal_operator_kind() const {
+  return static_cast< ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind >(_impl_.operator_kind_);
+}
+inline ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind UsingForBinding::operator_kind() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForBinding.operator_kind)
+  return _internal_operator_kind();
+}
+inline void UsingForBinding::_internal_set_operator_kind(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind value) {
+  assert(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind_IsValid(value));
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.operator_kind_ = value;
+}
+inline void UsingForBinding::set_operator_kind(::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind value) {
+  _internal_set_operator_kind(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForBinding.operator_kind)
+}
+
+// -------------------------------------------------------------------
+
+// UsingForDirective
+
+// required uint32 target_type_idx = 1;
+inline bool UsingForDirective::_internal_has_target_type_idx() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool UsingForDirective::has_target_type_idx() const {
+  return _internal_has_target_type_idx();
+}
+inline void UsingForDirective::clear_target_type_idx() {
+  _impl_.target_type_idx_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline uint32_t UsingForDirective::_internal_target_type_idx() const {
+  return _impl_.target_type_idx_;
+}
+inline uint32_t UsingForDirective::target_type_idx() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForDirective.target_type_idx)
+  return _internal_target_type_idx();
+}
+inline void UsingForDirective::_internal_set_target_type_idx(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.target_type_idx_ = value;
+}
+inline void UsingForDirective::set_target_type_idx(uint32_t value) {
+  _internal_set_target_type_idx(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForDirective.target_type_idx)
+}
+
+// repeated .solidity.test.sol2protofuzzer.UsingForBinding bindings = 2;
+inline int UsingForDirective::_internal_bindings_size() const {
+  return _impl_.bindings_.size();
+}
+inline int UsingForDirective::bindings_size() const {
+  return _internal_bindings_size();
+}
+inline void UsingForDirective::clear_bindings() {
+  _impl_.bindings_.Clear();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForBinding* UsingForDirective::mutable_bindings(int index) {
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.UsingForDirective.bindings)
+  return _impl_.bindings_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForBinding >*
+UsingForDirective::mutable_bindings() {
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.sol2protofuzzer.UsingForDirective.bindings)
+  return &_impl_.bindings_;
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForBinding& UsingForDirective::_internal_bindings(int index) const {
+  return _impl_.bindings_.Get(index);
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForBinding& UsingForDirective::bindings(int index) const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForDirective.bindings)
+  return _internal_bindings(index);
+}
+inline ::solidity::test::sol2protofuzzer::UsingForBinding* UsingForDirective::_internal_add_bindings() {
+  return _impl_.bindings_.Add();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForBinding* UsingForDirective::add_bindings() {
+  ::solidity::test::sol2protofuzzer::UsingForBinding* _add = _internal_add_bindings();
+  // @@protoc_insertion_point(field_add:solidity.test.sol2protofuzzer.UsingForDirective.bindings)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForBinding >&
+UsingForDirective::bindings() const {
+  // @@protoc_insertion_point(field_list:solidity.test.sol2protofuzzer.UsingForDirective.bindings)
+  return _impl_.bindings_;
+}
+
+// optional bool is_global = 3;
+inline bool UsingForDirective::_internal_has_is_global() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool UsingForDirective::has_is_global() const {
+  return _internal_has_is_global();
+}
+inline void UsingForDirective::clear_is_global() {
+  _impl_.is_global_ = false;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline bool UsingForDirective::_internal_is_global() const {
+  return _impl_.is_global_;
+}
+inline bool UsingForDirective::is_global() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForDirective.is_global)
+  return _internal_is_global();
+}
+inline void UsingForDirective::_internal_set_is_global(bool value) {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.is_global_ = value;
+}
+inline void UsingForDirective::set_is_global(bool value) {
+  _internal_set_is_global(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForDirective.is_global)
+}
+
+// optional bool allow_invalid_external = 4;
+inline bool UsingForDirective::_internal_has_allow_invalid_external() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool UsingForDirective::has_allow_invalid_external() const {
+  return _internal_has_allow_invalid_external();
+}
+inline void UsingForDirective::clear_allow_invalid_external() {
+  _impl_.allow_invalid_external_ = false;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline bool UsingForDirective::_internal_allow_invalid_external() const {
+  return _impl_.allow_invalid_external_;
+}
+inline bool UsingForDirective::allow_invalid_external() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForDirective.allow_invalid_external)
+  return _internal_allow_invalid_external();
+}
+inline void UsingForDirective::_internal_set_allow_invalid_external(bool value) {
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.allow_invalid_external_ = value;
+}
+inline void UsingForDirective::set_allow_invalid_external(bool value) {
+  _internal_set_allow_invalid_external(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForDirective.allow_invalid_external)
+}
+
+// optional bool allow_self_referential = 5;
+inline bool UsingForDirective::_internal_has_allow_self_referential() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
+  return value;
+}
+inline bool UsingForDirective::has_allow_self_referential() const {
+  return _internal_has_allow_self_referential();
+}
+inline void UsingForDirective::clear_allow_self_referential() {
+  _impl_.allow_self_referential_ = false;
+  _impl_._has_bits_[0] &= ~0x00000008u;
+}
+inline bool UsingForDirective::_internal_allow_self_referential() const {
+  return _impl_.allow_self_referential_;
+}
+inline bool UsingForDirective::allow_self_referential() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.UsingForDirective.allow_self_referential)
+  return _internal_allow_self_referential();
+}
+inline void UsingForDirective::_internal_set_allow_self_referential(bool value) {
+  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_.allow_self_referential_ = value;
+}
+inline void UsingForDirective::set_allow_self_referential(bool value) {
+  _internal_set_allow_self_referential(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.UsingForDirective.allow_self_referential)
+}
+
+// -------------------------------------------------------------------
+
 // ContractDef
 
 // required .solidity.test.sol2protofuzzer.ContractDef.Kind kind = 1;
@@ -30119,6 +30882,46 @@ inline void ContractDef::set_allocated_fallback_func(::solidity::test::sol2proto
   // @@protoc_insertion_point(field_set_allocated:solidity.test.sol2protofuzzer.ContractDef.fallback_func)
 }
 
+// repeated .solidity.test.sol2protofuzzer.UsingForDirective using_for = 13;
+inline int ContractDef::_internal_using_for_size() const {
+  return _impl_.using_for_.size();
+}
+inline int ContractDef::using_for_size() const {
+  return _internal_using_for_size();
+}
+inline void ContractDef::clear_using_for() {
+  _impl_.using_for_.Clear();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* ContractDef::mutable_using_for(int index) {
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.ContractDef.using_for)
+  return _impl_.using_for_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >*
+ContractDef::mutable_using_for() {
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.sol2protofuzzer.ContractDef.using_for)
+  return &_impl_.using_for_;
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForDirective& ContractDef::_internal_using_for(int index) const {
+  return _impl_.using_for_.Get(index);
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForDirective& ContractDef::using_for(int index) const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.ContractDef.using_for)
+  return _internal_using_for(index);
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* ContractDef::_internal_add_using_for() {
+  return _impl_.using_for_.Add();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* ContractDef::add_using_for() {
+  ::solidity::test::sol2protofuzzer::UsingForDirective* _add = _internal_add_using_for();
+  // @@protoc_insertion_point(field_add:solidity.test.sol2protofuzzer.ContractDef.using_for)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >&
+ContractDef::using_for() const {
+  // @@protoc_insertion_point(field_list:solidity.test.sol2protofuzzer.ContractDef.using_for)
+  return _impl_.using_for_;
+}
+
 // -------------------------------------------------------------------
 
 // FreeFunctionDef
@@ -30667,9 +31470,53 @@ Program::mutable_optimiser_cleanup_seq() {
   return _internal_mutable_optimiser_cleanup_seq();
 }
 
+// repeated .solidity.test.sol2protofuzzer.UsingForDirective file_using_for = 11;
+inline int Program::_internal_file_using_for_size() const {
+  return _impl_.file_using_for_.size();
+}
+inline int Program::file_using_for_size() const {
+  return _internal_file_using_for_size();
+}
+inline void Program::clear_file_using_for() {
+  _impl_.file_using_for_.Clear();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* Program::mutable_file_using_for(int index) {
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Program.file_using_for)
+  return _impl_.file_using_for_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >*
+Program::mutable_file_using_for() {
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.sol2protofuzzer.Program.file_using_for)
+  return &_impl_.file_using_for_;
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForDirective& Program::_internal_file_using_for(int index) const {
+  return _impl_.file_using_for_.Get(index);
+}
+inline const ::solidity::test::sol2protofuzzer::UsingForDirective& Program::file_using_for(int index) const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Program.file_using_for)
+  return _internal_file_using_for(index);
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* Program::_internal_add_file_using_for() {
+  return _impl_.file_using_for_.Add();
+}
+inline ::solidity::test::sol2protofuzzer::UsingForDirective* Program::add_file_using_for() {
+  ::solidity::test::sol2protofuzzer::UsingForDirective* _add = _internal_add_file_using_for();
+  // @@protoc_insertion_point(field_add:solidity.test.sol2protofuzzer.Program.file_using_for)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::UsingForDirective >&
+Program::file_using_for() const {
+  // @@protoc_insertion_point(field_list:solidity.test.sol2protofuzzer.Program.file_using_for)
+  return _impl_.file_using_for_;
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
@@ -30905,6 +31752,11 @@ template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::ConcatExpr_
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::ConcatExpr_Kind>() {
   return ::solidity::test::sol2protofuzzer::ConcatExpr_Kind_descriptor();
+}
+template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind>() {
+  return ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind_descriptor();
 }
 template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::ContractDef_Kind> : ::std::true_type {};
 template <>

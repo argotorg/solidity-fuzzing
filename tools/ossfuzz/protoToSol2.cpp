@@ -203,7 +203,7 @@ std::string ProtoConverter::visit(Program const& _p)
 				svi.isArray = true;
 				svi.isFixedArray = arr.has_length();
 				if (svi.isFixedArray)
-					svi.arrayLength = std::max(1u, arr.length() % 10);
+					svi.arrayLength = arraySizeBucket(arr.length()).second;
 				svi.elementIsUint = isUintType(arr.base());
 			}
 			else if (sv.type().type_oneof_case() == TypeName::kMapping)
@@ -486,6 +486,17 @@ std::string ProtoConverter::visit(Program const& _p)
 		m_inFreeFunction = false;
 	}
 
+	// File-level `using {...} for T [global];` directives. Deliberately
+	// emitted without validation so the frontend's using-for analysis has
+	// to cope with zero-param operator bindings, duplicate bindings, and
+	// wrong-target-type combinations (#16613, #16616).
+	if (_p.file_using_for_size() > 0)
+	{
+		for (int i = 0; i < _p.file_using_for_size(); i++)
+			o << emitUsingFor(_p.file_using_for(i), /*fileLevel*/ true);
+		o << "\n";
+	}
+
 	// Generate contracts
 	for (unsigned i = 0; i < numContracts; i++)
 		o << visitContract(_p.contracts(i), i) << "\n";
@@ -574,6 +585,16 @@ std::string ProtoConverter::visitContract(ContractDef const& _c, unsigned _idx)
 			if (hasCallable)
 				o << "\tusing " << ci.name << " for uint256;\n";
 		}
+	}
+
+	// Proto-driven contract-scope using-for directives. Emitted verbatim
+	// (mod-indexed into the free-function list); the grammar allows
+	// invalid-on-purpose combinations so the frontend analyser is forced
+	// to traverse them.
+	if (!isLibrary)
+	{
+		for (int i = 0; i < _c.using_for_size(); i++)
+			o << emitUsingFor(_c.using_for(i), /*fileLevel*/ false);
 	}
 
 	// State variables (skip for libraries)
@@ -2915,10 +2936,7 @@ std::string ProtoConverter::elementaryTypeStr(TypeName const& _t)
 	{
 		std::string base = elementaryTypeStr(_t.array().base());
 		if (_t.array().has_length())
-		{
-			unsigned len = std::max(1u, _t.array().length() % 10);
-			return base + "[" + std::to_string(len) + "]";
-		}
+			return base + "[" + arraySizeBucket(_t.array().length()).first + "]";
 		return base + "[]";
 	}
 	case TypeName::kMapping:
@@ -2937,6 +2955,25 @@ std::string ProtoConverter::elementaryTypeStr(TypeName const& _t)
 	default:
 		return "uint256";
 	}
+}
+
+std::pair<std::string, unsigned> ProtoConverter::arraySizeBucket(uint32_t _raw)
+{
+	unsigned bucket = _raw % 16;
+	if (bucket < 10)
+	{
+		unsigned n = std::max(1u, _raw % 10);
+		return {std::to_string(n), n};
+	}
+	static char const* const s_bigLiterals[6] = {
+		"134217729",                                                                               // 2^27 + 1 — ABI-encoded size overflow
+		"170141183460469231731687303715884105728",                                                 // 2^127
+		"340282366920938463463374607431768211456",                                                 // 2^128
+		"340282366920938463463374607431768211458",                                                 // 2^128 + 2
+		"1701411834604692317316873037158841057281",
+		"115792089237316195423570985008687907853269984665640564039457584007913129639935",         // 2^256 - 1
+	};
+	return {s_bigLiterals[bucket - 10], 1u};
 }
 
 bool ProtoConverter::isUintType(TypeName const& _t)
@@ -3310,4 +3347,72 @@ std::string ProtoConverter::assignOpStr(AssignExpr::Op _op)
 	case AssignExpr::SHR_ASSIGN: return ">>=";
 	default: return "=";
 	}
+}
+
+std::string ProtoConverter::operatorSymbol(UsingForBinding::OperatorKind _k)
+{
+	switch (_k)
+	{
+	case UsingForBinding::OP_ADD:         return "+";
+	case UsingForBinding::OP_SUB:         return "-";
+	case UsingForBinding::OP_MUL:         return "*";
+	case UsingForBinding::OP_DIV:         return "/";
+	case UsingForBinding::OP_MOD:         return "%";
+	case UsingForBinding::OP_EQ:          return "==";
+	case UsingForBinding::OP_NEQ:         return "!=";
+	case UsingForBinding::OP_LT:          return "<";
+	case UsingForBinding::OP_GT:          return ">";
+	case UsingForBinding::OP_LTE:         return "<=";
+	case UsingForBinding::OP_GTE:         return ">=";
+	case UsingForBinding::OP_BIT_AND:     return "&";
+	case UsingForBinding::OP_BIT_OR:      return "|";
+	case UsingForBinding::OP_BIT_XOR:     return "^";
+	case UsingForBinding::OP_BIT_NOT:     return "~";
+	case UsingForBinding::OP_UNARY_MINUS: return "-";
+	case UsingForBinding::OP_NONE:        return "";
+	}
+	return "";
+}
+
+std::string ProtoConverter::emitUsingFor(UsingForDirective const& _d, bool _fileLevel)
+{
+	// Need at least one free function to name in the binding list, and at
+	// least one binding. Everything else (invalid operator target, arity
+	// mismatches, duplicate operator bindings) is INTENDED — do not filter.
+	if (m_freeFunctions.empty() || _d.bindings_size() == 0)
+		return {};
+
+	// Target-type selector. `uint256` / `bytes32` / `address` / `bool` are
+	// always available; `MyUint` only when the file declared the UDVT.
+	static char const* const s_targets[] = {"uint256", "bytes32", "address", "bool"};
+	unsigned tableSize = m_hasUdvt ? 5 : 4;
+	unsigned pick = _d.target_type_idx() % tableSize;
+	std::string targetType = (pick == 4) ? "MyUint" : s_targets[pick];
+
+	std::ostringstream o;
+	if (!_fileLevel)
+		o << "\t";
+	o << "using {";
+	for (int i = 0; i < _d.bindings_size(); i++)
+	{
+		auto const& b = _d.bindings(i);
+		if (i > 0)
+			o << ", ";
+		unsigned fidx = b.function_idx() % static_cast<unsigned>(m_freeFunctions.size());
+		o << m_freeFunctions[fidx].name;
+		UsingForBinding::OperatorKind kind = b.has_operator_kind()
+			? b.operator_kind()
+			: UsingForBinding::OP_NONE;
+		if (kind != UsingForBinding::OP_NONE)
+		{
+			std::string sym = operatorSymbol(kind);
+			if (!sym.empty())
+				o << " as " << sym;
+		}
+	}
+	o << "} for " << targetType;
+	if (_fileLevel && _d.has_is_global() && _d.is_global())
+		o << " global";
+	o << ";\n";
+	return o.str();
 }

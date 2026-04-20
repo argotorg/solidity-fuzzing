@@ -190,6 +190,15 @@ private:
 	std::string visitUintExpr(Expression const& _e);
 	std::string visitBoolExpr(Expression const& _e);
 
+	// ===== Using-for directive emission =====
+	/// Emit one `using {...} for T [global];` directive. `_fileLevel` drives
+	/// whether the `global` keyword is permitted. Returns empty when the
+	/// directive has no usable bindings (no free functions / zero bindings).
+	std::string emitUsingFor(UsingForDirective const& _d, bool _fileLevel);
+	/// Map a proto operator-kind enum to its Solidity symbol (e.g. `+`, `==`).
+	/// Returns empty for OP_NONE.
+	static std::string operatorSymbol(UsingForBinding::OperatorKind _k);
+
 	// ===== Test contract =====
 	std::string generateTestContract();
 
@@ -198,6 +207,14 @@ private:
 	std::string elementaryTypeStr(TypeName const& _t);
 	bool isUintType(TypeName const& _t);
 	bool isUintType(ElementaryType const& _t);
+	/// Maps a raw proto `length` value to (declared-size literal, safe runtime
+	/// modulus). Bucket 0..9 → small sizes 1..9. Bucket 10..15 → oversized
+	/// decimal literals near 2^27, 2^127, 2^128, 2^256-1 — chosen to probe the
+	/// size-overflow paths in `StorageOffsets::computeOffsets`,
+	/// `ArrayType::storageSize`, and `ArrayType::calldataEncodedSize`. In the
+	/// oversized buckets the safe modulus is 1 so any runtime access stays
+	/// in-bounds regardless of declared size.
+	static std::pair<std::string, unsigned> arraySizeBucket(uint32_t _raw);
 
 	// ===== Scope management =====
 	void pushScope();
