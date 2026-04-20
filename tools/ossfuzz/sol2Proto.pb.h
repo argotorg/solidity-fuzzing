@@ -76,6 +76,9 @@ extern ArrayTypeDefaultTypeInternal _ArrayType_default_instance_;
 class AssignExpr;
 struct AssignExprDefaultTypeInternal;
 extern AssignExprDefaultTypeInternal _AssignExpr_default_instance_;
+class BareMagicStmt;
+struct BareMagicStmtDefaultTypeInternal;
+extern BareMagicStmtDefaultTypeInternal _BareMagicStmt_default_instance_;
 class BinaryOp;
 struct BinaryOpDefaultTypeInternal;
 extern BinaryOpDefaultTypeInternal _BinaryOp_default_instance_;
@@ -226,12 +229,18 @@ extern StatementDefaultTypeInternal _Statement_default_instance_;
 class StringLiteral;
 struct StringLiteralDefaultTypeInternal;
 extern StringLiteralDefaultTypeInternal _StringLiteral_default_instance_;
+class StructArrayField;
+struct StructArrayFieldDefaultTypeInternal;
+extern StructArrayFieldDefaultTypeInternal _StructArrayField_default_instance_;
 class StructDef;
 struct StructDefDefaultTypeInternal;
 extern StructDefDefaultTypeInternal _StructDef_default_instance_;
 class StructField;
 struct StructFieldDefaultTypeInternal;
 extern StructFieldDefaultTypeInternal _StructField_default_instance_;
+class StructFunctionField;
+struct StructFunctionFieldDefaultTypeInternal;
+extern StructFunctionFieldDefaultTypeInternal _StructFunctionField_default_instance_;
 class StructMemberAccess;
 struct StructMemberAccessDefaultTypeInternal;
 extern StructMemberAccessDefaultTypeInternal _StructMemberAccess_default_instance_;
@@ -299,6 +308,7 @@ template<> ::solidity::test::sol2protofuzzer::ArrayPopStmt* Arena::CreateMaybeMe
 template<> ::solidity::test::sol2protofuzzer::ArrayPushStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayPushStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ArrayType* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayType>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::AssignExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AssignExpr>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::BareMagicStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::BareMagicStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::BinaryOp* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::BinaryOp>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::Block* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::Block>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::BlockExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::BlockExpr>(Arena*);
@@ -349,8 +359,10 @@ template<> ::solidity::test::sol2protofuzzer::SelfdestructStmt* Arena::CreateMay
 template<> ::solidity::test::sol2protofuzzer::StateVarDecl* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StateVarDecl>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::Statement* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::Statement>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StringLiteral* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StringLiteral>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::StructArrayField* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructArrayField>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructDef* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructDef>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructField* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructField>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::StructFunctionField* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructFunctionField>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructMemberAccess* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructMemberAccess>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::SuperCallExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::SuperCallExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::TernaryOp* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::TernaryOp>(Arena*);
@@ -825,6 +837,33 @@ inline bool ConcatExpr_Kind_Parse(
     ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, ConcatExpr_Kind* value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<ConcatExpr_Kind>(
     ConcatExpr_Kind_descriptor(), name, value);
+}
+enum BareMagicStmt_Kind : int {
+  BareMagicStmt_Kind_ABI_ENCODE_CALL = 0,
+  BareMagicStmt_Kind_ABI_ENCODE = 1,
+  BareMagicStmt_Kind_ABI_ENCODE_PACKED = 2,
+  BareMagicStmt_Kind_ABI_DECODE = 3,
+  BareMagicStmt_Kind_ABI_ENCODE_WITH_SELECTOR = 4,
+  BareMagicStmt_Kind_ABI_ENCODE_WITH_SIGNATURE = 5
+};
+bool BareMagicStmt_Kind_IsValid(int value);
+constexpr BareMagicStmt_Kind BareMagicStmt_Kind_Kind_MIN = BareMagicStmt_Kind_ABI_ENCODE_CALL;
+constexpr BareMagicStmt_Kind BareMagicStmt_Kind_Kind_MAX = BareMagicStmt_Kind_ABI_ENCODE_WITH_SIGNATURE;
+constexpr int BareMagicStmt_Kind_Kind_ARRAYSIZE = BareMagicStmt_Kind_Kind_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* BareMagicStmt_Kind_descriptor();
+template<typename T>
+inline const std::string& BareMagicStmt_Kind_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, BareMagicStmt_Kind>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function BareMagicStmt_Kind_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    BareMagicStmt_Kind_descriptor(), enum_t_value);
+}
+inline bool BareMagicStmt_Kind_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, BareMagicStmt_Kind* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<BareMagicStmt_Kind>(
+    BareMagicStmt_Kind_descriptor(), name, value);
 }
 enum UsingForBinding_OperatorKind : int {
   UsingForBinding_OperatorKind_OP_NONE = 0,
@@ -8301,6 +8340,7 @@ class ConcatExpr final :
   enum : int {
     kArgsFieldNumber = 2,
     kKindFieldNumber = 1,
+    kUseNamedArgsFieldNumber = 3,
   };
   // repeated .solidity.test.sol2protofuzzer.Expression args = 2;
   int args_size() const;
@@ -8333,6 +8373,19 @@ class ConcatExpr final :
   void _internal_set_kind(::solidity::test::sol2protofuzzer::ConcatExpr_Kind value);
   public:
 
+  // optional bool use_named_args = 3;
+  bool has_use_named_args() const;
+  private:
+  bool _internal_has_use_named_args() const;
+  public:
+  void clear_use_named_args();
+  bool use_named_args() const;
+  void set_use_named_args(bool value);
+  private:
+  bool _internal_use_named_args() const;
+  void _internal_set_use_named_args(bool value);
+  public:
+
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.ConcatExpr)
  private:
   class _Internal;
@@ -8345,6 +8398,7 @@ class ConcatExpr final :
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::solidity::test::sol2protofuzzer::Expression > args_;
     int kind_;
+    bool use_named_args_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_sol2Proto_2eproto;
@@ -11356,6 +11410,204 @@ class SelfdestructStmt final :
 };
 // -------------------------------------------------------------------
 
+class BareMagicStmt final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.BareMagicStmt) */ {
+ public:
+  inline BareMagicStmt() : BareMagicStmt(nullptr) {}
+  ~BareMagicStmt() override;
+  explicit PROTOBUF_CONSTEXPR BareMagicStmt(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  BareMagicStmt(const BareMagicStmt& from);
+  BareMagicStmt(BareMagicStmt&& from) noexcept
+    : BareMagicStmt() {
+    *this = ::std::move(from);
+  }
+
+  inline BareMagicStmt& operator=(const BareMagicStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline BareMagicStmt& operator=(BareMagicStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const BareMagicStmt& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const BareMagicStmt* internal_default_instance() {
+    return reinterpret_cast<const BareMagicStmt*>(
+               &_BareMagicStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    50;
+
+  friend void swap(BareMagicStmt& a, BareMagicStmt& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(BareMagicStmt* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(BareMagicStmt* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  BareMagicStmt* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<BareMagicStmt>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const BareMagicStmt& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const BareMagicStmt& from) {
+    BareMagicStmt::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(BareMagicStmt* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.BareMagicStmt";
+  }
+  protected:
+  explicit BareMagicStmt(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  typedef BareMagicStmt_Kind Kind;
+  static constexpr Kind ABI_ENCODE_CALL =
+    BareMagicStmt_Kind_ABI_ENCODE_CALL;
+  static constexpr Kind ABI_ENCODE =
+    BareMagicStmt_Kind_ABI_ENCODE;
+  static constexpr Kind ABI_ENCODE_PACKED =
+    BareMagicStmt_Kind_ABI_ENCODE_PACKED;
+  static constexpr Kind ABI_DECODE =
+    BareMagicStmt_Kind_ABI_DECODE;
+  static constexpr Kind ABI_ENCODE_WITH_SELECTOR =
+    BareMagicStmt_Kind_ABI_ENCODE_WITH_SELECTOR;
+  static constexpr Kind ABI_ENCODE_WITH_SIGNATURE =
+    BareMagicStmt_Kind_ABI_ENCODE_WITH_SIGNATURE;
+  static inline bool Kind_IsValid(int value) {
+    return BareMagicStmt_Kind_IsValid(value);
+  }
+  static constexpr Kind Kind_MIN =
+    BareMagicStmt_Kind_Kind_MIN;
+  static constexpr Kind Kind_MAX =
+    BareMagicStmt_Kind_Kind_MAX;
+  static constexpr int Kind_ARRAYSIZE =
+    BareMagicStmt_Kind_Kind_ARRAYSIZE;
+  static inline const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
+  Kind_descriptor() {
+    return BareMagicStmt_Kind_descriptor();
+  }
+  template<typename T>
+  static inline const std::string& Kind_Name(T enum_t_value) {
+    static_assert(::std::is_same<T, Kind>::value ||
+      ::std::is_integral<T>::value,
+      "Incorrect type passed to function Kind_Name.");
+    return BareMagicStmt_Kind_Name(enum_t_value);
+  }
+  static inline bool Kind_Parse(::PROTOBUF_NAMESPACE_ID::ConstStringParam name,
+      Kind* value) {
+    return BareMagicStmt_Kind_Parse(name, value);
+  }
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kKindFieldNumber = 1,
+  };
+  // required .solidity.test.sol2protofuzzer.BareMagicStmt.Kind kind = 1;
+  bool has_kind() const;
+  private:
+  bool _internal_has_kind() const;
+  public:
+  void clear_kind();
+  ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind kind() const;
+  void set_kind(::solidity::test::sol2protofuzzer::BareMagicStmt_Kind value);
+  private:
+  ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind _internal_kind() const;
+  void _internal_set_kind(::solidity::test::sol2protofuzzer::BareMagicStmt_Kind value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.BareMagicStmt)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    int kind_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
 class EmitStmt final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.EmitStmt) */ {
  public:
@@ -11411,7 +11663,7 @@ class EmitStmt final :
                &_EmitStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    50;
+    51;
 
   friend void swap(EmitStmt& a, EmitStmt& b) {
     a.Swap(&b);
@@ -11591,7 +11843,7 @@ class RevertStmt final :
                &_RevertStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    51;
+    52;
 
   friend void swap(RevertStmt& a, RevertStmt& b) {
     a.Swap(&b);
@@ -11786,7 +12038,7 @@ class DeleteStmt final :
                &_DeleteStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    52;
+    53;
 
   friend void swap(DeleteStmt& a, DeleteStmt& b) {
     a.Swap(&b);
@@ -11951,7 +12203,7 @@ class TryCatchStmt final :
                &_TryCatchStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    53;
+    54;
 
   friend void swap(TryCatchStmt& a, TryCatchStmt& b) {
     a.Swap(&b);
@@ -12174,7 +12426,7 @@ class Block final :
                &_Block_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    54;
+    55;
 
   friend void swap(Block& a, Block& b) {
     a.Swap(&b);
@@ -12338,7 +12590,7 @@ class UncheckedBlock final :
                &_UncheckedBlock_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    55;
+    56;
 
   friend void swap(UncheckedBlock& a, UncheckedBlock& b) {
     a.Swap(&b);
@@ -12503,7 +12755,7 @@ class IndexAssignStmt final :
                &_IndexAssignStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    56;
+    57;
 
   friend void swap(IndexAssignStmt& a, IndexAssignStmt& b) {
     a.Swap(&b);
@@ -12706,7 +12958,7 @@ class TupleAssignStmt final :
                &_TupleAssignStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    57;
+    58;
 
   friend void swap(TupleAssignStmt& a, TupleAssignStmt& b) {
     a.Swap(&b);
@@ -12894,7 +13146,7 @@ class ArrayPushStmt final :
                &_ArrayPushStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    58;
+    59;
 
   friend void swap(ArrayPushStmt& a, ArrayPushStmt& b) {
     a.Swap(&b);
@@ -13074,7 +13326,7 @@ class ArrayPopStmt final :
                &_ArrayPopStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    59;
+    60;
 
   friend void swap(ArrayPopStmt& a, ArrayPopStmt& b) {
     a.Swap(&b);
@@ -13234,7 +13486,7 @@ class TupleDestructStmt final :
                &_TupleDestructStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    60;
+    61;
 
   friend void swap(TupleDestructStmt& a, TupleDestructStmt& b) {
     a.Swap(&b);
@@ -13414,7 +13666,7 @@ class ArrayLengthExpr final :
                &_ArrayLengthExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    61;
+    62;
 
   friend void swap(ArrayLengthExpr& a, ArrayLengthExpr& b) {
     a.Swap(&b);
@@ -13592,6 +13844,7 @@ class Statement final :
     kArrayPush = 20,
     kArrayPop = 21,
     kTupleDestruct = 22,
+    kBareMagic = 23,
     STMT_ONEOF_NOT_SET = 0,
   };
 
@@ -13600,7 +13853,7 @@ class Statement final :
                &_Statement_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    62;
+    63;
 
   friend void swap(Statement& a, Statement& b) {
     a.Swap(&b);
@@ -13695,6 +13948,7 @@ class Statement final :
     kArrayPushFieldNumber = 20,
     kArrayPopFieldNumber = 21,
     kTupleDestructFieldNumber = 22,
+    kBareMagicFieldNumber = 23,
   };
   // .solidity.test.sol2protofuzzer.VarDeclStmt var_decl = 1;
   bool has_var_decl() const;
@@ -14092,6 +14346,24 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::TupleDestructStmt* tuple_destruct);
   ::solidity::test::sol2protofuzzer::TupleDestructStmt* unsafe_arena_release_tuple_destruct();
 
+  // .solidity.test.sol2protofuzzer.BareMagicStmt bare_magic = 23;
+  bool has_bare_magic() const;
+  private:
+  bool _internal_has_bare_magic() const;
+  public:
+  void clear_bare_magic();
+  const ::solidity::test::sol2protofuzzer::BareMagicStmt& bare_magic() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::BareMagicStmt* release_bare_magic();
+  ::solidity::test::sol2protofuzzer::BareMagicStmt* mutable_bare_magic();
+  void set_allocated_bare_magic(::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic);
+  private:
+  const ::solidity::test::sol2protofuzzer::BareMagicStmt& _internal_bare_magic() const;
+  ::solidity::test::sol2protofuzzer::BareMagicStmt* _internal_mutable_bare_magic();
+  public:
+  void unsafe_arena_set_allocated_bare_magic(
+      ::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic);
+  ::solidity::test::sol2protofuzzer::BareMagicStmt* unsafe_arena_release_bare_magic();
+
   void clear_stmt_oneof();
   StmtOneofCase stmt_oneof_case() const;
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.Statement)
@@ -14119,6 +14391,7 @@ class Statement final :
   void set_has_array_push();
   void set_has_array_pop();
   void set_has_tuple_destruct();
+  void set_has_bare_magic();
 
   inline bool has_stmt_oneof() const;
   inline void clear_has_stmt_oneof();
@@ -14152,6 +14425,7 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::ArrayPushStmt* array_push_;
       ::solidity::test::sol2protofuzzer::ArrayPopStmt* array_pop_;
       ::solidity::test::sol2protofuzzer::TupleDestructStmt* tuple_destruct_;
+      ::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic_;
     } stmt_oneof_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     uint32_t _oneof_case_[1];
@@ -14212,12 +14486,18 @@ class StructField final :
   static const StructField& default_instance() {
     return *internal_default_instance();
   }
+  enum AdvancedTypeCase {
+    kArrField = 2,
+    kFnField = 3,
+    ADVANCED_TYPE_NOT_SET = 0,
+  };
+
   static inline const StructField* internal_default_instance() {
     return reinterpret_cast<const StructField*>(
                &_StructField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    63;
+    64;
 
   friend void swap(StructField& a, StructField& b) {
     a.Swap(&b);
@@ -14291,6 +14571,8 @@ class StructField final :
 
   enum : int {
     kTypeFieldNumber = 1,
+    kArrFieldFieldNumber = 2,
+    kFnFieldFieldNumber = 3,
   };
   // required .solidity.test.sol2protofuzzer.ElementaryType type = 1;
   bool has_type() const;
@@ -14310,7 +14592,251 @@ class StructField final :
       ::solidity::test::sol2protofuzzer::ElementaryType* type);
   ::solidity::test::sol2protofuzzer::ElementaryType* unsafe_arena_release_type();
 
+  // .solidity.test.sol2protofuzzer.StructArrayField arr_field = 2;
+  bool has_arr_field() const;
+  private:
+  bool _internal_has_arr_field() const;
+  public:
+  void clear_arr_field();
+  const ::solidity::test::sol2protofuzzer::StructArrayField& arr_field() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::StructArrayField* release_arr_field();
+  ::solidity::test::sol2protofuzzer::StructArrayField* mutable_arr_field();
+  void set_allocated_arr_field(::solidity::test::sol2protofuzzer::StructArrayField* arr_field);
+  private:
+  const ::solidity::test::sol2protofuzzer::StructArrayField& _internal_arr_field() const;
+  ::solidity::test::sol2protofuzzer::StructArrayField* _internal_mutable_arr_field();
+  public:
+  void unsafe_arena_set_allocated_arr_field(
+      ::solidity::test::sol2protofuzzer::StructArrayField* arr_field);
+  ::solidity::test::sol2protofuzzer::StructArrayField* unsafe_arena_release_arr_field();
+
+  // .solidity.test.sol2protofuzzer.StructFunctionField fn_field = 3;
+  bool has_fn_field() const;
+  private:
+  bool _internal_has_fn_field() const;
+  public:
+  void clear_fn_field();
+  const ::solidity::test::sol2protofuzzer::StructFunctionField& fn_field() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::StructFunctionField* release_fn_field();
+  ::solidity::test::sol2protofuzzer::StructFunctionField* mutable_fn_field();
+  void set_allocated_fn_field(::solidity::test::sol2protofuzzer::StructFunctionField* fn_field);
+  private:
+  const ::solidity::test::sol2protofuzzer::StructFunctionField& _internal_fn_field() const;
+  ::solidity::test::sol2protofuzzer::StructFunctionField* _internal_mutable_fn_field();
+  public:
+  void unsafe_arena_set_allocated_fn_field(
+      ::solidity::test::sol2protofuzzer::StructFunctionField* fn_field);
+  ::solidity::test::sol2protofuzzer::StructFunctionField* unsafe_arena_release_fn_field();
+
+  void clear_advanced_type();
+  AdvancedTypeCase advanced_type_case() const;
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.StructField)
+ private:
+  class _Internal;
+  void set_has_arr_field();
+  void set_has_fn_field();
+
+  inline bool has_advanced_type() const;
+  inline void clear_has_advanced_type();
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    ::solidity::test::sol2protofuzzer::ElementaryType* type_;
+    union AdvancedTypeUnion {
+      constexpr AdvancedTypeUnion() : _constinit_{} {}
+        ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
+      ::solidity::test::sol2protofuzzer::StructArrayField* arr_field_;
+      ::solidity::test::sol2protofuzzer::StructFunctionField* fn_field_;
+    } advanced_type_;
+    uint32_t _oneof_case_[1];
+
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class StructArrayField final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.StructArrayField) */ {
+ public:
+  inline StructArrayField() : StructArrayField(nullptr) {}
+  ~StructArrayField() override;
+  explicit PROTOBUF_CONSTEXPR StructArrayField(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  StructArrayField(const StructArrayField& from);
+  StructArrayField(StructArrayField&& from) noexcept
+    : StructArrayField() {
+    *this = ::std::move(from);
+  }
+
+  inline StructArrayField& operator=(const StructArrayField& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline StructArrayField& operator=(StructArrayField&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const StructArrayField& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const StructArrayField* internal_default_instance() {
+    return reinterpret_cast<const StructArrayField*>(
+               &_StructArrayField_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    65;
+
+  friend void swap(StructArrayField& a, StructArrayField& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(StructArrayField* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(StructArrayField* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  StructArrayField* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<StructArrayField>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const StructArrayField& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const StructArrayField& from) {
+    StructArrayField::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(StructArrayField* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.StructArrayField";
+  }
+  protected:
+  explicit StructArrayField(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kBaseFieldNumber = 1,
+    kOuterLengthFieldNumber = 2,
+    kInnerLengthFieldNumber = 3,
+  };
+  // required .solidity.test.sol2protofuzzer.ElementaryType base = 1;
+  bool has_base() const;
+  private:
+  bool _internal_has_base() const;
+  public:
+  void clear_base();
+  const ::solidity::test::sol2protofuzzer::ElementaryType& base() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::ElementaryType* release_base();
+  ::solidity::test::sol2protofuzzer::ElementaryType* mutable_base();
+  void set_allocated_base(::solidity::test::sol2protofuzzer::ElementaryType* base);
+  private:
+  const ::solidity::test::sol2protofuzzer::ElementaryType& _internal_base() const;
+  ::solidity::test::sol2protofuzzer::ElementaryType* _internal_mutable_base();
+  public:
+  void unsafe_arena_set_allocated_base(
+      ::solidity::test::sol2protofuzzer::ElementaryType* base);
+  ::solidity::test::sol2protofuzzer::ElementaryType* unsafe_arena_release_base();
+
+  // optional uint32 outer_length = 2;
+  bool has_outer_length() const;
+  private:
+  bool _internal_has_outer_length() const;
+  public:
+  void clear_outer_length();
+  uint32_t outer_length() const;
+  void set_outer_length(uint32_t value);
+  private:
+  uint32_t _internal_outer_length() const;
+  void _internal_set_outer_length(uint32_t value);
+  public:
+
+  // optional uint32 inner_length = 3;
+  bool has_inner_length() const;
+  private:
+  bool _internal_has_inner_length() const;
+  public:
+  void clear_inner_length();
+  uint32_t inner_length() const;
+  void set_inner_length(uint32_t value);
+  private:
+  uint32_t _internal_inner_length() const;
+  void _internal_set_inner_length(uint32_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.StructArrayField)
  private:
   class _Internal;
 
@@ -14320,7 +14846,169 @@ class StructField final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::solidity::test::sol2protofuzzer::ElementaryType* type_;
+    ::solidity::test::sol2protofuzzer::ElementaryType* base_;
+    uint32_t outer_length_;
+    uint32_t inner_length_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class StructFunctionField final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.StructFunctionField) */ {
+ public:
+  inline StructFunctionField() : StructFunctionField(nullptr) {}
+  ~StructFunctionField() override;
+  explicit PROTOBUF_CONSTEXPR StructFunctionField(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  StructFunctionField(const StructFunctionField& from);
+  StructFunctionField(StructFunctionField&& from) noexcept
+    : StructFunctionField() {
+    *this = ::std::move(from);
+  }
+
+  inline StructFunctionField& operator=(const StructFunctionField& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline StructFunctionField& operator=(StructFunctionField&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const StructFunctionField& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const StructFunctionField* internal_default_instance() {
+    return reinterpret_cast<const StructFunctionField*>(
+               &_StructFunctionField_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    66;
+
+  friend void swap(StructFunctionField& a, StructFunctionField& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(StructFunctionField* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(StructFunctionField* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  StructFunctionField* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<StructFunctionField>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const StructFunctionField& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const StructFunctionField& from) {
+    StructFunctionField::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(StructFunctionField* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.StructFunctionField";
+  }
+  protected:
+  explicit StructFunctionField(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kReturnsCalldataArrayFieldNumber = 1,
+  };
+  // optional bool returns_calldata_array = 1;
+  bool has_returns_calldata_array() const;
+  private:
+  bool _internal_has_returns_calldata_array() const;
+  public:
+  void clear_returns_calldata_array();
+  bool returns_calldata_array() const;
+  void set_returns_calldata_array(bool value);
+  private:
+  bool _internal_returns_calldata_array() const;
+  void _internal_set_returns_calldata_array(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.StructFunctionField)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    bool returns_calldata_array_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_sol2Proto_2eproto;
@@ -14382,7 +15070,7 @@ class StructDef final :
                &_StructDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    64;
+    67;
 
   friend void swap(StructDef& a, StructDef& b) {
     a.Swap(&b);
@@ -14546,7 +15234,7 @@ class EnumDef final :
                &_EnumDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    65;
+    68;
 
   friend void swap(EnumDef& a, EnumDef& b) {
     a.Swap(&b);
@@ -14706,7 +15394,7 @@ class EventDef final :
                &_EventDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    66;
+    69;
 
   friend void swap(EventDef& a, EventDef& b) {
     a.Swap(&b);
@@ -14890,7 +15578,7 @@ class ErrorDef final :
                &_ErrorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    67;
+    70;
 
   friend void swap(ErrorDef& a, ErrorDef& b) {
     a.Swap(&b);
@@ -15050,7 +15738,7 @@ class ModifierDef final :
                &_ModifierDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    68;
+    71;
 
   friend void swap(ModifierDef& a, ModifierDef& b) {
     a.Swap(&b);
@@ -15215,7 +15903,7 @@ class ReceiveDef final :
                &_ReceiveDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    69;
+    72;
 
   friend void swap(ReceiveDef& a, ReceiveDef& b) {
     a.Swap(&b);
@@ -15380,7 +16068,7 @@ class FallbackDef final :
                &_FallbackDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    70;
+    73;
 
   friend void swap(FallbackDef& a, FallbackDef& b) {
     a.Swap(&b);
@@ -15545,7 +16233,7 @@ class FunctionDef final :
                &_FunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    71;
+    74;
 
   friend void swap(FunctionDef& a, FunctionDef& b) {
     a.Swap(&b);
@@ -15822,7 +16510,7 @@ class ConstructorDef final :
                &_ConstructorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    72;
+    75;
 
   friend void swap(ConstructorDef& a, ConstructorDef& b) {
     a.Swap(&b);
@@ -16020,7 +16708,7 @@ class StateVarDecl final :
                &_StateVarDecl_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    73;
+    76;
 
   friend void swap(StateVarDecl& a, StateVarDecl& b) {
     a.Swap(&b);
@@ -16230,7 +16918,7 @@ class UsingForBinding final :
                &_UsingForBinding_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    77;
 
   friend void swap(UsingForBinding& a, UsingForBinding& b) {
     a.Swap(&b);
@@ -16465,7 +17153,7 @@ class UsingForDirective final :
                &_UsingForDirective_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    78;
 
   friend void swap(UsingForDirective& a, UsingForDirective& b) {
     a.Swap(&b);
@@ -16690,7 +17378,7 @@ class ContractDef final :
                &_ContractDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    79;
 
   friend void swap(ContractDef& a, ContractDef& b) {
     a.Swap(&b);
@@ -17124,7 +17812,7 @@ class FreeFunctionDef final :
                &_FreeFunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    77;
+    80;
 
   friend void swap(FreeFunctionDef& a, FreeFunctionDef& b) {
     a.Swap(&b);
@@ -17199,6 +17887,7 @@ class FreeFunctionDef final :
   enum : int {
     kBodyFieldNumber = 2,
     kNumParamsFieldNumber = 1,
+    kEmitExternalFieldNumber = 3,
   };
   // required .solidity.test.sol2protofuzzer.Block body = 2;
   bool has_body() const;
@@ -17231,6 +17920,19 @@ class FreeFunctionDef final :
   void _internal_set_num_params(uint32_t value);
   public:
 
+  // optional bool emit_external = 3;
+  bool has_emit_external() const;
+  private:
+  bool _internal_has_emit_external() const;
+  public:
+  void clear_emit_external();
+  bool emit_external() const;
+  void set_emit_external(bool value);
+  private:
+  bool _internal_emit_external() const;
+  void _internal_set_emit_external(bool value);
+  public:
+
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FreeFunctionDef)
  private:
   class _Internal;
@@ -17246,6 +17948,7 @@ class FreeFunctionDef final :
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     ::solidity::test::sol2protofuzzer::Block* body_;
     uint32_t num_params_;
+    bool emit_external_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_sol2Proto_2eproto;
@@ -17307,7 +18010,7 @@ class Program final :
                &_Program_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    78;
+    81;
 
   friend void swap(Program& a, Program& b) {
     a.Swap(&b);
@@ -22319,6 +23022,34 @@ ConcatExpr::args() const {
   return _impl_.args_;
 }
 
+// optional bool use_named_args = 3;
+inline bool ConcatExpr::_internal_has_use_named_args() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool ConcatExpr::has_use_named_args() const {
+  return _internal_has_use_named_args();
+}
+inline void ConcatExpr::clear_use_named_args() {
+  _impl_.use_named_args_ = false;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline bool ConcatExpr::_internal_use_named_args() const {
+  return _impl_.use_named_args_;
+}
+inline bool ConcatExpr::use_named_args() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.ConcatExpr.use_named_args)
+  return _internal_use_named_args();
+}
+inline void ConcatExpr::_internal_set_use_named_args(bool value) {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.use_named_args_ = value;
+}
+inline void ConcatExpr::set_use_named_args(bool value) {
+  _internal_set_use_named_args(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.ConcatExpr.use_named_args)
+}
+
 // -------------------------------------------------------------------
 
 // SelectorExpr
@@ -25886,6 +26617,39 @@ inline void SelfdestructStmt::set_allocated_beneficiary(::solidity::test::sol2pr
 
 // -------------------------------------------------------------------
 
+// BareMagicStmt
+
+// required .solidity.test.sol2protofuzzer.BareMagicStmt.Kind kind = 1;
+inline bool BareMagicStmt::_internal_has_kind() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool BareMagicStmt::has_kind() const {
+  return _internal_has_kind();
+}
+inline void BareMagicStmt::clear_kind() {
+  _impl_.kind_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind BareMagicStmt::_internal_kind() const {
+  return static_cast< ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind >(_impl_.kind_);
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind BareMagicStmt::kind() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.BareMagicStmt.kind)
+  return _internal_kind();
+}
+inline void BareMagicStmt::_internal_set_kind(::solidity::test::sol2protofuzzer::BareMagicStmt_Kind value) {
+  assert(::solidity::test::sol2protofuzzer::BareMagicStmt_Kind_IsValid(value));
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.kind_ = value;
+}
+inline void BareMagicStmt::set_kind(::solidity::test::sol2protofuzzer::BareMagicStmt_Kind value) {
+  _internal_set_kind(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.BareMagicStmt.kind)
+}
+
+// -------------------------------------------------------------------
+
 // EmitStmt
 
 // required uint32 event_id = 1;
@@ -28826,6 +29590,80 @@ inline ::solidity::test::sol2protofuzzer::TupleDestructStmt* Statement::mutable_
   return _msg;
 }
 
+// .solidity.test.sol2protofuzzer.BareMagicStmt bare_magic = 23;
+inline bool Statement::_internal_has_bare_magic() const {
+  return stmt_oneof_case() == kBareMagic;
+}
+inline bool Statement::has_bare_magic() const {
+  return _internal_has_bare_magic();
+}
+inline void Statement::set_has_bare_magic() {
+  _impl_._oneof_case_[0] = kBareMagic;
+}
+inline void Statement::clear_bare_magic() {
+  if (_internal_has_bare_magic()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.stmt_oneof_.bare_magic_;
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt* Statement::release_bare_magic() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.bare_magic)
+  if (_internal_has_bare_magic()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::BareMagicStmt* temp = _impl_.stmt_oneof_.bare_magic_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.bare_magic_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::BareMagicStmt& Statement::_internal_bare_magic() const {
+  return _internal_has_bare_magic()
+      ? *_impl_.stmt_oneof_.bare_magic_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::BareMagicStmt&>(::solidity::test::sol2protofuzzer::_BareMagicStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::BareMagicStmt& Statement::bare_magic() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.bare_magic)
+  return _internal_bare_magic();
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt* Statement::unsafe_arena_release_bare_magic() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.bare_magic)
+  if (_internal_has_bare_magic()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::BareMagicStmt* temp = _impl_.stmt_oneof_.bare_magic_;
+    _impl_.stmt_oneof_.bare_magic_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_bare_magic(::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic) {
+  clear_stmt_oneof();
+  if (bare_magic) {
+    set_has_bare_magic();
+    _impl_.stmt_oneof_.bare_magic_ = bare_magic;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.bare_magic)
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt* Statement::_internal_mutable_bare_magic() {
+  if (!_internal_has_bare_magic()) {
+    clear_stmt_oneof();
+    set_has_bare_magic();
+    _impl_.stmt_oneof_.bare_magic_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::BareMagicStmt >(GetArenaForAllocation());
+  }
+  return _impl_.stmt_oneof_.bare_magic_;
+}
+inline ::solidity::test::sol2protofuzzer::BareMagicStmt* Statement::mutable_bare_magic() {
+  ::solidity::test::sol2protofuzzer::BareMagicStmt* _msg = _internal_mutable_bare_magic();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.bare_magic)
+  return _msg;
+}
+
 inline bool Statement::has_stmt_oneof() const {
   return stmt_oneof_case() != STMT_ONEOF_NOT_SET;
 }
@@ -28927,6 +29765,345 @@ inline void StructField::set_allocated_type(::solidity::test::sol2protofuzzer::E
   }
   _impl_.type_ = type;
   // @@protoc_insertion_point(field_set_allocated:solidity.test.sol2protofuzzer.StructField.type)
+}
+
+// .solidity.test.sol2protofuzzer.StructArrayField arr_field = 2;
+inline bool StructField::_internal_has_arr_field() const {
+  return advanced_type_case() == kArrField;
+}
+inline bool StructField::has_arr_field() const {
+  return _internal_has_arr_field();
+}
+inline void StructField::set_has_arr_field() {
+  _impl_._oneof_case_[0] = kArrField;
+}
+inline void StructField::clear_arr_field() {
+  if (_internal_has_arr_field()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.advanced_type_.arr_field_;
+    }
+    clear_has_advanced_type();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::StructArrayField* StructField::release_arr_field() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.StructField.arr_field)
+  if (_internal_has_arr_field()) {
+    clear_has_advanced_type();
+    ::solidity::test::sol2protofuzzer::StructArrayField* temp = _impl_.advanced_type_.arr_field_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.advanced_type_.arr_field_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::StructArrayField& StructField::_internal_arr_field() const {
+  return _internal_has_arr_field()
+      ? *_impl_.advanced_type_.arr_field_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::StructArrayField&>(::solidity::test::sol2protofuzzer::_StructArrayField_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::StructArrayField& StructField::arr_field() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructField.arr_field)
+  return _internal_arr_field();
+}
+inline ::solidity::test::sol2protofuzzer::StructArrayField* StructField::unsafe_arena_release_arr_field() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.StructField.arr_field)
+  if (_internal_has_arr_field()) {
+    clear_has_advanced_type();
+    ::solidity::test::sol2protofuzzer::StructArrayField* temp = _impl_.advanced_type_.arr_field_;
+    _impl_.advanced_type_.arr_field_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void StructField::unsafe_arena_set_allocated_arr_field(::solidity::test::sol2protofuzzer::StructArrayField* arr_field) {
+  clear_advanced_type();
+  if (arr_field) {
+    set_has_arr_field();
+    _impl_.advanced_type_.arr_field_ = arr_field;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.StructField.arr_field)
+}
+inline ::solidity::test::sol2protofuzzer::StructArrayField* StructField::_internal_mutable_arr_field() {
+  if (!_internal_has_arr_field()) {
+    clear_advanced_type();
+    set_has_arr_field();
+    _impl_.advanced_type_.arr_field_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::StructArrayField >(GetArenaForAllocation());
+  }
+  return _impl_.advanced_type_.arr_field_;
+}
+inline ::solidity::test::sol2protofuzzer::StructArrayField* StructField::mutable_arr_field() {
+  ::solidity::test::sol2protofuzzer::StructArrayField* _msg = _internal_mutable_arr_field();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.StructField.arr_field)
+  return _msg;
+}
+
+// .solidity.test.sol2protofuzzer.StructFunctionField fn_field = 3;
+inline bool StructField::_internal_has_fn_field() const {
+  return advanced_type_case() == kFnField;
+}
+inline bool StructField::has_fn_field() const {
+  return _internal_has_fn_field();
+}
+inline void StructField::set_has_fn_field() {
+  _impl_._oneof_case_[0] = kFnField;
+}
+inline void StructField::clear_fn_field() {
+  if (_internal_has_fn_field()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.advanced_type_.fn_field_;
+    }
+    clear_has_advanced_type();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::StructFunctionField* StructField::release_fn_field() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.StructField.fn_field)
+  if (_internal_has_fn_field()) {
+    clear_has_advanced_type();
+    ::solidity::test::sol2protofuzzer::StructFunctionField* temp = _impl_.advanced_type_.fn_field_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.advanced_type_.fn_field_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::StructFunctionField& StructField::_internal_fn_field() const {
+  return _internal_has_fn_field()
+      ? *_impl_.advanced_type_.fn_field_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::StructFunctionField&>(::solidity::test::sol2protofuzzer::_StructFunctionField_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::StructFunctionField& StructField::fn_field() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructField.fn_field)
+  return _internal_fn_field();
+}
+inline ::solidity::test::sol2protofuzzer::StructFunctionField* StructField::unsafe_arena_release_fn_field() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.StructField.fn_field)
+  if (_internal_has_fn_field()) {
+    clear_has_advanced_type();
+    ::solidity::test::sol2protofuzzer::StructFunctionField* temp = _impl_.advanced_type_.fn_field_;
+    _impl_.advanced_type_.fn_field_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void StructField::unsafe_arena_set_allocated_fn_field(::solidity::test::sol2protofuzzer::StructFunctionField* fn_field) {
+  clear_advanced_type();
+  if (fn_field) {
+    set_has_fn_field();
+    _impl_.advanced_type_.fn_field_ = fn_field;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.StructField.fn_field)
+}
+inline ::solidity::test::sol2protofuzzer::StructFunctionField* StructField::_internal_mutable_fn_field() {
+  if (!_internal_has_fn_field()) {
+    clear_advanced_type();
+    set_has_fn_field();
+    _impl_.advanced_type_.fn_field_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::StructFunctionField >(GetArenaForAllocation());
+  }
+  return _impl_.advanced_type_.fn_field_;
+}
+inline ::solidity::test::sol2protofuzzer::StructFunctionField* StructField::mutable_fn_field() {
+  ::solidity::test::sol2protofuzzer::StructFunctionField* _msg = _internal_mutable_fn_field();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.StructField.fn_field)
+  return _msg;
+}
+
+inline bool StructField::has_advanced_type() const {
+  return advanced_type_case() != ADVANCED_TYPE_NOT_SET;
+}
+inline void StructField::clear_has_advanced_type() {
+  _impl_._oneof_case_[0] = ADVANCED_TYPE_NOT_SET;
+}
+inline StructField::AdvancedTypeCase StructField::advanced_type_case() const {
+  return StructField::AdvancedTypeCase(_impl_._oneof_case_[0]);
+}
+// -------------------------------------------------------------------
+
+// StructArrayField
+
+// required .solidity.test.sol2protofuzzer.ElementaryType base = 1;
+inline bool StructArrayField::_internal_has_base() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.base_ != nullptr);
+  return value;
+}
+inline bool StructArrayField::has_base() const {
+  return _internal_has_base();
+}
+inline void StructArrayField::clear_base() {
+  if (_impl_.base_ != nullptr) _impl_.base_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::solidity::test::sol2protofuzzer::ElementaryType& StructArrayField::_internal_base() const {
+  const ::solidity::test::sol2protofuzzer::ElementaryType* p = _impl_.base_;
+  return p != nullptr ? *p : reinterpret_cast<const ::solidity::test::sol2protofuzzer::ElementaryType&>(
+      ::solidity::test::sol2protofuzzer::_ElementaryType_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::ElementaryType& StructArrayField::base() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructArrayField.base)
+  return _internal_base();
+}
+inline void StructArrayField::unsafe_arena_set_allocated_base(
+    ::solidity::test::sol2protofuzzer::ElementaryType* base) {
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.base_);
+  }
+  _impl_.base_ = base;
+  if (base) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.StructArrayField.base)
+}
+inline ::solidity::test::sol2protofuzzer::ElementaryType* StructArrayField::release_base() {
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::solidity::test::sol2protofuzzer::ElementaryType* temp = _impl_.base_;
+  _impl_.base_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
+  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  if (GetArenaForAllocation() == nullptr) { delete old; }
+#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return temp;
+}
+inline ::solidity::test::sol2protofuzzer::ElementaryType* StructArrayField::unsafe_arena_release_base() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.StructArrayField.base)
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::solidity::test::sol2protofuzzer::ElementaryType* temp = _impl_.base_;
+  _impl_.base_ = nullptr;
+  return temp;
+}
+inline ::solidity::test::sol2protofuzzer::ElementaryType* StructArrayField::_internal_mutable_base() {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  if (_impl_.base_ == nullptr) {
+    auto* p = CreateMaybeMessage<::solidity::test::sol2protofuzzer::ElementaryType>(GetArenaForAllocation());
+    _impl_.base_ = p;
+  }
+  return _impl_.base_;
+}
+inline ::solidity::test::sol2protofuzzer::ElementaryType* StructArrayField::mutable_base() {
+  ::solidity::test::sol2protofuzzer::ElementaryType* _msg = _internal_mutable_base();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.StructArrayField.base)
+  return _msg;
+}
+inline void StructArrayField::set_allocated_base(::solidity::test::sol2protofuzzer::ElementaryType* base) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  if (message_arena == nullptr) {
+    delete _impl_.base_;
+  }
+  if (base) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(base);
+    if (message_arena != submessage_arena) {
+      base = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, base, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.base_ = base;
+  // @@protoc_insertion_point(field_set_allocated:solidity.test.sol2protofuzzer.StructArrayField.base)
+}
+
+// optional uint32 outer_length = 2;
+inline bool StructArrayField::_internal_has_outer_length() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool StructArrayField::has_outer_length() const {
+  return _internal_has_outer_length();
+}
+inline void StructArrayField::clear_outer_length() {
+  _impl_.outer_length_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline uint32_t StructArrayField::_internal_outer_length() const {
+  return _impl_.outer_length_;
+}
+inline uint32_t StructArrayField::outer_length() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructArrayField.outer_length)
+  return _internal_outer_length();
+}
+inline void StructArrayField::_internal_set_outer_length(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.outer_length_ = value;
+}
+inline void StructArrayField::set_outer_length(uint32_t value) {
+  _internal_set_outer_length(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructArrayField.outer_length)
+}
+
+// optional uint32 inner_length = 3;
+inline bool StructArrayField::_internal_has_inner_length() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool StructArrayField::has_inner_length() const {
+  return _internal_has_inner_length();
+}
+inline void StructArrayField::clear_inner_length() {
+  _impl_.inner_length_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline uint32_t StructArrayField::_internal_inner_length() const {
+  return _impl_.inner_length_;
+}
+inline uint32_t StructArrayField::inner_length() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructArrayField.inner_length)
+  return _internal_inner_length();
+}
+inline void StructArrayField::_internal_set_inner_length(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.inner_length_ = value;
+}
+inline void StructArrayField::set_inner_length(uint32_t value) {
+  _internal_set_inner_length(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructArrayField.inner_length)
+}
+
+// -------------------------------------------------------------------
+
+// StructFunctionField
+
+// optional bool returns_calldata_array = 1;
+inline bool StructFunctionField::_internal_has_returns_calldata_array() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool StructFunctionField::has_returns_calldata_array() const {
+  return _internal_has_returns_calldata_array();
+}
+inline void StructFunctionField::clear_returns_calldata_array() {
+  _impl_.returns_calldata_array_ = false;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline bool StructFunctionField::_internal_returns_calldata_array() const {
+  return _impl_.returns_calldata_array_;
+}
+inline bool StructFunctionField::returns_calldata_array() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructFunctionField.returns_calldata_array)
+  return _internal_returns_calldata_array();
+}
+inline void StructFunctionField::_internal_set_returns_calldata_array(bool value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.returns_calldata_array_ = value;
+}
+inline void StructFunctionField::set_returns_calldata_array(bool value) {
+  _internal_set_returns_calldata_array(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructFunctionField.returns_calldata_array)
 }
 
 // -------------------------------------------------------------------
@@ -31044,6 +32221,34 @@ inline void FreeFunctionDef::set_allocated_body(::solidity::test::sol2protofuzze
   // @@protoc_insertion_point(field_set_allocated:solidity.test.sol2protofuzzer.FreeFunctionDef.body)
 }
 
+// optional bool emit_external = 3;
+inline bool FreeFunctionDef::_internal_has_emit_external() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool FreeFunctionDef::has_emit_external() const {
+  return _internal_has_emit_external();
+}
+inline void FreeFunctionDef::clear_emit_external() {
+  _impl_.emit_external_ = false;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline bool FreeFunctionDef::_internal_emit_external() const {
+  return _impl_.emit_external_;
+}
+inline bool FreeFunctionDef::emit_external() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FreeFunctionDef.emit_external)
+  return _internal_emit_external();
+}
+inline void FreeFunctionDef::_internal_set_emit_external(bool value) {
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.emit_external_ = value;
+}
+inline void FreeFunctionDef::set_emit_external(bool value) {
+  _internal_set_emit_external(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FreeFunctionDef.emit_external)
+}
+
 // -------------------------------------------------------------------
 
 // Program
@@ -31669,6 +32874,12 @@ Program::file_using_for() const {
 
 // -------------------------------------------------------------------
 
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 
 // @@protoc_insertion_point(namespace_scope)
 
@@ -31752,6 +32963,11 @@ template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::ConcatExpr_
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::ConcatExpr_Kind>() {
   return ::solidity::test::sol2protofuzzer::ConcatExpr_Kind_descriptor();
+}
+template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind>() {
+  return ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind_descriptor();
 }
 template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind> : ::std::true_type {};
 template <>

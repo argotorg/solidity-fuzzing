@@ -257,28 +257,35 @@ DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
 	RecordingCallbacks callbacks{&ops};
 	RecStack stack(stackData, callbacks);
 
-	// Internal yulAssert trips propagate as exceptions to libfuzzer — real bugs.
-	auto const shuffleResult = StackShuffler<RecordingCallbacks>::shuffle(
-		stack,
-		converted.targetTop,
-		converted.targetTail,
-		converted.targetStackSize
-	);
-
-	switch (shuffleResult.status)
+	// The shuffler reports failures by throwing `yul::YulAssertion` (via
+	// `yulAssert`). Successful admissible runs return normally. Only
+	// "stack too deep" trips are honest give-ups and are silenced by
+	// default — everything else (MaxIterations, admissibility violations,
+	// etc.) propagates to libfuzzer as a crash.
+	try
 	{
-	case StackShufflerResult::Status::Admissible:
-		break;
-	case StackShufflerResult::Status::StackTooDeep:
+		StackShuffler<RecordingCallbacks>::shuffle(
+			stack,
+			converted.targetTop,
+			converted.targetTail,
+			converted.targetStackSize
+		);
+	}
+	catch (yul::YulAssertion const& e)
+	{
+		std::string const msg = e.comment() ? *e.comment() : "";
+		std::string lower = msg;
+		std::transform(lower.begin(), lower.end(), lower.begin(),
+			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		if (lower.find("stack too deep") != std::string::npos)
+		{
 #ifdef FUZZER_MODE_STACK_TOO_DEEP_IS_BUG
-		solAssert(false, "Shuffler returned StackTooDeep");
+			throw;
 #else
-		return; // honest give-up: ignore for now
+			return; // honest give-up: ignore for now
 #endif
-	case StackShufflerResult::Status::MaxIterationsReached:
-		solAssert(false, "Shuffler hit MaxIterationsReached");
-	case StackShufflerResult::Status::Continue:
-		solAssert(false, "Unexpected Continue status from shuffle()");
+		}
+		throw;
 	}
 
 	// --- Oracle 1: replay the emitted opcodes and check we end up where the
