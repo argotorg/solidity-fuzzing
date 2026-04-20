@@ -2616,6 +2616,137 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 		}
 		break;
 	}
+	case Expression::kArrayLit:
+	{
+		// Build an inline-array literal, index into it, reduce to uint256.
+		// Uniform kinds produce valid programs — good for optimizer
+		// differential testing. Mixed kinds produce type errors that
+		// exercise the mobile-type inference path (ICE history).
+		auto const& al = _e.array_lit();
+		unsigned n = std::min(static_cast<unsigned>(al.elems_size()), 4u);
+		if (n == 0) n = 1;
+		unsigned idx = (al.has_index() ? al.index() : 0u) % n;
+		std::vector<std::string> raw;
+		raw.reserve(n);
+		for (unsigned i = 0; i < n; i++)
+		{
+			if (static_cast<int>(i) < al.elems_size())
+				raw.push_back(visitUintExpr(al.elems(i)));
+			else
+				raw.push_back(defaultUintLiteral());
+		}
+		auto join = [](std::vector<std::string> const& xs) {
+			std::ostringstream o;
+			for (size_t i = 0; i < xs.size(); i++)
+			{
+				if (i > 0) o << ", ";
+				o << xs[i];
+			}
+			return o.str();
+		};
+		std::ostringstream lit;
+		switch (al.kind())
+		{
+		case ArrayLiteralExpr::UINT256:
+		{
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back(i == 0 ? ("uint256(" + raw[i] + ")") : raw[i]);
+			lit << "[" << join(cast) << "][" << idx << "]";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::INT256:
+		{
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back(i == 0 ? ("int256(int256(int256(0)) + int256(uint256(" + raw[i] + ") % (2**255)))")
+				                      : ("int256(uint256(" + raw[i] + ") % (2**255))"));
+			lit << "uint256(" << "[" << join(cast) << "][" << idx << "])";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::ADDRESS:
+		{
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+			{
+				std::string a = "address(uint160(" + raw[i] + "))";
+				cast.push_back(i == 0 ? a : a);
+			}
+			lit << "uint256(uint160([" << join(cast) << "][" << idx << "]))";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::BYTES32:
+		{
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back("bytes32(" + raw[i] + ")");
+			lit << "uint256([" << join(cast) << "][" << idx << "])";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::BOOL:
+		{
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back("((" + raw[i] + ") != 0)");
+			lit << "([" << join(cast) << "][" << idx << "] ? uint256(1) : uint256(0))";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::MIXED_SIGN:
+		{
+			// [uint(e0), int(-e1), uint(e2), ...] — type-error surface.
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+			{
+				if (i % 2 == 0)
+					cast.push_back("uint256(" + raw[i] + ")");
+				else
+					cast.push_back("int256(-int256(uint256(" + raw[i] + ") % (2**255)))");
+			}
+			lit << "uint256([" << join(cast) << "][" << idx << "])";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::MIXED_WIDTH:
+		{
+			// [uint8(e0), uint256(e1), uint16(e2), ...]
+			static char const* const widths[] = {"uint8", "uint256", "uint16", "uint128"};
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back(std::string(widths[i % 4]) + "(" + raw[i] + ")");
+			lit << "uint256([" << join(cast) << "][" << idx << "])";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::MIXED_BYTES:
+		{
+			// [bytes1(..), bytes2(..), bytes4(..), ...]
+			static char const* const widths[] = {"bytes1", "bytes2", "bytes4", "bytes8"};
+			std::vector<std::string> cast;
+			for (unsigned i = 0; i < n; i++)
+				cast.push_back(std::string(widths[i % 4])
+					+ "(uint" + std::to_string(8 << (i % 4)) + "(" + raw[i] + "))");
+			lit << "uint256(uint64(bytes8([" << join(cast) << "][" << idx << "])))";
+			result = lit.str();
+			break;
+		}
+		case ArrayLiteralExpr::NESTED:
+		{
+			// [[uint(e0)], [uint(e1)], ...][outerIdx][0]
+			std::vector<std::string> outer;
+			for (unsigned i = 0; i < n; i++)
+				outer.push_back(i == 0 ? ("[uint256(" + raw[i] + ")]") : ("[" + raw[i] + "]"));
+			lit << "[" << join(outer) << "][" << idx << "][0]";
+			result = lit.str();
+			break;
+		}
+		}
+		break;
+	}
 	case Expression::kAbiEncodeCall:
 	{
 		// abi.encodeCall(this.func, (args)) — type-safe call encoding

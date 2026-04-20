@@ -495,6 +495,8 @@ message Expression {
 		AbiEncodeCallExpr abi_encode_call = 27;
 		// UDVT wrap/unwrap: MyUint.wrap(val) returns MyUint, MyUint.unwrap(x) returns uint256
 		UdvtExpr udvt_expr = 28;
+		// Inline array literal indexed down to a uint256
+		ArrayLiteralExpr array_lit = 29;
 	}
 }
 
@@ -503,6 +505,34 @@ message UdvtExpr {
 	required Expression inner = 1;
 	// true = wrap(inner), false = unwrap(wrap(inner)) [round-trip to uint256]
 	required bool wrap_only = 2;
+}
+
+// Inline array literal: `[e1, e2, ...][idx]` reduced to a uint256. The
+// uniform kinds (UINT256/INT256/ADDRESS/BYTES32/BOOL) are valid and
+// exercise inline-array codegen — useful for differential
+// optimized-vs-unoptimized miscompilation. The MIXED_* kinds deliberately
+// mismatch element types to drive the mobile-type (`commonType`)
+// inference path which has historically ICE'd on mixed signedness,
+// mixed widths, and nested empty literals.
+message ArrayLiteralExpr {
+	enum Kind {
+		UINT256 = 0;
+		INT256 = 1;
+		ADDRESS = 2;
+		BYTES32 = 3;
+		BOOL = 4;
+		MIXED_SIGN = 5;   // [uint(..), int(-..)]
+		MIXED_WIDTH = 6;  // [uint8(..), uint256(..)]
+		MIXED_BYTES = 7;  // [bytes1(..), bytes2(..)]
+		NESTED = 8;       // [[uint(..)]] indexed twice
+	}
+	required Kind kind = 1;
+	// Element expressions. Converter clamps length to [1, 4]; with zero
+	// elements, defaults to a single zero-valued element (empty inline
+	// literals are syntactically rejected by the parser).
+	repeated Expression elems = 2;
+	// Index into the outer literal; clamped to `elems_size - 1`.
+	optional uint32 index = 3;
 }
 
 // ======================= STATEMENTS =======================
