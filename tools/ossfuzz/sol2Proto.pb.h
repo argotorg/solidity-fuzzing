@@ -21239,6 +21239,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
     kModifierIdFieldNumber = 7,
     kShareNameWithPrevFieldNumber = 8,
     kReturnsTwoFieldNumber = 10,
+    kNonVirtualFieldNumber = 11,
+    kOverrideBaseFieldNumber = 12,
   };
   // repeated .solidity.test.sol2protofuzzer.ParamType param_types = 9;
   [[nodiscard]] int param_types_size()
@@ -21348,11 +21350,35 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
   void _internal_set_returns_two(bool value);
 
   public:
+  // optional bool non_virtual = 11;
+  [[nodiscard]] bool has_non_virtual()
+      const;
+  void clear_non_virtual() ;
+  [[nodiscard]] bool non_virtual() const;
+  void set_non_virtual(bool value);
+
+  private:
+  bool _internal_non_virtual() const;
+  void _internal_set_non_virtual(bool value);
+
+  public:
+  // optional bool override_base = 12;
+  [[nodiscard]] bool has_override_base()
+      const;
+  void clear_override_base() ;
+  [[nodiscard]] bool override_base() const;
+  void set_override_base(bool value);
+
+  private:
+  bool _internal_override_base() const;
+  void _internal_set_override_base(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FunctionDef)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 8,
+  static const ::google::protobuf::internal::TcParseTable<4, 10,
                                    4, 0,
                                    2>
       _table_;
@@ -21384,6 +21410,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
     ::uint32_t modifier_id_;
     bool share_name_with_prev_;
     bool returns_two_;
+    bool non_virtual_;
+    bool override_base_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -37427,6 +37455,64 @@ inline bool FunctionDef::_internal_returns_two() const {
 inline void FunctionDef::_internal_set_returns_two(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.returns_two_ = value;
+}
+
+// optional bool non_virtual = 11;
+inline bool FunctionDef::has_non_virtual() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000100U);
+  return value;
+}
+inline void FunctionDef::clear_non_virtual() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.non_virtual_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline bool FunctionDef::non_virtual() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FunctionDef.non_virtual)
+  return _internal_non_virtual();
+}
+inline void FunctionDef::set_non_virtual(bool value) {
+  _internal_set_non_virtual(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FunctionDef.non_virtual)
+}
+inline bool FunctionDef::_internal_non_virtual() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.non_virtual_;
+}
+inline void FunctionDef::_internal_set_non_virtual(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.non_virtual_ = value;
+}
+
+// optional bool override_base = 12;
+inline bool FunctionDef::has_override_base() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000200U);
+  return value;
+}
+inline void FunctionDef::clear_override_base() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.override_base_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline bool FunctionDef::override_base() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FunctionDef.override_base)
+  return _internal_override_base();
+}
+inline void FunctionDef::set_override_base(bool value) {
+  _internal_set_override_base(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FunctionDef.override_base)
+}
+inline bool FunctionDef::_internal_override_base() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.override_base_;
+}
+inline void FunctionDef::_internal_set_override_base(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.override_base_ = value;
 }
 
 // -------------------------------------------------------------------

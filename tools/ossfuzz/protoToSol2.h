@@ -67,6 +67,11 @@ private:
 		std::vector<ParamType> paramTypes;
 		/// When true, function returns (uint256, uint256) instead of uint256.
 		bool returnTwo = false;
+		/// When true, omit the `virtual` keyword so the function is final.
+		bool nonVirtual = false;
+		/// When true, emit with `override`; name/signature were copied from
+		/// a base-contract function during the inheritance-resolution pass.
+		bool isOverride = false;
 	};
 
 	struct FreeFuncInfo

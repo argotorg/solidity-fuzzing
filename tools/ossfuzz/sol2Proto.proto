@@ -850,6 +850,17 @@ message FunctionDef {
 	repeated ParamType param_types = 9;
 	// When true, function returns (uint256, uint256) instead of uint256
 	optional bool returns_two = 10;
+	// When true, suppress the `virtual` keyword. By default every
+	// non-library non-private function is emitted as `virtual`; this
+	// turns that off so the function is final. Combined with
+	// `override_base` in a derived contract, exercises the frontend's
+	// non-virtual-override rejection path.
+	optional bool non_virtual = 11;
+	// When true and the contract has at least one base with a virtual
+	// function, adopt a base function's name/signature and emit this
+	// function with `override`. Exercises override resolution (has ICE'd
+	// historically on modifier + override + multi-base interactions).
+	optional bool override_base = 12;
 }
 
 message ConstructorDef {

@@ -92,6 +92,9 @@ std::string ProtoConverter::visit(Program const& _p)
 			// Multiple return values
 			fi.returnTwo = c.functions(j).has_returns_two() && c.functions(j).returns_two();
 
+			// Non-virtual toggle (cannot be overridden in derived contracts)
+			fi.nonVirtual = c.functions(j).has_non_virtual() && c.functions(j).non_virtual();
+
 			// Force the first function of non-library contracts to be
 			// PUBLIC so the test contract can always call at least one.
 			if (j == 0 && info.kind != ContractDef::LIBRARY)
@@ -412,6 +415,87 @@ std::string ProtoConverter::visit(Program const& _p)
 					usedAncestors.insert(candidateAnc.begin(), candidateAnc.end());
 				}
 			}
+		}
+	}
+
+	// Resolve override_base: for each FunctionDef flagged with
+	// override_base, walk the contract's base chain, collect virtual
+	// non-private functions, and copy a chosen one's name/signature onto
+	// the derived FuncInfo so emission produces a valid override.
+	for (unsigned i = 0; i < numContracts; i++)
+	{
+		auto const& c = _p.contracts(i);
+		auto& info = m_contracts[i];
+		if (info.kind == ContractDef::LIBRARY)
+			continue;
+		if (info.baseIndices.empty())
+			continue;
+
+		// BFS the base chain to collect overridable candidates.
+		std::vector<FuncInfo> candidates;
+		std::vector<unsigned> visitedB;
+		std::vector<unsigned> queueB(info.baseIndices.begin(), info.baseIndices.end());
+		while (!queueB.empty())
+		{
+			unsigned bIdx = queueB.front();
+			queueB.erase(queueB.begin());
+			bool seen = false;
+			for (unsigned v : visitedB)
+				if (v == bIdx) { seen = true; break; }
+			if (seen)
+				continue;
+			visitedB.push_back(bIdx);
+			auto const& baseInfo = m_contracts[bIdx];
+			for (auto const& bfi : baseInfo.functions)
+			{
+				if (bfi.vis == PRIVATE) continue;
+				if (bfi.nonVirtual) continue;
+				candidates.push_back(bfi);
+			}
+			for (unsigned bb : baseInfo.baseIndices)
+				queueB.push_back(bb);
+		}
+
+		if (candidates.empty())
+			continue;
+
+		unsigned numFuncs2 = std::min(
+			static_cast<unsigned>(c.functions_size()),
+			s_maxFunctions
+		);
+		for (unsigned j = 0; j < numFuncs2 && j < info.functions.size(); j++)
+		{
+			auto const& fp = c.functions(j);
+			if (!(fp.has_override_base() && fp.override_base()))
+				continue;
+			auto const& chosen = candidates[j % candidates.size()];
+			// Skip if this contract already has a function with that name
+			// and same param count (would cause duplicate-signature error).
+			bool dup = false;
+			for (unsigned k = 0; k < info.functions.size(); k++)
+			{
+				if (k == j) continue;
+				auto const& other = info.functions[k];
+				if (other.name == chosen.name && other.numParams == chosen.numParams)
+				{
+					dup = true;
+					break;
+				}
+			}
+			if (dup)
+				continue;
+
+			auto& fi = info.functions[j];
+			fi.name = chosen.name;
+			fi.numParams = chosen.numParams;
+			fi.paramTypes = chosen.paramTypes;
+			fi.returnTwo = chosen.returnTwo;
+			fi.vis = chosen.vis;
+			fi.mut = chosen.mut;
+			fi.isOverride = true;
+			// An overriding function must itself be virtual if further
+			// derived contracts are to override it. Leave nonVirtual as-is:
+			// the user's proto choice dictates whether the chain continues.
 		}
 	}
 
@@ -865,8 +949,10 @@ std::string ProtoConverter::visitContract(ContractDef const& _c, unsigned _idx)
 			o << ") public";
 			if (fi.mut == PURE) o << " pure";
 			else if (fi.mut == VIEW) o << " view";
-			if (!isLibrary && fi.vis != PRIVATE)
+			if (!isLibrary && fi.vis != PRIVATE && !fi.nonVirtual)
 				o << " virtual";
+			if (!isLibrary && fi.isOverride)
+				o << " override";
 			if (fi.returnTwo)
 			{
 				o << " returns (uint256, uint256) {\n";
@@ -987,10 +1073,14 @@ std::string ProtoConverter::visitFunction(
 	if (!mut.empty())
 		o << " " << mut;
 
-	// Add virtual keyword for non-private functions in non-library contracts
-	// that are used as base contracts or that override base functions
-	if (!isLibrary && fi.vis != PRIVATE)
+	// virtual / override markers. Non-library, non-private functions are
+	// `virtual` by default (so a derived contract can override them);
+	// `non_virtual` suppresses that. `override` is emitted when this
+	// function was bound to a base function during the inheritance pass.
+	if (!isLibrary && fi.vis != PRIVATE && !fi.nonVirtual)
 		o << " virtual";
+	if (!isLibrary && fi.isOverride)
+		o << " override";
 
 	// Apply modifier if specified — only for nonpayable/payable functions.
 	// Modifier bodies are generated with NONPAYABLE mutability, so applying
