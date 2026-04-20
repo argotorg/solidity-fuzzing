@@ -636,6 +636,39 @@ message Statement {
 
 message StructField {
 	required ElementaryType type = 1;
+	// Optional non-elementary override. When none of these oneof branches
+	// are set the field is plain `type`. When one is set it replaces the
+	// elementary type, producing shapes the plain-elementary grammar
+	// cannot reach: oversized 1D/2D arrays, function types. These exercise
+	// ICE paths in `StorageOffsets::computeOffsets` (#16624),
+	// `ArrayType::storageSize` (#16618), `ArrayType::calldataEncodedSize`
+	// (#16621), and `StructType::isDynamicallyEncoded` (#16622).
+	oneof advanced_type {
+		StructArrayField arr_field = 2;
+		StructFunctionField fn_field = 3;
+	}
+}
+
+// 1D or 2D array field. Outer length may be dynamic (absent) or a size
+// bucket (via `arraySizeBucket`, which includes oversized literals).
+// When `inner_length` is set the field is 2D: `T[inner][outer]`.
+message StructArrayField {
+	required ElementaryType base = 1;
+	// Omitted outer length = dynamic outer (`T[]`).
+	optional uint32 outer_length = 2;
+	// When set, the field is a 2D array with fixed inner dimension.
+	optional uint32 inner_length = 3;
+}
+
+// Function-type field inside a struct. Always emitted with `external`
+// visibility — internal function types cannot live in storage, so they
+// would be rejected before reaching the target ICE. Triggers
+// `StructType::isDynamicallyEncoded` (#16622) when the return is a
+// dynamically-encoded calldata array.
+message StructFunctionField {
+	// When true, signature is `function() external returns (uint256[] calldata)`.
+	// When false, signature is bare `function() external`.
+	optional bool returns_calldata_array = 1;
 }
 
 message StructDef {

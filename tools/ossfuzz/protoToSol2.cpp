@@ -147,14 +147,47 @@ std::string ProtoConverter::visit(Program const& _p)
 				sfi.name = "f" + std::to_string(k);
 				if (k < static_cast<unsigned>(c.structs(j).fields_size()))
 				{
-					auto const& ft = c.structs(j).fields(k).type();
-					sfi.typeStr = elementaryTypeStr(ft);
-					sfi.isUintCompatible = isUintType(ft);
-					// Avoid dynamic types in structs to keep things simple
-					if (sfi.typeStr == "string" || sfi.typeStr == "bytes")
+					auto const& sf = c.structs(j).fields(k);
+					// Non-elementary override: arrays / function types.
+					// Leaves the field non-uint-compatible so access code
+					// never emits reads — only the declaration matters
+					// for the targeted ICE paths.
+					if (sf.has_arr_field())
 					{
-						sfi.typeStr = "uint256";
-						sfi.isUintCompatible = true;
+						auto const& af = sf.arr_field();
+						std::string base = elementaryTypeStr(af.base());
+						if (base == "string" || base == "bytes")
+							base = "uint256";
+						std::string ty = base;
+						if (af.has_inner_length())
+							ty += "[" + arraySizeBucket(af.inner_length()).first + "]";
+						if (af.has_outer_length())
+							ty += "[" + arraySizeBucket(af.outer_length()).first + "]";
+						else
+							ty += "[]";
+						sfi.typeStr = ty;
+						sfi.isUintCompatible = false;
+					}
+					else if (sf.has_fn_field())
+					{
+						auto const& ff = sf.fn_field();
+						std::string ret =
+							ff.has_returns_calldata_array() && ff.returns_calldata_array()
+								? " returns (uint256[] calldata)" : "";
+						sfi.typeStr = "function() external" + ret;
+						sfi.isUintCompatible = false;
+					}
+					else
+					{
+						auto const& ft = sf.type();
+						sfi.typeStr = elementaryTypeStr(ft);
+						sfi.isUintCompatible = isUintType(ft);
+						// Avoid dynamic types in structs to keep things simple
+						if (sfi.typeStr == "string" || sfi.typeStr == "bytes")
+						{
+							sfi.typeStr = "uint256";
+							sfi.isUintCompatible = true;
+						}
 					}
 				}
 				else
