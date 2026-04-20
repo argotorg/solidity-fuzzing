@@ -539,6 +539,22 @@ message SelfdestructStmt {
 	required Expression beneficiary = 1;
 }
 
+// Bare reference to a magic member, emitted as a standalone expression
+// statement (`abi.encodeCall;`). Solidity's parser/type-checker accepts
+// several of these shapes, but codegen ICEs with "Unknown magic member"
+// (#16612). Covers sibling magic members too to broaden the surface.
+message BareMagicStmt {
+	enum Kind {
+		ABI_ENCODE_CALL = 0;
+		ABI_ENCODE = 1;
+		ABI_ENCODE_PACKED = 2;
+		ABI_DECODE = 3;
+		ABI_ENCODE_WITH_SELECTOR = 4;
+		ABI_ENCODE_WITH_SIGNATURE = 5;
+	}
+	required Kind kind = 1;
+}
+
 message EmitStmt {
 	required uint32 event_id = 1;
 	repeated Expression args = 2;
@@ -629,6 +645,7 @@ message Statement {
 		ArrayPushStmt array_push = 20;
 		ArrayPopStmt array_pop = 21;
 		TupleDestructStmt tuple_destruct = 22;
+		BareMagicStmt bare_magic = 23;
 	}
 }
 

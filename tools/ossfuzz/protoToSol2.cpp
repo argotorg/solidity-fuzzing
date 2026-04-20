@@ -1136,6 +1136,26 @@ std::string ProtoConverter::visitStatement(Statement const& _s)
 			result = indent() + "selfdestruct(payable(address(uint160(uint256(" + addr + ")))));\n";
 		}
 		break;
+	case Statement::kBareMagic:
+	{
+		// Emit a bare magic-member reference as a standalone expression
+		// statement — Solidity parses this but codegen ICEs on
+		// "Unknown magic member" (#16612). Accept that most such
+		// statements won't reach codegen (earlier rejection is fine).
+		std::string member;
+		switch (_s.bare_magic().kind())
+		{
+		case BareMagicStmt::ABI_ENCODE_CALL:        member = "abi.encodeCall"; break;
+		case BareMagicStmt::ABI_ENCODE:             member = "abi.encode"; break;
+		case BareMagicStmt::ABI_ENCODE_PACKED:      member = "abi.encodePacked"; break;
+		case BareMagicStmt::ABI_DECODE:             member = "abi.decode"; break;
+		case BareMagicStmt::ABI_ENCODE_WITH_SELECTOR:  member = "abi.encodeWithSelector"; break;
+		case BareMagicStmt::ABI_ENCODE_WITH_SIGNATURE: member = "abi.encodeWithSignature"; break;
+		}
+		if (!member.empty())
+			result = indent() + member + ";\n";
+		break;
+	}
 	default:
 		break;
 	}
