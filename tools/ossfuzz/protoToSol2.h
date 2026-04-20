@@ -77,6 +77,12 @@ private:
 		/// frontend ICE path `FunctionDefinition::type` when bound via
 		/// `using for`, see #16620).
 		bool emitExternal = false;
+		/// When true (and the program uses a UDVT), emit the function with
+		/// `(MyUint, MyUint) returns (MyUint)` signature and a hardcoded
+		/// `MyUint c = a + b; return c;` body so it can duplicate-bind the
+		/// `+` operator already bound to `_udvtAdd`. Triggers
+		/// `TypeChecker::endVisit(BinaryOperation)` ICE (#16616).
+		bool useUdvtSig = false;
 	};
 
 	struct EventInfo

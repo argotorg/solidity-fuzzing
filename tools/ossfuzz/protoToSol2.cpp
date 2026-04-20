@@ -437,6 +437,9 @@ std::string ProtoConverter::visit(Program const& _p)
 		s_maxFreeFunctions
 	);
 	m_freeFunctions.clear();
+	// Check if we should generate UDVT (needed early: gates UDVT-sig free functions)
+	m_hasUdvt = _p.has_gen_udvt() && _p.gen_udvt();
+
 	for (unsigned i = 0; i < numFreeFuncs; i++)
 	{
 		FreeFuncInfo ffi;
@@ -448,11 +451,17 @@ std::string ProtoConverter::visit(Program const& _p)
 		ffi.emitExternal =
 			_p.free_functions(i).has_emit_external() &&
 			_p.free_functions(i).emit_external();
+		// UDVT-sig requires the UDVT itself to be emitted; ignore otherwise.
+		ffi.useUdvtSig = m_hasUdvt
+			&& _p.free_functions(i).has_use_udvt_sig()
+			&& _p.free_functions(i).use_udvt_sig();
+		// `external` on a UDVT-sig function would disable the
+		// self-referential `a + b` body (external free funcs are the
+		// #16620 shape, not #16616). Prefer the UDVT shape when both set.
+		if (ffi.useUdvtSig)
+			ffi.emitExternal = false;
 		m_freeFunctions.push_back(ffi);
 	}
-
-	// Check if we should generate UDVT
-	m_hasUdvt = _p.has_gen_udvt() && _p.gen_udvt();
 
 	// Generate source
 	std::ostringstream o;
@@ -489,6 +498,22 @@ std::string ProtoConverter::visit(Program const& _p)
 	for (unsigned i = 0; i < numFreeFuncs; i++)
 	{
 		auto const& ffi = m_freeFunctions[i];
+
+		// UDVT-sig variant emits a fixed signature and body — no proto body
+		// replay, no scope/state setup for expression generation. The body
+		// uses `a + b` on MyUint operands so it resolves through the bound
+		// `+` operator; when the user-level using-for directive adds a
+		// duplicate `as +` binding on MyUint, #16616 ICEs.
+		if (ffi.useUdvtSig)
+		{
+			o << "function " << ffi.name
+			  << "(MyUint a, MyUint b) pure returns (MyUint) {\n"
+			  << "\tMyUint c = a + b;\n"
+			  << "\treturn c;\n"
+			  << "}\n\n";
+			continue;
+		}
+
 		o << "function " << ffi.name << "(";
 		for (unsigned p = 0; p < ffi.numParams; p++)
 		{
@@ -1170,6 +1195,51 @@ std::string ProtoConverter::visitStatement(Statement const& _s)
 		}
 		if (!member.empty())
 			result = indent() + member + ";\n";
+		break;
+	}
+	case Statement::kFixedAsm:
+	{
+		// `fixed`/`ufixed` local assigned from inline assembly — TypeChecker
+		// has no handler for FixedPointType in the assembly visitor and ICEs
+		// with "FixedPointType not implemented" (#16619). The shape is
+		// hermetic: a block-scoped local + a one-line assembly block.
+		std::string tname =
+			_s.fixed_asm().kind() == FixedAsmStmt::UFIXED_LOCAL ? "ufixed" : "fixed";
+		std::ostringstream o;
+		o << indent() << "{\n";
+		m_indentLevel++;
+		o << indent() << tname << " _fx;\n";
+		o << indent() << "assembly { _fx := 1 }\n";
+		m_indentLevel--;
+		o << indent() << "}\n";
+		result = o.str();
+		break;
+	}
+	case Statement::kAbiEncodeStruct:
+	{
+		// `S memory _es; abi.encode(_es);` — encoding a memory struct whose
+		// (inherited) array field is oversized ICEs
+		// `ArrayType::calldataEncodedSize` (#16621). Memory types bypass the
+		// size check that calldata enforces.
+		if (!m_currentStructDefs.empty())
+		{
+			unsigned sidx = _s.abi_encode_struct().struct_idx()
+				% m_currentStructDefs.size();
+			std::string const& sname = m_currentStructDefs[sidx].name;
+			bool wrap = _s.abi_encode_struct().has_wrap_in_array()
+				&& _s.abi_encode_struct().wrap_in_array();
+			std::ostringstream o;
+			o << indent() << "{\n";
+			m_indentLevel++;
+			if (wrap)
+				o << indent() << sname << "[1] memory _es;\n";
+			else
+				o << indent() << sname << " memory _es;\n";
+			o << indent() << "abi.encode(_es);\n";
+			m_indentLevel--;
+			o << indent() << "}\n";
+			result = o.str();
+		}
 		break;
 	}
 	default:
@@ -2111,10 +2181,25 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 				}
 			}
 		}
-		// Try calling a free function (always pure, callable from any context)
+		// Try calling a free function (always pure, callable from any context).
+		// Skip UDVT-sig free functions: their params are MyUint, not uint256,
+		// so a direct call here wouldn't type-check. They're reached via the
+		// user-defined operator dispatch instead.
 		if (!m_freeFunctions.empty())
 		{
 			unsigned ffIdx = fc.func_id() % m_freeFunctions.size();
+			unsigned tries = 0;
+			while (m_freeFunctions[ffIdx].useUdvtSig
+				&& tries < m_freeFunctions.size())
+			{
+				ffIdx = (ffIdx + 1) % m_freeFunctions.size();
+				tries++;
+			}
+			if (m_freeFunctions[ffIdx].useUdvtSig)
+			{
+				result = findVar(randomNumber());
+				break;
+			}
 			auto const& ff = m_freeFunctions[ffIdx];
 			std::ostringstream call;
 			call << ff.name << "(";

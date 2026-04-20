@@ -582,6 +582,34 @@ message BareMagicStmt {
 	required Kind kind = 1;
 }
 
+// Declare a fixed/ufixed local and assign to it from inline assembly.
+// Solidity's TypeChecker panics with "FixedPointType not implemented"
+// (#16619) because the assembly visitor has no handler for fixed-point
+// types. Only this narrow shape is emitted — we still avoid general
+// inline-assembly fuzzing.
+message FixedAsmStmt {
+	enum Kind {
+		// fixed x; assembly { x := 1 }
+		FIXED_LOCAL = 0;
+		// ufixed x; assembly { x := 1 }
+		UFIXED_LOCAL = 1;
+	}
+	required Kind kind = 1;
+}
+
+// `S memory _es; abi.encode(_es);` — declare a memory local of a struct
+// type and abi.encode it. When the referenced struct has an oversized
+// static-array field (via `StructArrayField`), the encoded-size
+// calculation overflows and ICEs `ArrayType::calldataEncodedSize`
+// (#16621). Memory types skip the size validation that calldata gets.
+message AbiEncodeStructStmt {
+	// Index into the enclosing contract's struct list (mod size).
+	required uint32 struct_idx = 1;
+	// When true, wrap in a fixed-size memory array:
+	//   S[1] memory _es; abi.encode(_es);
+	optional bool wrap_in_array = 2;
+}
+
 message EmitStmt {
 	required uint32 event_id = 1;
 	repeated Expression args = 2;
@@ -673,6 +701,8 @@ message Statement {
 		ArrayPopStmt array_pop = 21;
 		TupleDestructStmt tuple_destruct = 22;
 		BareMagicStmt bare_magic = 23;
+		FixedAsmStmt fixed_asm = 24;
+		AbiEncodeStructStmt abi_encode_struct = 25;
 	}
 }
 
@@ -899,6 +929,15 @@ message FreeFunctionDef {
 	// accepts `external`; the frontend ICEs (`FunctionDefinition::type`,
 	// #16620) when the invalid free function is bound via `using for`.
 	optional bool emit_external = 3;
+	// When true and Program.gen_udvt is set, emit a signature of
+	// `(MyUint, MyUint) returns (MyUint)` with a hardcoded
+	// self-referential body `{ MyUint c = a + b; return c; }`. This
+	// makes the function a valid operator-binding target for MyUint,
+	// so a `using {_udvtAdd as +, ff as +} for MyUint` directive (which
+	// is already emitted globally when gen_udvt is set) creates the
+	// duplicate-operator-binding + self-referential use shape that ICEs
+	// `TypeChecker::endVisit(BinaryOperation)` (#16616).
+	optional bool use_udvt_sig = 4;
 }
 
 // ======================= TOP-LEVEL =======================

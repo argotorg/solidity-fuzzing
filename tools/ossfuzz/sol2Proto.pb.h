@@ -58,6 +58,9 @@ extern AbiEncodeCallExprDefaultTypeInternal _AbiEncodeCallExpr_default_instance_
 class AbiEncodeExpr;
 struct AbiEncodeExprDefaultTypeInternal;
 extern AbiEncodeExprDefaultTypeInternal _AbiEncodeExpr_default_instance_;
+class AbiEncodeStructStmt;
+struct AbiEncodeStructStmtDefaultTypeInternal;
+extern AbiEncodeStructStmtDefaultTypeInternal _AbiEncodeStructStmt_default_instance_;
 class AddressLiteral;
 struct AddressLiteralDefaultTypeInternal;
 extern AddressLiteralDefaultTypeInternal _AddressLiteral_default_instance_;
@@ -70,6 +73,9 @@ extern ArrayPopStmtDefaultTypeInternal _ArrayPopStmt_default_instance_;
 class ArrayPushStmt;
 struct ArrayPushStmtDefaultTypeInternal;
 extern ArrayPushStmtDefaultTypeInternal _ArrayPushStmt_default_instance_;
+class ArraySizeExpr;
+struct ArraySizeExprDefaultTypeInternal;
+extern ArraySizeExprDefaultTypeInternal _ArraySizeExpr_default_instance_;
 class ArrayType;
 struct ArrayTypeDefaultTypeInternal;
 extern ArrayTypeDefaultTypeInternal _ArrayType_default_instance_;
@@ -148,6 +154,9 @@ extern ExpressionDefaultTypeInternal _Expression_default_instance_;
 class FallbackDef;
 struct FallbackDefDefaultTypeInternal;
 extern FallbackDefDefaultTypeInternal _FallbackDef_default_instance_;
+class FixedAsmStmt;
+struct FixedAsmStmtDefaultTypeInternal;
+extern FixedAsmStmtDefaultTypeInternal _FixedAsmStmt_default_instance_;
 class FixedBytesType;
 struct FixedBytesTypeDefaultTypeInternal;
 extern FixedBytesTypeDefaultTypeInternal _FixedBytesType_default_instance_;
@@ -302,10 +311,12 @@ PROTOBUF_NAMESPACE_OPEN
 template<> ::solidity::test::sol2protofuzzer::AbiDecodeExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AbiDecodeExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::AbiEncodeCallExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AbiEncodeCallExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::AbiEncodeExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AbiEncodeExpr>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AbiEncodeStructStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::AddressLiteral* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AddressLiteral>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ArrayLengthExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayLengthExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ArrayPopStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayPopStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ArrayPushStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayPushStmt>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::ArraySizeExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArraySizeExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ArrayType* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArrayType>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::AssignExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::AssignExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::BareMagicStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::BareMagicStmt>(Arena*);
@@ -332,6 +343,7 @@ template<> ::solidity::test::sol2protofuzzer::EventDef* Arena::CreateMaybeMessag
 template<> ::solidity::test::sol2protofuzzer::ExprStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ExprStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::Expression* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::Expression>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::FallbackDef* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::FallbackDef>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::FixedAsmStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::FixedAsmStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::FixedBytesType* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::FixedBytesType>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::ForStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::ForStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::FreeFunctionDef* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::FreeFunctionDef>(Arena*);
@@ -491,6 +503,34 @@ inline bool FixedBytesType_Width_Parse(
     ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, FixedBytesType_Width* value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<FixedBytesType_Width>(
     FixedBytesType_Width_descriptor(), name, value);
+}
+enum ArraySizeExpr_Kind : int {
+  ArraySizeExpr_Kind_BUCKET = 0,
+  ArraySizeExpr_Kind_ABI_SUBSCRIPT = 1,
+  ArraySizeExpr_Kind_BLOCK_SUBSCRIPT = 2,
+  ArraySizeExpr_Kind_MSG_SUBSCRIPT = 3,
+  ArraySizeExpr_Kind_TX_SUBSCRIPT = 4,
+  ArraySizeExpr_Kind_ABI_CALL = 5,
+  ArraySizeExpr_Kind_TYPE_INDEX = 6
+};
+bool ArraySizeExpr_Kind_IsValid(int value);
+constexpr ArraySizeExpr_Kind ArraySizeExpr_Kind_Kind_MIN = ArraySizeExpr_Kind_BUCKET;
+constexpr ArraySizeExpr_Kind ArraySizeExpr_Kind_Kind_MAX = ArraySizeExpr_Kind_TYPE_INDEX;
+constexpr int ArraySizeExpr_Kind_Kind_ARRAYSIZE = ArraySizeExpr_Kind_Kind_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* ArraySizeExpr_Kind_descriptor();
+template<typename T>
+inline const std::string& ArraySizeExpr_Kind_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, ArraySizeExpr_Kind>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function ArraySizeExpr_Kind_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    ArraySizeExpr_Kind_descriptor(), enum_t_value);
+}
+inline bool ArraySizeExpr_Kind_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, ArraySizeExpr_Kind* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<ArraySizeExpr_Kind>(
+    ArraySizeExpr_Kind_descriptor(), name, value);
 }
 enum IntegerLiteral_EtherUnit : int {
   IntegerLiteral_EtherUnit_WEI = 0,
@@ -864,6 +904,29 @@ inline bool BareMagicStmt_Kind_Parse(
     ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, BareMagicStmt_Kind* value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<BareMagicStmt_Kind>(
     BareMagicStmt_Kind_descriptor(), name, value);
+}
+enum FixedAsmStmt_Kind : int {
+  FixedAsmStmt_Kind_FIXED_LOCAL = 0,
+  FixedAsmStmt_Kind_UFIXED_LOCAL = 1
+};
+bool FixedAsmStmt_Kind_IsValid(int value);
+constexpr FixedAsmStmt_Kind FixedAsmStmt_Kind_Kind_MIN = FixedAsmStmt_Kind_FIXED_LOCAL;
+constexpr FixedAsmStmt_Kind FixedAsmStmt_Kind_Kind_MAX = FixedAsmStmt_Kind_UFIXED_LOCAL;
+constexpr int FixedAsmStmt_Kind_Kind_ARRAYSIZE = FixedAsmStmt_Kind_Kind_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* FixedAsmStmt_Kind_descriptor();
+template<typename T>
+inline const std::string& FixedAsmStmt_Kind_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, FixedAsmStmt_Kind>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function FixedAsmStmt_Kind_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    FixedAsmStmt_Kind_descriptor(), enum_t_value);
+}
+inline bool FixedAsmStmt_Kind_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, FixedAsmStmt_Kind* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<FixedAsmStmt_Kind>(
+    FixedAsmStmt_Kind_descriptor(), name, value);
 }
 enum UsingForBinding_OperatorKind : int {
   UsingForBinding_OperatorKind_OP_NONE = 0,
@@ -2034,6 +2097,7 @@ class ArrayType final :
 
   enum : int {
     kBaseFieldNumber = 1,
+    kSizeExprFieldNumber = 3,
     kLengthFieldNumber = 2,
   };
   // required .solidity.test.sol2protofuzzer.ElementaryType base = 1;
@@ -2053,6 +2117,24 @@ class ArrayType final :
   void unsafe_arena_set_allocated_base(
       ::solidity::test::sol2protofuzzer::ElementaryType* base);
   ::solidity::test::sol2protofuzzer::ElementaryType* unsafe_arena_release_base();
+
+  // optional .solidity.test.sol2protofuzzer.ArraySizeExpr size_expr = 3;
+  bool has_size_expr() const;
+  private:
+  bool _internal_has_size_expr() const;
+  public:
+  void clear_size_expr();
+  const ::solidity::test::sol2protofuzzer::ArraySizeExpr& size_expr() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::ArraySizeExpr* release_size_expr();
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* mutable_size_expr();
+  void set_allocated_size_expr(::solidity::test::sol2protofuzzer::ArraySizeExpr* size_expr);
+  private:
+  const ::solidity::test::sol2protofuzzer::ArraySizeExpr& _internal_size_expr() const;
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* _internal_mutable_size_expr();
+  public:
+  void unsafe_arena_set_allocated_size_expr(
+      ::solidity::test::sol2protofuzzer::ArraySizeExpr* size_expr);
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* unsafe_arena_release_size_expr();
 
   // optional uint32 length = 2;
   bool has_length() const;
@@ -2078,7 +2160,208 @@ class ArrayType final :
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     ::solidity::test::sol2protofuzzer::ElementaryType* base_;
+    ::solidity::test::sol2protofuzzer::ArraySizeExpr* size_expr_;
     uint32_t length_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class ArraySizeExpr final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.ArraySizeExpr) */ {
+ public:
+  inline ArraySizeExpr() : ArraySizeExpr(nullptr) {}
+  ~ArraySizeExpr() override;
+  explicit PROTOBUF_CONSTEXPR ArraySizeExpr(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  ArraySizeExpr(const ArraySizeExpr& from);
+  ArraySizeExpr(ArraySizeExpr&& from) noexcept
+    : ArraySizeExpr() {
+    *this = ::std::move(from);
+  }
+
+  inline ArraySizeExpr& operator=(const ArraySizeExpr& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ArraySizeExpr& operator=(ArraySizeExpr&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ArraySizeExpr& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ArraySizeExpr* internal_default_instance() {
+    return reinterpret_cast<const ArraySizeExpr*>(
+               &_ArraySizeExpr_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    5;
+
+  friend void swap(ArraySizeExpr& a, ArraySizeExpr& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ArraySizeExpr* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ArraySizeExpr* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ArraySizeExpr* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ArraySizeExpr>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const ArraySizeExpr& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const ArraySizeExpr& from) {
+    ArraySizeExpr::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ArraySizeExpr* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.ArraySizeExpr";
+  }
+  protected:
+  explicit ArraySizeExpr(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  typedef ArraySizeExpr_Kind Kind;
+  static constexpr Kind BUCKET =
+    ArraySizeExpr_Kind_BUCKET;
+  static constexpr Kind ABI_SUBSCRIPT =
+    ArraySizeExpr_Kind_ABI_SUBSCRIPT;
+  static constexpr Kind BLOCK_SUBSCRIPT =
+    ArraySizeExpr_Kind_BLOCK_SUBSCRIPT;
+  static constexpr Kind MSG_SUBSCRIPT =
+    ArraySizeExpr_Kind_MSG_SUBSCRIPT;
+  static constexpr Kind TX_SUBSCRIPT =
+    ArraySizeExpr_Kind_TX_SUBSCRIPT;
+  static constexpr Kind ABI_CALL =
+    ArraySizeExpr_Kind_ABI_CALL;
+  static constexpr Kind TYPE_INDEX =
+    ArraySizeExpr_Kind_TYPE_INDEX;
+  static inline bool Kind_IsValid(int value) {
+    return ArraySizeExpr_Kind_IsValid(value);
+  }
+  static constexpr Kind Kind_MIN =
+    ArraySizeExpr_Kind_Kind_MIN;
+  static constexpr Kind Kind_MAX =
+    ArraySizeExpr_Kind_Kind_MAX;
+  static constexpr int Kind_ARRAYSIZE =
+    ArraySizeExpr_Kind_Kind_ARRAYSIZE;
+  static inline const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
+  Kind_descriptor() {
+    return ArraySizeExpr_Kind_descriptor();
+  }
+  template<typename T>
+  static inline const std::string& Kind_Name(T enum_t_value) {
+    static_assert(::std::is_same<T, Kind>::value ||
+      ::std::is_integral<T>::value,
+      "Incorrect type passed to function Kind_Name.");
+    return ArraySizeExpr_Kind_Name(enum_t_value);
+  }
+  static inline bool Kind_Parse(::PROTOBUF_NAMESPACE_ID::ConstStringParam name,
+      Kind* value) {
+    return ArraySizeExpr_Kind_Parse(name, value);
+  }
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kKindFieldNumber = 1,
+  };
+  // required .solidity.test.sol2protofuzzer.ArraySizeExpr.Kind kind = 1;
+  bool has_kind() const;
+  private:
+  bool _internal_has_kind() const;
+  public:
+  void clear_kind();
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind kind() const;
+  void set_kind(::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind value);
+  private:
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind _internal_kind() const;
+  void _internal_set_kind(::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.ArraySizeExpr)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    int kind_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_sol2Proto_2eproto;
@@ -2140,7 +2423,7 @@ class MappingType final :
                &_MappingType_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    5;
+    6;
 
   friend void swap(MappingType& a, MappingType& b) {
     a.Swap(&b);
@@ -2337,7 +2620,7 @@ class TypeName final :
                &_TypeName_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    6;
+    7;
 
   friend void swap(TypeName& a, TypeName& b) {
     a.Swap(&b);
@@ -2587,7 +2870,7 @@ class BoolLiteral final :
                &_BoolLiteral_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    7;
+    8;
 
   friend void swap(BoolLiteral& a, BoolLiteral& b) {
     a.Swap(&b);
@@ -2747,7 +3030,7 @@ class IntegerLiteral final :
                &_IntegerLiteral_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    9;
 
   friend void swap(IntegerLiteral& a, IntegerLiteral& b) {
     a.Swap(&b);
@@ -2972,7 +3255,7 @@ class StringLiteral final :
                &_StringLiteral_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    10;
 
   friend void swap(StringLiteral& a, StringLiteral& b) {
     a.Swap(&b);
@@ -3132,7 +3415,7 @@ class AddressLiteral final :
                &_AddressLiteral_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    10;
+    11;
 
   friend void swap(AddressLiteral& a, AddressLiteral& b) {
     a.Swap(&b);
@@ -3300,7 +3583,7 @@ class Literal final :
                &_Literal_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(Literal& a, Literal& b) {
     a.Swap(&b);
@@ -3539,7 +3822,7 @@ class VarRef final :
                &_VarRef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    13;
 
   friend void swap(VarRef& a, VarRef& b) {
     a.Swap(&b);
@@ -3699,7 +3982,7 @@ class BinaryOp final :
                &_BinaryOp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(BinaryOp& a, BinaryOp& b) {
     a.Swap(&b);
@@ -3966,7 +4249,7 @@ class UnaryOp final :
                &_UnaryOp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(UnaryOp& a, UnaryOp& b) {
     a.Swap(&b);
@@ -4189,7 +4472,7 @@ class TernaryOp final :
                &_TernaryOp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    16;
 
   friend void swap(TernaryOp& a, TernaryOp& b) {
     a.Swap(&b);
@@ -4397,7 +4680,7 @@ class FuncCallExpr final :
                &_FuncCallExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    17;
 
   friend void swap(FuncCallExpr& a, FuncCallExpr& b) {
     a.Swap(&b);
@@ -4592,7 +4875,7 @@ class IndexAccessExpr final :
                &_IndexAccessExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    18;
 
   friend void swap(IndexAccessExpr& a, IndexAccessExpr& b) {
     a.Swap(&b);
@@ -4780,7 +5063,7 @@ class TypeConvExpr final :
                &_TypeConvExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    19;
 
   friend void swap(TypeConvExpr& a, TypeConvExpr& b) {
     a.Swap(&b);
@@ -4968,7 +5251,7 @@ class MsgExpr final :
                &_MsgExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    20;
 
   friend void swap(MsgExpr& a, MsgExpr& b) {
     a.Swap(&b);
@@ -5162,7 +5445,7 @@ class BlockExpr final :
                &_BlockExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    21;
 
   friend void swap(BlockExpr& a, BlockExpr& b) {
     a.Swap(&b);
@@ -5364,7 +5647,7 @@ class TxExpr final :
                &_TxExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    21;
+    22;
 
   friend void swap(TxExpr& a, TxExpr& b) {
     a.Swap(&b);
@@ -5554,7 +5837,7 @@ class AbiEncodeExpr final :
                &_AbiEncodeExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    23;
 
   friend void swap(AbiEncodeExpr& a, AbiEncodeExpr& b) {
     a.Swap(&b);
@@ -5768,7 +6051,7 @@ class AbiDecodeExpr final :
                &_AbiDecodeExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    24;
 
   friend void swap(AbiDecodeExpr& a, AbiDecodeExpr& b) {
     a.Swap(&b);
@@ -5933,7 +6216,7 @@ class AbiEncodeCallExpr final :
                &_AbiEncodeCallExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    25;
 
   friend void swap(AbiEncodeCallExpr& a, AbiEncodeCallExpr& b) {
     a.Swap(&b);
@@ -6113,7 +6396,7 @@ class HashExpr final :
                &_HashExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    26;
 
   friend void swap(HashExpr& a, HashExpr& b) {
     a.Swap(&b);
@@ -6328,7 +6611,7 @@ class MathExpr final :
                &_MathExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    27;
 
   friend void swap(MathExpr& a, MathExpr& b) {
     a.Swap(&b);
@@ -6581,7 +6864,7 @@ class BuiltinExpr final :
                &_BuiltinExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    27;
+    28;
 
   friend void swap(BuiltinExpr& a, BuiltinExpr& b) {
     a.Swap(&b);
@@ -6799,7 +7082,7 @@ class EcrecoverExpr final :
                &_EcrecoverExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    28;
+    29;
 
   friend void swap(EcrecoverExpr& a, EcrecoverExpr& b) {
     a.Swap(&b);
@@ -7027,7 +7310,7 @@ class TypeInfoExpr final :
                &_TypeInfoExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    29;
+    30;
 
   friend void swap(TypeInfoExpr& a, TypeInfoExpr& b) {
     a.Swap(&b);
@@ -7240,7 +7523,7 @@ class AssignExpr final :
                &_AssignExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    30;
+    31;
 
   friend void swap(AssignExpr& a, AssignExpr& b) {
     a.Swap(&b);
@@ -7491,7 +7774,7 @@ class StructMemberAccess final :
                &_StructMemberAccess_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    32;
 
   friend void swap(StructMemberAccess& a, StructMemberAccess& b) {
     a.Swap(&b);
@@ -7674,7 +7957,7 @@ class EnumLiteral final :
                &_EnumLiteral_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    32;
+    33;
 
   friend void swap(EnumLiteral& a, EnumLiteral& b) {
     a.Swap(&b);
@@ -7852,7 +8135,7 @@ class SuperCallExpr final :
                &_SuperCallExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    33;
+    34;
 
   friend void swap(SuperCallExpr& a, SuperCallExpr& b) {
     a.Swap(&b);
@@ -8032,7 +8315,7 @@ class LibMemberCallExpr final :
                &_LibMemberCallExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    34;
+    35;
 
   friend void swap(LibMemberCallExpr& a, LibMemberCallExpr& b) {
     a.Swap(&b);
@@ -8235,7 +8518,7 @@ class ConcatExpr final :
                &_ConcatExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    35;
+    36;
 
   friend void swap(ConcatExpr& a, ConcatExpr& b) {
     a.Swap(&b);
@@ -8460,7 +8743,7 @@ class SelectorExpr final :
                &_SelectorExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    36;
+    37;
 
   friend void swap(SelectorExpr& a, SelectorExpr& b) {
     a.Swap(&b);
@@ -8652,7 +8935,7 @@ class Expression final :
                &_Expression_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    37;
+    38;
 
   friend void swap(Expression& a, Expression& b) {
     a.Swap(&b);
@@ -9395,7 +9678,7 @@ class UdvtExpr final :
                &_UdvtExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    38;
+    39;
 
   friend void swap(UdvtExpr& a, UdvtExpr& b) {
     a.Swap(&b);
@@ -9578,7 +9861,7 @@ class VarDeclStmt final :
                &_VarDeclStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    39;
+    40;
 
   friend void swap(VarDeclStmt& a, VarDeclStmt& b) {
     a.Swap(&b);
@@ -9743,7 +10026,7 @@ class ExprStmt final :
                &_ExprStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    40;
+    41;
 
   friend void swap(ExprStmt& a, ExprStmt& b) {
     a.Swap(&b);
@@ -9908,7 +10191,7 @@ class IfStmt final :
                &_IfStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    41;
+    42;
 
   friend void swap(IfStmt& a, IfStmt& b) {
     a.Swap(&b);
@@ -10116,7 +10399,7 @@ class ForStmt final :
                &_ForStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    42;
+    43;
 
   friend void swap(ForStmt& a, ForStmt& b) {
     a.Swap(&b);
@@ -10281,7 +10564,7 @@ class WhileStmt final :
                &_WhileStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    43;
+    44;
 
   friend void swap(WhileStmt& a, WhileStmt& b) {
     a.Swap(&b);
@@ -10469,7 +10752,7 @@ class DoWhileStmt final :
                &_DoWhileStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    44;
+    45;
 
   friend void swap(DoWhileStmt& a, DoWhileStmt& b) {
     a.Swap(&b);
@@ -10657,7 +10940,7 @@ class ReturnStmt final :
                &_ReturnStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    45;
+    46;
 
   friend void swap(ReturnStmt& a, ReturnStmt& b) {
     a.Swap(&b);
@@ -10821,7 +11104,7 @@ class BreakStmt final :
                &_BreakStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    46;
+    47;
 
   friend void swap(BreakStmt& a, BreakStmt& b) {
     a.Swap(&b);
@@ -10946,7 +11229,7 @@ class ContinueStmt final :
                &_ContinueStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    47;
+    48;
 
   friend void swap(ContinueStmt& a, ContinueStmt& b) {
     a.Swap(&b);
@@ -11072,7 +11355,7 @@ class RequireStmt final :
                &_RequireStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    48;
+    49;
 
   friend void swap(RequireStmt& a, RequireStmt& b) {
     a.Swap(&b);
@@ -11300,7 +11583,7 @@ class SelfdestructStmt final :
                &_SelfdestructStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    49;
+    50;
 
   friend void swap(SelfdestructStmt& a, SelfdestructStmt& b) {
     a.Swap(&b);
@@ -11465,7 +11748,7 @@ class BareMagicStmt final :
                &_BareMagicStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    50;
+    51;
 
   friend void swap(BareMagicStmt& a, BareMagicStmt& b) {
     a.Swap(&b);
@@ -11608,6 +11891,371 @@ class BareMagicStmt final :
 };
 // -------------------------------------------------------------------
 
+class FixedAsmStmt final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.FixedAsmStmt) */ {
+ public:
+  inline FixedAsmStmt() : FixedAsmStmt(nullptr) {}
+  ~FixedAsmStmt() override;
+  explicit PROTOBUF_CONSTEXPR FixedAsmStmt(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  FixedAsmStmt(const FixedAsmStmt& from);
+  FixedAsmStmt(FixedAsmStmt&& from) noexcept
+    : FixedAsmStmt() {
+    *this = ::std::move(from);
+  }
+
+  inline FixedAsmStmt& operator=(const FixedAsmStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline FixedAsmStmt& operator=(FixedAsmStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const FixedAsmStmt& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const FixedAsmStmt* internal_default_instance() {
+    return reinterpret_cast<const FixedAsmStmt*>(
+               &_FixedAsmStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    52;
+
+  friend void swap(FixedAsmStmt& a, FixedAsmStmt& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(FixedAsmStmt* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(FixedAsmStmt* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  FixedAsmStmt* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<FixedAsmStmt>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const FixedAsmStmt& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const FixedAsmStmt& from) {
+    FixedAsmStmt::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(FixedAsmStmt* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.FixedAsmStmt";
+  }
+  protected:
+  explicit FixedAsmStmt(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  typedef FixedAsmStmt_Kind Kind;
+  static constexpr Kind FIXED_LOCAL =
+    FixedAsmStmt_Kind_FIXED_LOCAL;
+  static constexpr Kind UFIXED_LOCAL =
+    FixedAsmStmt_Kind_UFIXED_LOCAL;
+  static inline bool Kind_IsValid(int value) {
+    return FixedAsmStmt_Kind_IsValid(value);
+  }
+  static constexpr Kind Kind_MIN =
+    FixedAsmStmt_Kind_Kind_MIN;
+  static constexpr Kind Kind_MAX =
+    FixedAsmStmt_Kind_Kind_MAX;
+  static constexpr int Kind_ARRAYSIZE =
+    FixedAsmStmt_Kind_Kind_ARRAYSIZE;
+  static inline const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
+  Kind_descriptor() {
+    return FixedAsmStmt_Kind_descriptor();
+  }
+  template<typename T>
+  static inline const std::string& Kind_Name(T enum_t_value) {
+    static_assert(::std::is_same<T, Kind>::value ||
+      ::std::is_integral<T>::value,
+      "Incorrect type passed to function Kind_Name.");
+    return FixedAsmStmt_Kind_Name(enum_t_value);
+  }
+  static inline bool Kind_Parse(::PROTOBUF_NAMESPACE_ID::ConstStringParam name,
+      Kind* value) {
+    return FixedAsmStmt_Kind_Parse(name, value);
+  }
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kKindFieldNumber = 1,
+  };
+  // required .solidity.test.sol2protofuzzer.FixedAsmStmt.Kind kind = 1;
+  bool has_kind() const;
+  private:
+  bool _internal_has_kind() const;
+  public:
+  void clear_kind();
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind kind() const;
+  void set_kind(::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind value);
+  private:
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind _internal_kind() const;
+  void _internal_set_kind(::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FixedAsmStmt)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    int kind_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AbiEncodeStructStmt final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.AbiEncodeStructStmt) */ {
+ public:
+  inline AbiEncodeStructStmt() : AbiEncodeStructStmt(nullptr) {}
+  ~AbiEncodeStructStmt() override;
+  explicit PROTOBUF_CONSTEXPR AbiEncodeStructStmt(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  AbiEncodeStructStmt(const AbiEncodeStructStmt& from);
+  AbiEncodeStructStmt(AbiEncodeStructStmt&& from) noexcept
+    : AbiEncodeStructStmt() {
+    *this = ::std::move(from);
+  }
+
+  inline AbiEncodeStructStmt& operator=(const AbiEncodeStructStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AbiEncodeStructStmt& operator=(AbiEncodeStructStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const AbiEncodeStructStmt& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const AbiEncodeStructStmt* internal_default_instance() {
+    return reinterpret_cast<const AbiEncodeStructStmt*>(
+               &_AbiEncodeStructStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    53;
+
+  friend void swap(AbiEncodeStructStmt& a, AbiEncodeStructStmt& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AbiEncodeStructStmt* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AbiEncodeStructStmt* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  AbiEncodeStructStmt* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<AbiEncodeStructStmt>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const AbiEncodeStructStmt& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const AbiEncodeStructStmt& from) {
+    AbiEncodeStructStmt::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AbiEncodeStructStmt* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.AbiEncodeStructStmt";
+  }
+  protected:
+  explicit AbiEncodeStructStmt(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kStructIdxFieldNumber = 1,
+    kWrapInArrayFieldNumber = 2,
+  };
+  // required uint32 struct_idx = 1;
+  bool has_struct_idx() const;
+  private:
+  bool _internal_has_struct_idx() const;
+  public:
+  void clear_struct_idx();
+  uint32_t struct_idx() const;
+  void set_struct_idx(uint32_t value);
+  private:
+  uint32_t _internal_struct_idx() const;
+  void _internal_set_struct_idx(uint32_t value);
+  public:
+
+  // optional bool wrap_in_array = 2;
+  bool has_wrap_in_array() const;
+  private:
+  bool _internal_has_wrap_in_array() const;
+  public:
+  void clear_wrap_in_array();
+  bool wrap_in_array() const;
+  void set_wrap_in_array(bool value);
+  private:
+  bool _internal_wrap_in_array() const;
+  void _internal_set_wrap_in_array(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.AbiEncodeStructStmt)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    uint32_t struct_idx_;
+    bool wrap_in_array_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
 class EmitStmt final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.EmitStmt) */ {
  public:
@@ -11663,7 +12311,7 @@ class EmitStmt final :
                &_EmitStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    51;
+    54;
 
   friend void swap(EmitStmt& a, EmitStmt& b) {
     a.Swap(&b);
@@ -11843,7 +12491,7 @@ class RevertStmt final :
                &_RevertStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    52;
+    55;
 
   friend void swap(RevertStmt& a, RevertStmt& b) {
     a.Swap(&b);
@@ -12038,7 +12686,7 @@ class DeleteStmt final :
                &_DeleteStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    53;
+    56;
 
   friend void swap(DeleteStmt& a, DeleteStmt& b) {
     a.Swap(&b);
@@ -12203,7 +12851,7 @@ class TryCatchStmt final :
                &_TryCatchStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    54;
+    57;
 
   friend void swap(TryCatchStmt& a, TryCatchStmt& b) {
     a.Swap(&b);
@@ -12426,7 +13074,7 @@ class Block final :
                &_Block_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    55;
+    58;
 
   friend void swap(Block& a, Block& b) {
     a.Swap(&b);
@@ -12590,7 +13238,7 @@ class UncheckedBlock final :
                &_UncheckedBlock_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    56;
+    59;
 
   friend void swap(UncheckedBlock& a, UncheckedBlock& b) {
     a.Swap(&b);
@@ -12755,7 +13403,7 @@ class IndexAssignStmt final :
                &_IndexAssignStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    57;
+    60;
 
   friend void swap(IndexAssignStmt& a, IndexAssignStmt& b) {
     a.Swap(&b);
@@ -12958,7 +13606,7 @@ class TupleAssignStmt final :
                &_TupleAssignStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    58;
+    61;
 
   friend void swap(TupleAssignStmt& a, TupleAssignStmt& b) {
     a.Swap(&b);
@@ -13146,7 +13794,7 @@ class ArrayPushStmt final :
                &_ArrayPushStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    59;
+    62;
 
   friend void swap(ArrayPushStmt& a, ArrayPushStmt& b) {
     a.Swap(&b);
@@ -13326,7 +13974,7 @@ class ArrayPopStmt final :
                &_ArrayPopStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    60;
+    63;
 
   friend void swap(ArrayPopStmt& a, ArrayPopStmt& b) {
     a.Swap(&b);
@@ -13486,7 +14134,7 @@ class TupleDestructStmt final :
                &_TupleDestructStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    61;
+    64;
 
   friend void swap(TupleDestructStmt& a, TupleDestructStmt& b) {
     a.Swap(&b);
@@ -13666,7 +14314,7 @@ class ArrayLengthExpr final :
                &_ArrayLengthExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    62;
+    65;
 
   friend void swap(ArrayLengthExpr& a, ArrayLengthExpr& b) {
     a.Swap(&b);
@@ -13845,6 +14493,8 @@ class Statement final :
     kArrayPop = 21,
     kTupleDestruct = 22,
     kBareMagic = 23,
+    kFixedAsm = 24,
+    kAbiEncodeStruct = 25,
     STMT_ONEOF_NOT_SET = 0,
   };
 
@@ -13853,7 +14503,7 @@ class Statement final :
                &_Statement_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    63;
+    66;
 
   friend void swap(Statement& a, Statement& b) {
     a.Swap(&b);
@@ -13949,6 +14599,8 @@ class Statement final :
     kArrayPopFieldNumber = 21,
     kTupleDestructFieldNumber = 22,
     kBareMagicFieldNumber = 23,
+    kFixedAsmFieldNumber = 24,
+    kAbiEncodeStructFieldNumber = 25,
   };
   // .solidity.test.sol2protofuzzer.VarDeclStmt var_decl = 1;
   bool has_var_decl() const;
@@ -14364,6 +15016,42 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic);
   ::solidity::test::sol2protofuzzer::BareMagicStmt* unsafe_arena_release_bare_magic();
 
+  // .solidity.test.sol2protofuzzer.FixedAsmStmt fixed_asm = 24;
+  bool has_fixed_asm() const;
+  private:
+  bool _internal_has_fixed_asm() const;
+  public:
+  void clear_fixed_asm();
+  const ::solidity::test::sol2protofuzzer::FixedAsmStmt& fixed_asm() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::FixedAsmStmt* release_fixed_asm();
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt* mutable_fixed_asm();
+  void set_allocated_fixed_asm(::solidity::test::sol2protofuzzer::FixedAsmStmt* fixed_asm);
+  private:
+  const ::solidity::test::sol2protofuzzer::FixedAsmStmt& _internal_fixed_asm() const;
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt* _internal_mutable_fixed_asm();
+  public:
+  void unsafe_arena_set_allocated_fixed_asm(
+      ::solidity::test::sol2protofuzzer::FixedAsmStmt* fixed_asm);
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt* unsafe_arena_release_fixed_asm();
+
+  // .solidity.test.sol2protofuzzer.AbiEncodeStructStmt abi_encode_struct = 25;
+  bool has_abi_encode_struct() const;
+  private:
+  bool _internal_has_abi_encode_struct() const;
+  public:
+  void clear_abi_encode_struct();
+  const ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt& abi_encode_struct() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* release_abi_encode_struct();
+  ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* mutable_abi_encode_struct();
+  void set_allocated_abi_encode_struct(::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* abi_encode_struct);
+  private:
+  const ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt& _internal_abi_encode_struct() const;
+  ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* _internal_mutable_abi_encode_struct();
+  public:
+  void unsafe_arena_set_allocated_abi_encode_struct(
+      ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* abi_encode_struct);
+  ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* unsafe_arena_release_abi_encode_struct();
+
   void clear_stmt_oneof();
   StmtOneofCase stmt_oneof_case() const;
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.Statement)
@@ -14392,6 +15080,8 @@ class Statement final :
   void set_has_array_pop();
   void set_has_tuple_destruct();
   void set_has_bare_magic();
+  void set_has_fixed_asm();
+  void set_has_abi_encode_struct();
 
   inline bool has_stmt_oneof() const;
   inline void clear_has_stmt_oneof();
@@ -14426,6 +15116,8 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::ArrayPopStmt* array_pop_;
       ::solidity::test::sol2protofuzzer::TupleDestructStmt* tuple_destruct_;
       ::solidity::test::sol2protofuzzer::BareMagicStmt* bare_magic_;
+      ::solidity::test::sol2protofuzzer::FixedAsmStmt* fixed_asm_;
+      ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* abi_encode_struct_;
     } stmt_oneof_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     uint32_t _oneof_case_[1];
@@ -14497,7 +15189,7 @@ class StructField final :
                &_StructField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    64;
+    67;
 
   friend void swap(StructField& a, StructField& b) {
     a.Swap(&b);
@@ -14715,7 +15407,7 @@ class StructArrayField final :
                &_StructArrayField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    65;
+    68;
 
   friend void swap(StructArrayField& a, StructArrayField& b) {
     a.Swap(&b);
@@ -14910,7 +15602,7 @@ class StructFunctionField final :
                &_StructFunctionField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    66;
+    69;
 
   friend void swap(StructFunctionField& a, StructFunctionField& b) {
     a.Swap(&b);
@@ -15070,7 +15762,7 @@ class StructDef final :
                &_StructDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    67;
+    70;
 
   friend void swap(StructDef& a, StructDef& b) {
     a.Swap(&b);
@@ -15234,7 +15926,7 @@ class EnumDef final :
                &_EnumDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    68;
+    71;
 
   friend void swap(EnumDef& a, EnumDef& b) {
     a.Swap(&b);
@@ -15394,7 +16086,7 @@ class EventDef final :
                &_EventDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    69;
+    72;
 
   friend void swap(EventDef& a, EventDef& b) {
     a.Swap(&b);
@@ -15578,7 +16270,7 @@ class ErrorDef final :
                &_ErrorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    70;
+    73;
 
   friend void swap(ErrorDef& a, ErrorDef& b) {
     a.Swap(&b);
@@ -15738,7 +16430,7 @@ class ModifierDef final :
                &_ModifierDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    71;
+    74;
 
   friend void swap(ModifierDef& a, ModifierDef& b) {
     a.Swap(&b);
@@ -15903,7 +16595,7 @@ class ReceiveDef final :
                &_ReceiveDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    72;
+    75;
 
   friend void swap(ReceiveDef& a, ReceiveDef& b) {
     a.Swap(&b);
@@ -16068,7 +16760,7 @@ class FallbackDef final :
                &_FallbackDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    73;
+    76;
 
   friend void swap(FallbackDef& a, FallbackDef& b) {
     a.Swap(&b);
@@ -16233,7 +16925,7 @@ class FunctionDef final :
                &_FunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    77;
 
   friend void swap(FunctionDef& a, FunctionDef& b) {
     a.Swap(&b);
@@ -16510,7 +17202,7 @@ class ConstructorDef final :
                &_ConstructorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    78;
 
   friend void swap(ConstructorDef& a, ConstructorDef& b) {
     a.Swap(&b);
@@ -16708,7 +17400,7 @@ class StateVarDecl final :
                &_StateVarDecl_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    79;
 
   friend void swap(StateVarDecl& a, StateVarDecl& b) {
     a.Swap(&b);
@@ -16918,7 +17610,7 @@ class UsingForBinding final :
                &_UsingForBinding_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    77;
+    80;
 
   friend void swap(UsingForBinding& a, UsingForBinding& b) {
     a.Swap(&b);
@@ -17153,7 +17845,7 @@ class UsingForDirective final :
                &_UsingForDirective_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    78;
+    81;
 
   friend void swap(UsingForDirective& a, UsingForDirective& b) {
     a.Swap(&b);
@@ -17378,7 +18070,7 @@ class ContractDef final :
                &_ContractDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    79;
+    82;
 
   friend void swap(ContractDef& a, ContractDef& b) {
     a.Swap(&b);
@@ -17812,7 +18504,7 @@ class FreeFunctionDef final :
                &_FreeFunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    80;
+    83;
 
   friend void swap(FreeFunctionDef& a, FreeFunctionDef& b) {
     a.Swap(&b);
@@ -17888,6 +18580,7 @@ class FreeFunctionDef final :
     kBodyFieldNumber = 2,
     kNumParamsFieldNumber = 1,
     kEmitExternalFieldNumber = 3,
+    kUseUdvtSigFieldNumber = 4,
   };
   // required .solidity.test.sol2protofuzzer.Block body = 2;
   bool has_body() const;
@@ -17933,6 +18626,19 @@ class FreeFunctionDef final :
   void _internal_set_emit_external(bool value);
   public:
 
+  // optional bool use_udvt_sig = 4;
+  bool has_use_udvt_sig() const;
+  private:
+  bool _internal_has_use_udvt_sig() const;
+  public:
+  void clear_use_udvt_sig();
+  bool use_udvt_sig() const;
+  void set_use_udvt_sig(bool value);
+  private:
+  bool _internal_use_udvt_sig() const;
+  void _internal_set_use_udvt_sig(bool value);
+  public:
+
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FreeFunctionDef)
  private:
   class _Internal;
@@ -17949,6 +18655,7 @@ class FreeFunctionDef final :
     ::solidity::test::sol2protofuzzer::Block* body_;
     uint32_t num_params_;
     bool emit_external_;
+    bool use_udvt_sig_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_sol2Proto_2eproto;
@@ -18010,7 +18717,7 @@ class Program final :
                &_Program_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    81;
+    84;
 
   friend void swap(Program& a, Program& b) {
     a.Swap(&b);
@@ -18821,7 +19528,7 @@ inline void ArrayType::set_allocated_base(::solidity::test::sol2protofuzzer::Ele
 
 // optional uint32 length = 2;
 inline bool ArrayType::_internal_has_length() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
   return value;
 }
 inline bool ArrayType::has_length() const {
@@ -18829,7 +19536,7 @@ inline bool ArrayType::has_length() const {
 }
 inline void ArrayType::clear_length() {
   _impl_.length_ = 0u;
-  _impl_._has_bits_[0] &= ~0x00000002u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
 }
 inline uint32_t ArrayType::_internal_length() const {
   return _impl_.length_;
@@ -18839,12 +19546,135 @@ inline uint32_t ArrayType::length() const {
   return _internal_length();
 }
 inline void ArrayType::_internal_set_length(uint32_t value) {
-  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_._has_bits_[0] |= 0x00000004u;
   _impl_.length_ = value;
 }
 inline void ArrayType::set_length(uint32_t value) {
   _internal_set_length(value);
   // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.ArrayType.length)
+}
+
+// optional .solidity.test.sol2protofuzzer.ArraySizeExpr size_expr = 3;
+inline bool ArrayType::_internal_has_size_expr() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.size_expr_ != nullptr);
+  return value;
+}
+inline bool ArrayType::has_size_expr() const {
+  return _internal_has_size_expr();
+}
+inline void ArrayType::clear_size_expr() {
+  if (_impl_.size_expr_ != nullptr) _impl_.size_expr_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::solidity::test::sol2protofuzzer::ArraySizeExpr& ArrayType::_internal_size_expr() const {
+  const ::solidity::test::sol2protofuzzer::ArraySizeExpr* p = _impl_.size_expr_;
+  return p != nullptr ? *p : reinterpret_cast<const ::solidity::test::sol2protofuzzer::ArraySizeExpr&>(
+      ::solidity::test::sol2protofuzzer::_ArraySizeExpr_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::ArraySizeExpr& ArrayType::size_expr() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.ArrayType.size_expr)
+  return _internal_size_expr();
+}
+inline void ArrayType::unsafe_arena_set_allocated_size_expr(
+    ::solidity::test::sol2protofuzzer::ArraySizeExpr* size_expr) {
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.size_expr_);
+  }
+  _impl_.size_expr_ = size_expr;
+  if (size_expr) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.ArrayType.size_expr)
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr* ArrayType::release_size_expr() {
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* temp = _impl_.size_expr_;
+  _impl_.size_expr_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
+  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  if (GetArenaForAllocation() == nullptr) { delete old; }
+#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return temp;
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr* ArrayType::unsafe_arena_release_size_expr() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.ArrayType.size_expr)
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* temp = _impl_.size_expr_;
+  _impl_.size_expr_ = nullptr;
+  return temp;
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr* ArrayType::_internal_mutable_size_expr() {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  if (_impl_.size_expr_ == nullptr) {
+    auto* p = CreateMaybeMessage<::solidity::test::sol2protofuzzer::ArraySizeExpr>(GetArenaForAllocation());
+    _impl_.size_expr_ = p;
+  }
+  return _impl_.size_expr_;
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr* ArrayType::mutable_size_expr() {
+  ::solidity::test::sol2protofuzzer::ArraySizeExpr* _msg = _internal_mutable_size_expr();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.ArrayType.size_expr)
+  return _msg;
+}
+inline void ArrayType::set_allocated_size_expr(::solidity::test::sol2protofuzzer::ArraySizeExpr* size_expr) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  if (message_arena == nullptr) {
+    delete _impl_.size_expr_;
+  }
+  if (size_expr) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(size_expr);
+    if (message_arena != submessage_arena) {
+      size_expr = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, size_expr, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  _impl_.size_expr_ = size_expr;
+  // @@protoc_insertion_point(field_set_allocated:solidity.test.sol2protofuzzer.ArrayType.size_expr)
+}
+
+// -------------------------------------------------------------------
+
+// ArraySizeExpr
+
+// required .solidity.test.sol2protofuzzer.ArraySizeExpr.Kind kind = 1;
+inline bool ArraySizeExpr::_internal_has_kind() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool ArraySizeExpr::has_kind() const {
+  return _internal_has_kind();
+}
+inline void ArraySizeExpr::clear_kind() {
+  _impl_.kind_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind ArraySizeExpr::_internal_kind() const {
+  return static_cast< ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind >(_impl_.kind_);
+}
+inline ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind ArraySizeExpr::kind() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.ArraySizeExpr.kind)
+  return _internal_kind();
+}
+inline void ArraySizeExpr::_internal_set_kind(::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind value) {
+  assert(::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind_IsValid(value));
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.kind_ = value;
+}
+inline void ArraySizeExpr::set_kind(::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind value) {
+  _internal_set_kind(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.ArraySizeExpr.kind)
 }
 
 // -------------------------------------------------------------------
@@ -26650,6 +27480,99 @@ inline void BareMagicStmt::set_kind(::solidity::test::sol2protofuzzer::BareMagic
 
 // -------------------------------------------------------------------
 
+// FixedAsmStmt
+
+// required .solidity.test.sol2protofuzzer.FixedAsmStmt.Kind kind = 1;
+inline bool FixedAsmStmt::_internal_has_kind() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool FixedAsmStmt::has_kind() const {
+  return _internal_has_kind();
+}
+inline void FixedAsmStmt::clear_kind() {
+  _impl_.kind_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind FixedAsmStmt::_internal_kind() const {
+  return static_cast< ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind >(_impl_.kind_);
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind FixedAsmStmt::kind() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FixedAsmStmt.kind)
+  return _internal_kind();
+}
+inline void FixedAsmStmt::_internal_set_kind(::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind value) {
+  assert(::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind_IsValid(value));
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.kind_ = value;
+}
+inline void FixedAsmStmt::set_kind(::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind value) {
+  _internal_set_kind(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FixedAsmStmt.kind)
+}
+
+// -------------------------------------------------------------------
+
+// AbiEncodeStructStmt
+
+// required uint32 struct_idx = 1;
+inline bool AbiEncodeStructStmt::_internal_has_struct_idx() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool AbiEncodeStructStmt::has_struct_idx() const {
+  return _internal_has_struct_idx();
+}
+inline void AbiEncodeStructStmt::clear_struct_idx() {
+  _impl_.struct_idx_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline uint32_t AbiEncodeStructStmt::_internal_struct_idx() const {
+  return _impl_.struct_idx_;
+}
+inline uint32_t AbiEncodeStructStmt::struct_idx() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.AbiEncodeStructStmt.struct_idx)
+  return _internal_struct_idx();
+}
+inline void AbiEncodeStructStmt::_internal_set_struct_idx(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.struct_idx_ = value;
+}
+inline void AbiEncodeStructStmt::set_struct_idx(uint32_t value) {
+  _internal_set_struct_idx(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.AbiEncodeStructStmt.struct_idx)
+}
+
+// optional bool wrap_in_array = 2;
+inline bool AbiEncodeStructStmt::_internal_has_wrap_in_array() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool AbiEncodeStructStmt::has_wrap_in_array() const {
+  return _internal_has_wrap_in_array();
+}
+inline void AbiEncodeStructStmt::clear_wrap_in_array() {
+  _impl_.wrap_in_array_ = false;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline bool AbiEncodeStructStmt::_internal_wrap_in_array() const {
+  return _impl_.wrap_in_array_;
+}
+inline bool AbiEncodeStructStmt::wrap_in_array() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.AbiEncodeStructStmt.wrap_in_array)
+  return _internal_wrap_in_array();
+}
+inline void AbiEncodeStructStmt::_internal_set_wrap_in_array(bool value) {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.wrap_in_array_ = value;
+}
+inline void AbiEncodeStructStmt::set_wrap_in_array(bool value) {
+  _internal_set_wrap_in_array(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.AbiEncodeStructStmt.wrap_in_array)
+}
+
+// -------------------------------------------------------------------
+
 // EmitStmt
 
 // required uint32 event_id = 1;
@@ -29664,6 +30587,154 @@ inline ::solidity::test::sol2protofuzzer::BareMagicStmt* Statement::mutable_bare
   return _msg;
 }
 
+// .solidity.test.sol2protofuzzer.FixedAsmStmt fixed_asm = 24;
+inline bool Statement::_internal_has_fixed_asm() const {
+  return stmt_oneof_case() == kFixedAsm;
+}
+inline bool Statement::has_fixed_asm() const {
+  return _internal_has_fixed_asm();
+}
+inline void Statement::set_has_fixed_asm() {
+  _impl_._oneof_case_[0] = kFixedAsm;
+}
+inline void Statement::clear_fixed_asm() {
+  if (_internal_has_fixed_asm()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.stmt_oneof_.fixed_asm_;
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt* Statement::release_fixed_asm() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.fixed_asm)
+  if (_internal_has_fixed_asm()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::FixedAsmStmt* temp = _impl_.stmt_oneof_.fixed_asm_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.fixed_asm_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::FixedAsmStmt& Statement::_internal_fixed_asm() const {
+  return _internal_has_fixed_asm()
+      ? *_impl_.stmt_oneof_.fixed_asm_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::FixedAsmStmt&>(::solidity::test::sol2protofuzzer::_FixedAsmStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::FixedAsmStmt& Statement::fixed_asm() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.fixed_asm)
+  return _internal_fixed_asm();
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt* Statement::unsafe_arena_release_fixed_asm() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.fixed_asm)
+  if (_internal_has_fixed_asm()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::FixedAsmStmt* temp = _impl_.stmt_oneof_.fixed_asm_;
+    _impl_.stmt_oneof_.fixed_asm_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_fixed_asm(::solidity::test::sol2protofuzzer::FixedAsmStmt* fixed_asm) {
+  clear_stmt_oneof();
+  if (fixed_asm) {
+    set_has_fixed_asm();
+    _impl_.stmt_oneof_.fixed_asm_ = fixed_asm;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.fixed_asm)
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt* Statement::_internal_mutable_fixed_asm() {
+  if (!_internal_has_fixed_asm()) {
+    clear_stmt_oneof();
+    set_has_fixed_asm();
+    _impl_.stmt_oneof_.fixed_asm_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::FixedAsmStmt >(GetArenaForAllocation());
+  }
+  return _impl_.stmt_oneof_.fixed_asm_;
+}
+inline ::solidity::test::sol2protofuzzer::FixedAsmStmt* Statement::mutable_fixed_asm() {
+  ::solidity::test::sol2protofuzzer::FixedAsmStmt* _msg = _internal_mutable_fixed_asm();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.fixed_asm)
+  return _msg;
+}
+
+// .solidity.test.sol2protofuzzer.AbiEncodeStructStmt abi_encode_struct = 25;
+inline bool Statement::_internal_has_abi_encode_struct() const {
+  return stmt_oneof_case() == kAbiEncodeStruct;
+}
+inline bool Statement::has_abi_encode_struct() const {
+  return _internal_has_abi_encode_struct();
+}
+inline void Statement::set_has_abi_encode_struct() {
+  _impl_._oneof_case_[0] = kAbiEncodeStruct;
+}
+inline void Statement::clear_abi_encode_struct() {
+  if (_internal_has_abi_encode_struct()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.stmt_oneof_.abi_encode_struct_;
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* Statement::release_abi_encode_struct() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.abi_encode_struct)
+  if (_internal_has_abi_encode_struct()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* temp = _impl_.stmt_oneof_.abi_encode_struct_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.abi_encode_struct_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt& Statement::_internal_abi_encode_struct() const {
+  return _internal_has_abi_encode_struct()
+      ? *_impl_.stmt_oneof_.abi_encode_struct_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt&>(::solidity::test::sol2protofuzzer::_AbiEncodeStructStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt& Statement::abi_encode_struct() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.abi_encode_struct)
+  return _internal_abi_encode_struct();
+}
+inline ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* Statement::unsafe_arena_release_abi_encode_struct() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.abi_encode_struct)
+  if (_internal_has_abi_encode_struct()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* temp = _impl_.stmt_oneof_.abi_encode_struct_;
+    _impl_.stmt_oneof_.abi_encode_struct_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_abi_encode_struct(::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* abi_encode_struct) {
+  clear_stmt_oneof();
+  if (abi_encode_struct) {
+    set_has_abi_encode_struct();
+    _impl_.stmt_oneof_.abi_encode_struct_ = abi_encode_struct;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.abi_encode_struct)
+}
+inline ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* Statement::_internal_mutable_abi_encode_struct() {
+  if (!_internal_has_abi_encode_struct()) {
+    clear_stmt_oneof();
+    set_has_abi_encode_struct();
+    _impl_.stmt_oneof_.abi_encode_struct_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt >(GetArenaForAllocation());
+  }
+  return _impl_.stmt_oneof_.abi_encode_struct_;
+}
+inline ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* Statement::mutable_abi_encode_struct() {
+  ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* _msg = _internal_mutable_abi_encode_struct();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.abi_encode_struct)
+  return _msg;
+}
+
 inline bool Statement::has_stmt_oneof() const {
   return stmt_oneof_case() != STMT_ONEOF_NOT_SET;
 }
@@ -32249,6 +33320,34 @@ inline void FreeFunctionDef::set_emit_external(bool value) {
   // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FreeFunctionDef.emit_external)
 }
 
+// optional bool use_udvt_sig = 4;
+inline bool FreeFunctionDef::_internal_has_use_udvt_sig() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
+  return value;
+}
+inline bool FreeFunctionDef::has_use_udvt_sig() const {
+  return _internal_has_use_udvt_sig();
+}
+inline void FreeFunctionDef::clear_use_udvt_sig() {
+  _impl_.use_udvt_sig_ = false;
+  _impl_._has_bits_[0] &= ~0x00000008u;
+}
+inline bool FreeFunctionDef::_internal_use_udvt_sig() const {
+  return _impl_.use_udvt_sig_;
+}
+inline bool FreeFunctionDef::use_udvt_sig() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FreeFunctionDef.use_udvt_sig)
+  return _internal_use_udvt_sig();
+}
+inline void FreeFunctionDef::_internal_set_use_udvt_sig(bool value) {
+  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_.use_udvt_sig_ = value;
+}
+inline void FreeFunctionDef::set_use_udvt_sig(bool value) {
+  _internal_set_use_udvt_sig(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FreeFunctionDef.use_udvt_sig)
+}
+
 // -------------------------------------------------------------------
 
 // Program
@@ -32880,6 +33979,12 @@ Program::file_using_for() const {
 
 // -------------------------------------------------------------------
 
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 
 // @@protoc_insertion_point(namespace_scope)
 
@@ -32898,6 +34003,11 @@ template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::FixedBytesT
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::FixedBytesType_Width>() {
   return ::solidity::test::sol2protofuzzer::FixedBytesType_Width_descriptor();
+}
+template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind>() {
+  return ::solidity::test::sol2protofuzzer::ArraySizeExpr_Kind_descriptor();
 }
 template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::IntegerLiteral_EtherUnit> : ::std::true_type {};
 template <>
@@ -32968,6 +34078,11 @@ template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::BareMagicSt
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind>() {
   return ::solidity::test::sol2protofuzzer::BareMagicStmt_Kind_descriptor();
+}
+template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind>() {
+  return ::solidity::test::sol2protofuzzer::FixedAsmStmt_Kind_descriptor();
 }
 template <> struct is_proto_enum< ::solidity::test::sol2protofuzzer::UsingForBinding_OperatorKind> : ::std::true_type {};
 template <>
