@@ -73,6 +73,10 @@ private:
 	{
 		std::string name;
 		unsigned numParams;
+		/// When true, emit with invalid `external` visibility (exercises
+		/// frontend ICE path `FunctionDefinition::type` when bound via
+		/// `using for`, see #16620).
+		bool emitExternal = false;
 	};
 
 	struct EventInfo

@@ -867,6 +867,11 @@ message ContractDef {
 message FreeFunctionDef {
 	required uint32 num_params = 1;
 	required Block body = 2;
+	// When true, emit the function with `external` visibility. Solidity
+	// forbids non-internal visibility on free functions but the parser
+	// accepts `external`; the frontend ICEs (`FunctionDefinition::type`,
+	// #16620) when the invalid free function is bound via `using for`.
+	optional bool emit_external = 3;
 }
 
 // ======================= TOP-LEVEL =======================

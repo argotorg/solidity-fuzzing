@@ -437,6 +437,9 @@ std::string ProtoConverter::visit(Program const& _p)
 			static_cast<unsigned>(_p.free_functions(i).num_params()),
 			s_maxParams
 		);
+		ffi.emitExternal =
+			_p.free_functions(i).has_emit_external() &&
+			_p.free_functions(i).emit_external();
 		m_freeFunctions.push_back(ffi);
 	}
 
@@ -472,7 +475,9 @@ std::string ProtoConverter::visit(Program const& _p)
 		o << "using {_udvtAdd as +, _udvtSub as -, _udvtMul as *, _udvtEq as ==, _udvtLt as <} for MyUint global;\n\n";
 	}
 
-	// Generate free functions (file-level, implicitly internal, pure)
+	// Generate free functions (file-level, implicitly internal, pure —
+	// except when `emit_external` is set, which emits the invalid
+	// `external` modifier to trip the frontend ICE on `using for`).
 	for (unsigned i = 0; i < numFreeFuncs; i++)
 	{
 		auto const& ffi = m_freeFunctions[i];
@@ -482,7 +487,10 @@ std::string ProtoConverter::visit(Program const& _p)
 			if (p > 0) o << ", ";
 			o << "uint256 p" << p;
 		}
-		o << ") pure returns (uint256) {\n";
+		if (ffi.emitExternal)
+			o << ") external pure returns (uint256) {\n";
+		else
+			o << ") pure returns (uint256) {\n";
 
 		// Set up state for free function body: pure, no state access
 		m_canReadState = false;
