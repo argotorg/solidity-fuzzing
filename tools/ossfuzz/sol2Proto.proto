@@ -120,6 +120,28 @@ message ArrayType {
 	required ElementaryType base = 1;
 	// Omitted = dynamic array
 	optional uint32 length = 2;
+	// Optional expression-valued length. When set, `length` is ignored and
+	// the size is emitted as a non-constant expression. Solidity requires
+	// array sizes to be compile-time constants, so these programs fail
+	// type-check — but the failure path ICEs in
+	// `MagicVariableDeclaration::functionType` (#16615) on magic-member
+	// subscript / call shapes.
+	optional ArraySizeExpr size_expr = 3;
+}
+
+// Non-constant expression used as an array size. The BUCKET kind is the
+// default and degenerates to the legacy `length`-bucket path.
+message ArraySizeExpr {
+	enum Kind {
+		BUCKET = 0;              // fall back to ArrayType.length bucket
+		ABI_SUBSCRIPT = 1;       // uint(abi("")[0])       — primary #16615
+		BLOCK_SUBSCRIPT = 2;     // uint(block[0])
+		MSG_SUBSCRIPT = 3;       // uint(msg[0])
+		TX_SUBSCRIPT = 4;        // uint(tx[0])
+		ABI_CALL = 5;            // uint(abi())
+		TYPE_INDEX = 6;          // uint(type(uint256)[0])
+	}
+	required Kind kind = 1;
 }
 
 message MappingType {

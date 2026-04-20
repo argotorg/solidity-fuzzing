@@ -234,8 +234,16 @@ std::string ProtoConverter::visit(Program const& _p)
 				auto const& arr = sv.type().array();
 				svi.typeStr = elementaryTypeStr(sv.type());
 				svi.isArray = true;
-				svi.isFixedArray = arr.has_length();
-				if (svi.isFixedArray)
+				// An expression-valued size makes the array declaration
+				// fixed-syntactically (the parser sees `T[expr]`), but the
+				// runtime modulus must stay 1 — the expression is never a
+				// real constant, so any runtime index must clamp to 0.
+				bool hasExprSize = arr.has_size_expr()
+					&& arr.size_expr().kind() != ArraySizeExpr::BUCKET;
+				svi.isFixedArray = arr.has_length() || hasExprSize;
+				if (hasExprSize)
+					svi.arrayLength = 1;
+				else if (arr.has_length())
 					svi.arrayLength = arraySizeBucket(arr.length()).second;
 				svi.elementIsUint = isUintType(arr.base());
 			}
@@ -3008,6 +3016,13 @@ std::string ProtoConverter::elementaryTypeStr(TypeName const& _t)
 	case TypeName::kArray:
 	{
 		std::string base = elementaryTypeStr(_t.array().base());
+		// Expression-valued size takes priority — it renders `T[expr]`
+		// regardless of whether `length` is set. The expression is a
+		// non-constant that fails type-check but trips the targeted
+		// magic-member ICE paths (#16615 and siblings).
+		if (_t.array().has_size_expr()
+			&& _t.array().size_expr().kind() != ArraySizeExpr::BUCKET)
+			return base + "[" + arraySizeExprStr(_t.array().size_expr()) + "]";
 		if (_t.array().has_length())
 			return base + "[" + arraySizeBucket(_t.array().length()).first + "]";
 		return base + "[]";
@@ -3047,6 +3062,21 @@ std::pair<std::string, unsigned> ProtoConverter::arraySizeBucket(uint32_t _raw)
 		"115792089237316195423570985008687907853269984665640564039457584007913129639935",         // 2^256 - 1
 	};
 	return {s_bigLiterals[bucket - 10], 1u};
+}
+
+std::string ProtoConverter::arraySizeExprStr(ArraySizeExpr const& _e)
+{
+	switch (_e.kind())
+	{
+	case ArraySizeExpr::ABI_SUBSCRIPT:   return "uint(abi(\"\")[0])";
+	case ArraySizeExpr::BLOCK_SUBSCRIPT: return "uint(block[0])";
+	case ArraySizeExpr::MSG_SUBSCRIPT:   return "uint(msg[0])";
+	case ArraySizeExpr::TX_SUBSCRIPT:    return "uint(tx[0])";
+	case ArraySizeExpr::ABI_CALL:        return "uint(abi())";
+	case ArraySizeExpr::TYPE_INDEX:      return "uint(type(uint256)[0])";
+	case ArraySizeExpr::BUCKET:          break;
+	}
+	return "1";
 }
 
 bool ProtoConverter::isUintType(TypeName const& _t)

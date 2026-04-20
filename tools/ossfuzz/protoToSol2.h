@@ -220,6 +220,12 @@ private:
 	/// in-bounds regardless of declared size.
 	static std::pair<std::string, unsigned> arraySizeBucket(uint32_t _raw);
 
+	/// Render a non-constant expression used as an array size. These all
+	/// fail type-check (array sizes must be compile-time constants) but
+	/// exercise the ICE paths in `MagicVariableDeclaration::functionType`
+	/// and friends reached before the constness check fires.
+	static std::string arraySizeExprStr(ArraySizeExpr const& _e);
+
 	// ===== Scope management =====
 	void pushScope();
 	void popScope();
