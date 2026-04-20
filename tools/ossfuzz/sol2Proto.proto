@@ -733,7 +733,23 @@ message Statement {
 		BareMagicStmt bare_magic = 23;
 		FixedAsmStmt fixed_asm = 24;
 		AbiEncodeStructStmt abi_encode_struct = 25;
+		FuncPtrStmt func_ptr = 26;
 	}
+}
+
+// Declares an internal function-pointer local variable bound to a
+// same-contract function and immediately invokes it through the pointer,
+// storing the result in a new uint256 local that subsequent expressions
+// can reference. Exercises the function-type codegen path (type-of,
+// assignment, and invocation of internal function pointers) which has
+// historically ICE'd on corner cases involving mutability + overloading.
+message FuncPtrStmt {
+	// Modulo-indexed into the eligible target list (own contract's
+	// non-external functions with all-uint256 params, uint256 return).
+	// Emits an empty statement when no eligible target exists.
+	required uint32 target_id = 1;
+	// Argument expressions for the pointer invocation (defaults to 0).
+	repeated Expression args = 2;
 }
 
 // ======================= CONTRACT ELEMENTS =======================

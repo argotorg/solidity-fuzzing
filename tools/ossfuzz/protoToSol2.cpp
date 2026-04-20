@@ -1433,6 +1433,78 @@ std::string ProtoConverter::visitStatement(Statement const& _s)
 		}
 		break;
 	}
+	case Statement::kFuncPtr:
+	{
+		// Internal function pointer: declare a local of matching
+		// signature, bind it to a same-contract function, invoke it.
+		// Exercises type-of, assignment, and invocation codepaths for
+		// FunctionType (internal, bound). Skipped if no eligible target.
+		if (m_currentContract >= m_contracts.size())
+			break;
+		auto const& cinfo = m_contracts[m_currentContract];
+		struct FpRef { unsigned idx; };
+		std::vector<FpRef> eligible;
+		for (unsigned fi = 0; fi < cinfo.functions.size(); fi++)
+		{
+			auto const& t = cinfo.functions[fi];
+			if (t.vis == EXTERNAL) continue;
+			if (t.returnTwo || t.returnsStruct) continue;
+			if (t.numParams == 0 || t.numParams > 3) continue;
+			bool allUint = true;
+			for (auto pt : t.paramTypes)
+				if (pt != PARAM_UINT256) { allUint = false; break; }
+			if (!allUint) continue;
+			// Mutability compatibility with the current function.
+			if (m_currentMutability == PURE && t.mut != PURE) continue;
+			if (m_currentMutability == VIEW && t.mut != PURE && t.mut != VIEW)
+				continue;
+			eligible.push_back({fi});
+		}
+		if (eligible.empty())
+			break;
+
+		auto const& fp = _s.func_ptr();
+		auto const& target = cinfo.functions[
+			eligible[fp.target_id() % eligible.size()].idx];
+
+		std::string mutStr;
+		switch (target.mut)
+		{
+		case PURE: mutStr = "pure"; break;
+		case VIEW: mutStr = "view"; break;
+		case PAYABLE:
+		case NONPAYABLE:
+			mutStr = "";
+			break;
+		}
+
+		std::string sigParams;
+		for (unsigned i = 0; i < target.numParams; i++)
+			sigParams += (i == 0 ? "uint256" : ",uint256");
+
+		unsigned fpIdx = m_localVarCount++;
+		std::string ptrName = "fp_" + std::to_string(fpIdx);
+		std::string valName = "fpv_" + std::to_string(fpIdx);
+
+		std::ostringstream o;
+		o << indent() << "function(" << sigParams << ") internal";
+		if (!mutStr.empty())
+			o << " " << mutStr;
+		o << " returns (uint256) " << ptrName << " = " << target.name << ";\n";
+		o << indent() << "uint256 " << valName << " = " << ptrName << "(";
+		for (unsigned i = 0; i < target.numParams; i++)
+		{
+			if (i > 0) o << ", ";
+			if (i < static_cast<unsigned>(fp.args_size()))
+				o << visitUintExpr(fp.args(i));
+			else
+				o << "0";
+		}
+		o << ");\n";
+		addVar(valName);
+		result = o.str();
+		break;
+	}
 	default:
 		break;
 	}

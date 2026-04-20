@@ -270,6 +270,10 @@ class FuncCallExpr;
 struct FuncCallExprDefaultTypeInternal;
 extern FuncCallExprDefaultTypeInternal _FuncCallExpr_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull FuncCallExpr_class_data_;
+class FuncPtrStmt;
+struct FuncPtrStmtDefaultTypeInternal;
+extern FuncPtrStmtDefaultTypeInternal _FuncPtrStmt_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull FuncPtrStmt_class_data_;
 class FunctionDef;
 struct FunctionDefDefaultTypeInternal;
 extern FunctionDefDefaultTypeInternal _FunctionDef_default_instance_;
@@ -1807,7 +1811,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED UsingForBinding final : public ::go
     return *reinterpret_cast<const UsingForBinding*>(
         &_UsingForBinding_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 81;
+  static constexpr int kIndexInFileMessages = 82;
   friend void swap(UsingForBinding& a, UsingForBinding& b) { a.Swap(&b); }
   inline void Swap(UsingForBinding* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -2282,7 +2286,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED StructFunctionField final : public 
     return *reinterpret_cast<const StructFunctionField*>(
         &_StructFunctionField_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 70;
+  static constexpr int kIndexInFileMessages = 71;
   friend void swap(StructFunctionField& a, StructFunctionField& b) { a.Swap(&b); }
   inline void Swap(StructFunctionField* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4106,7 +4110,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED EventDef final : public ::google::p
     return *reinterpret_cast<const EventDef*>(
         &_EventDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 73;
+  static constexpr int kIndexInFileMessages = 74;
   friend void swap(EventDef& a, EventDef& b) { a.Swap(&b); }
   inline void Swap(EventDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4330,7 +4334,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ErrorDef final : public ::google::p
     return *reinterpret_cast<const ErrorDef*>(
         &_ErrorDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 74;
+  static constexpr int kIndexInFileMessages = 75;
   friend void swap(ErrorDef& a, ErrorDef& b) { a.Swap(&b); }
   inline void Swap(ErrorDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4750,7 +4754,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED EnumDef final : public ::google::pr
     return *reinterpret_cast<const EnumDef*>(
         &_EnumDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 72;
+  static constexpr int kIndexInFileMessages = 73;
   friend void swap(EnumDef& a, EnumDef& b) { a.Swap(&b); }
   inline void Swap(EnumDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -7077,7 +7081,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED UsingForDirective final : public ::
     return *reinterpret_cast<const UsingForDirective*>(
         &_UsingForDirective_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 82;
+  static constexpr int kIndexInFileMessages = 83;
   friend void swap(UsingForDirective& a, UsingForDirective& b) { a.Swap(&b); }
   inline void Swap(UsingForDirective* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -8613,7 +8617,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED StructArrayField final : public ::g
     return *reinterpret_cast<const StructArrayField*>(
         &_StructArrayField_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 69;
+  static constexpr int kIndexInFileMessages = 70;
   friend void swap(StructArrayField& a, StructArrayField& b) { a.Swap(&b); }
   inline void Swap(StructArrayField* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -15814,7 +15818,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED StructField final : public ::google
     kFnField = 3,
     ADVANCED_TYPE_NOT_SET = 0,
   };
-  static constexpr int kIndexInFileMessages = 68;
+  static constexpr int kIndexInFileMessages = 69;
   friend void swap(StructField& a, StructField& b) { a.Swap(&b); }
   inline void Swap(StructField* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -17175,6 +17179,231 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED IndexAssignStmt final : public ::go
 extern const ::google::protobuf::internal::ClassDataFull IndexAssignStmt_class_data_;
 // -------------------------------------------------------------------
 
+class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FuncPtrStmt final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.FuncPtrStmt) */ {
+ public:
+  inline FuncPtrStmt() : FuncPtrStmt(nullptr) {}
+  ~FuncPtrStmt() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(FuncPtrStmt* PROTOBUF_NONNULL msg, ::std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(FuncPtrStmt));
+  }
+#endif
+
+  template <typename = void>
+  explicit constexpr FuncPtrStmt(::google::protobuf::internal::ConstantInitialized);
+
+  inline FuncPtrStmt(const FuncPtrStmt& from) : FuncPtrStmt(nullptr, from) {}
+  inline FuncPtrStmt(FuncPtrStmt&& from) noexcept
+      : FuncPtrStmt(nullptr, ::std::move(from)) {}
+  inline FuncPtrStmt& operator=(const FuncPtrStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline FuncPtrStmt& operator=(FuncPtrStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  [[nodiscard]] inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL
+  mutable_unknown_fields() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  [[nodiscard]] static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL
+  GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  [[nodiscard]] static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  [[nodiscard]] static const FuncPtrStmt& default_instance() {
+    return *reinterpret_cast<const FuncPtrStmt*>(
+        &_FuncPtrStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 68;
+  friend void swap(FuncPtrStmt& a, FuncPtrStmt& b) { a.Swap(&b); }
+  inline void Swap(FuncPtrStmt* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(FuncPtrStmt* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  [[nodiscard]] FuncPtrStmt* PROTOBUF_NONNULL
+  New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<FuncPtrStmt>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const FuncPtrStmt& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const FuncPtrStmt& from) { FuncPtrStmt::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  [[nodiscard]] bool IsInitialized() const {
+    return IsInitializedImpl(*this);
+  }
+
+  private:
+  static bool IsInitializedImpl(const MessageLite& msg);
+
+  public:
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  [[nodiscard]] static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  [[nodiscard]] static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  [[nodiscard]] ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] ::size_t ByteSizeLong() const final;
+  [[nodiscard]] ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  [[nodiscard]] int GetCachedSize() const {
+    return _impl_._cached_size_.Get();
+  }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(FuncPtrStmt* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "solidity.test.sol2protofuzzer.FuncPtrStmt"; }
+
+  explicit FuncPtrStmt(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  FuncPtrStmt(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const FuncPtrStmt& from);
+  FuncPtrStmt(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, FuncPtrStmt&& from) noexcept
+      : FuncPtrStmt(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  [[nodiscard]] ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kArgsFieldNumber = 2,
+    kTargetIdFieldNumber = 1,
+  };
+  // repeated .solidity.test.sol2protofuzzer.Expression args = 2;
+  [[nodiscard]] int args_size()
+      const;
+  private:
+  int _internal_args_size() const;
+
+  public:
+  void clear_args() ;
+  [[nodiscard]] ::solidity::test::sol2protofuzzer::Expression* PROTOBUF_NONNULL mutable_args(int index);
+  [[nodiscard]] ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>* PROTOBUF_NONNULL
+  mutable_args();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>& _internal_args() const;
+  ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>* PROTOBUF_NONNULL _internal_mutable_args();
+  public:
+  [[nodiscard]] const ::solidity::test::sol2protofuzzer::Expression& args(int index) const;
+  ::solidity::test::sol2protofuzzer::Expression* PROTOBUF_NONNULL add_args();
+  [[nodiscard]] const ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>& args()
+      const;
+  // required uint32 target_id = 1;
+  [[nodiscard]] bool has_target_id()
+      const;
+  void clear_target_id() ;
+  [[nodiscard]] ::uint32_t target_id() const;
+  void set_target_id(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_target_id() const;
+  void _internal_set_target_id(::uint32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FuncPtrStmt)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<1, 2,
+                                   1, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  friend ::google::protobuf::internal::PrivateAccess;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::InternalVisibility visibility,
+                                    ::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const FuncPtrStmt& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedPtrField< ::solidity::test::sol2protofuzzer::Expression > args_;
+    ::uint32_t target_id_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull FuncPtrStmt_class_data_;
+// -------------------------------------------------------------------
+
 class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ExprStmt final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.ExprStmt) */ {
  public:
@@ -17884,7 +18113,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED StructDef final : public ::google::
     return *reinterpret_cast<const StructDef*>(
         &_StructDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 71;
+  static constexpr int kIndexInFileMessages = 72;
   friend void swap(StructDef& a, StructDef& b) { a.Swap(&b); }
   inline void Swap(StructDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -18095,7 +18324,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED StateVarDecl final : public ::googl
     return *reinterpret_cast<const StateVarDecl*>(
         &_StateVarDecl_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 80;
+  static constexpr int kIndexInFileMessages = 81;
   friend void swap(StateVarDecl& a, StateVarDecl& b) { a.Swap(&b); }
   inline void Swap(StateVarDecl* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -19256,6 +19485,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Statement final : public ::google::
     kBareMagic = 23,
     kFixedAsm = 24,
     kAbiEncodeStruct = 25,
+    kFuncPtr = 26,
     STMT_ONEOF_NOT_SET = 0,
   };
   static constexpr int kIndexInFileMessages = 67;
@@ -19378,6 +19608,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Statement final : public ::google::
     kBareMagicFieldNumber = 23,
     kFixedAsmFieldNumber = 24,
     kAbiEncodeStructFieldNumber = 25,
+    kFuncPtrFieldNumber = 26,
   };
   // .solidity.test.sol2protofuzzer.VarDeclStmt var_decl = 1;
   [[nodiscard]] bool has_var_decl()
@@ -19879,6 +20110,26 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Statement final : public ::google::
   ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* PROTOBUF_NONNULL _internal_mutable_abi_encode_struct();
 
   public:
+  // .solidity.test.sol2protofuzzer.FuncPtrStmt func_ptr = 26;
+  [[nodiscard]] bool has_func_ptr()
+      const;
+  private:
+  bool _internal_has_func_ptr() const;
+
+  public:
+  void clear_func_ptr() ;
+  [[nodiscard]] const ::solidity::test::sol2protofuzzer::FuncPtrStmt& func_ptr() const;
+  [[nodiscard]] ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE release_func_ptr();
+  ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NONNULL mutable_func_ptr();
+  void set_allocated_func_ptr(::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_func_ptr(::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE value);
+  ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE unsafe_arena_release_func_ptr();
+
+  private:
+  const ::solidity::test::sol2protofuzzer::FuncPtrStmt& _internal_func_ptr() const;
+  ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NONNULL _internal_mutable_func_ptr();
+
+  public:
   void clear_stmt_oneof();
   StmtOneofCase stmt_oneof_case() const;
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.Statement)
@@ -19909,11 +20160,12 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Statement final : public ::google::
   void set_has_bare_magic();
   void set_has_fixed_asm();
   void set_has_abi_encode_struct();
+  void set_has_func_ptr();
   [[nodiscard]] inline bool has_stmt_oneof() const;
   inline void clear_has_stmt_oneof();
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<0, 25,
-                                   25, 0,
+  static const ::google::protobuf::internal::TcParseTable<0, 26,
+                                   26, 0,
                                    2>
       _table_;
 
@@ -19962,6 +20214,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Statement final : public ::google::
       ::google::protobuf::Message* PROTOBUF_NULLABLE bare_magic_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE fixed_asm_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE abi_encode_struct_;
+      ::google::protobuf::Message* PROTOBUF_NULLABLE func_ptr_;
     } stmt_oneof_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint32_t _oneof_case_[1];
@@ -20723,7 +20976,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ReceiveDef final : public ::google:
     return *reinterpret_cast<const ReceiveDef*>(
         &_ReceiveDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 76;
+  static constexpr int kIndexInFileMessages = 77;
   friend void swap(ReceiveDef& a, ReceiveDef& b) { a.Swap(&b); }
   inline void Swap(ReceiveDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -20930,7 +21183,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ModifierDef final : public ::google
     return *reinterpret_cast<const ModifierDef*>(
         &_ModifierDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 75;
+  static constexpr int kIndexInFileMessages = 76;
   friend void swap(ModifierDef& a, ModifierDef& b) { a.Swap(&b); }
   inline void Swap(ModifierDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -21137,7 +21390,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
     return *reinterpret_cast<const FunctionDef*>(
         &_FunctionDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 78;
+  static constexpr int kIndexInFileMessages = 79;
   friend void swap(FunctionDef& a, FunctionDef& b) { a.Swap(&b); }
   inline void Swap(FunctionDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -21492,7 +21745,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FreeFunctionDef final : public ::go
     return *reinterpret_cast<const FreeFunctionDef*>(
         &_FreeFunctionDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 84;
+  static constexpr int kIndexInFileMessages = 85;
   friend void swap(FreeFunctionDef& a, FreeFunctionDef& b) { a.Swap(&b); }
   inline void Swap(FreeFunctionDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -21741,7 +21994,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FallbackDef final : public ::google
     return *reinterpret_cast<const FallbackDef*>(
         &_FallbackDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 77;
+  static constexpr int kIndexInFileMessages = 78;
   friend void swap(FallbackDef& a, FallbackDef& b) { a.Swap(&b); }
   inline void Swap(FallbackDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -21948,7 +22201,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConstructorDef final : public ::goo
     return *reinterpret_cast<const ConstructorDef*>(
         &_ConstructorDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 79;
+  static constexpr int kIndexInFileMessages = 80;
   friend void swap(ConstructorDef& a, ConstructorDef& b) { a.Swap(&b); }
   inline void Swap(ConstructorDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -22183,7 +22436,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ContractDef final : public ::google
     return *reinterpret_cast<const ContractDef*>(
         &_ContractDef_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 83;
+  static constexpr int kIndexInFileMessages = 84;
   friend void swap(ContractDef& a, ContractDef& b) { a.Swap(&b); }
   inline void Swap(ContractDef* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -22657,7 +22910,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Program final : public ::google::pr
     return *reinterpret_cast<const Program*>(
         &_Program_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 85;
+  static constexpr int kIndexInFileMessages = 86;
   friend void swap(Program& a, Program& b) { a.Swap(&b); }
   inline void Swap(Program* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -36134,6 +36387,88 @@ inline ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* PROTOBUF_NONNULL 
   return _msg;
 }
 
+// .solidity.test.sol2protofuzzer.FuncPtrStmt func_ptr = 26;
+inline bool Statement::has_func_ptr() const {
+  return stmt_oneof_case() == kFuncPtr;
+}
+inline bool Statement::_internal_has_func_ptr() const {
+  return stmt_oneof_case() == kFuncPtr;
+}
+inline void Statement::set_has_func_ptr() {
+  _impl_._oneof_case_[0] = kFuncPtr;
+}
+inline void Statement::clear_func_ptr() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (stmt_oneof_case() == kFuncPtr) {
+    if (GetArena() == nullptr) {
+      delete _impl_.stmt_oneof_.func_ptr_;
+    } else if (::google::protobuf::internal::DebugHardenClearOneofMessageOnArena()) {
+      ::google::protobuf::internal::MaybePoisonAfterClear(_impl_.stmt_oneof_.func_ptr_);
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE Statement::release_func_ptr() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.func_ptr)
+  if (stmt_oneof_case() == kFuncPtr) {
+    clear_has_stmt_oneof();
+    auto* temp = reinterpret_cast<::solidity::test::sol2protofuzzer::FuncPtrStmt*>(_impl_.stmt_oneof_.func_ptr_);
+    if (GetArena() != nullptr) {
+      temp = ::google::protobuf::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.func_ptr_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::FuncPtrStmt& Statement::_internal_func_ptr() const {
+  return stmt_oneof_case() == kFuncPtr ? static_cast<const ::solidity::test::sol2protofuzzer::FuncPtrStmt&>(*reinterpret_cast<::solidity::test::sol2protofuzzer::FuncPtrStmt*>(_impl_.stmt_oneof_.func_ptr_))
+                     : reinterpret_cast<const ::solidity::test::sol2protofuzzer::FuncPtrStmt&>(::solidity::test::sol2protofuzzer::_FuncPtrStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::FuncPtrStmt& Statement::func_ptr() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.func_ptr)
+  return _internal_func_ptr();
+}
+inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE Statement::unsafe_arena_release_func_ptr() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.func_ptr)
+  if (stmt_oneof_case() == kFuncPtr) {
+    clear_has_stmt_oneof();
+    auto* temp = reinterpret_cast<::solidity::test::sol2protofuzzer::FuncPtrStmt*>(_impl_.stmt_oneof_.func_ptr_);
+    _impl_.stmt_oneof_.func_ptr_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_func_ptr(
+    ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NULLABLE value) {
+  // We rely on the oneof clear method to free the earlier contents
+  // of this oneof. We can directly use the pointer we're given to
+  // set the new value.
+  clear_stmt_oneof();
+  if (value) {
+    set_has_func_ptr();
+    _impl_.stmt_oneof_.func_ptr_ = reinterpret_cast<::google::protobuf::Message*>(value);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.func_ptr)
+}
+inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NONNULL Statement::_internal_mutable_func_ptr() {
+  if (stmt_oneof_case() != kFuncPtr) {
+    clear_stmt_oneof();
+    set_has_func_ptr();
+    _impl_.stmt_oneof_.func_ptr_ = reinterpret_cast<::google::protobuf::Message*>(
+        ::google::protobuf::Message::DefaultConstruct<::solidity::test::sol2protofuzzer::FuncPtrStmt>(GetArena()));
+  }
+  return reinterpret_cast<::solidity::test::sol2protofuzzer::FuncPtrStmt*>(_impl_.stmt_oneof_.func_ptr_);
+}
+inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* PROTOBUF_NONNULL Statement::mutable_func_ptr()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::solidity::test::sol2protofuzzer::FuncPtrStmt* _msg = _internal_mutable_func_ptr();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.func_ptr)
+  return _msg;
+}
+
 inline bool Statement::has_stmt_oneof() const {
   return stmt_oneof_case() != STMT_ONEOF_NOT_SET;
 }
@@ -36143,6 +36478,95 @@ inline void Statement::clear_has_stmt_oneof() {
 inline Statement::StmtOneofCase Statement::stmt_oneof_case() const {
   return Statement::StmtOneofCase(_impl_._oneof_case_[0]);
 }
+// -------------------------------------------------------------------
+
+// FuncPtrStmt
+
+// required uint32 target_id = 1;
+inline bool FuncPtrStmt::has_target_id() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000002U);
+  return value;
+}
+inline void FuncPtrStmt::clear_target_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_id_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline ::uint32_t FuncPtrStmt::target_id() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FuncPtrStmt.target_id)
+  return _internal_target_id();
+}
+inline void FuncPtrStmt::set_target_id(::uint32_t value) {
+  _internal_set_target_id(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FuncPtrStmt.target_id)
+}
+inline ::uint32_t FuncPtrStmt::_internal_target_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_id_;
+}
+inline void FuncPtrStmt::_internal_set_target_id(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_id_ = value;
+}
+
+// repeated .solidity.test.sol2protofuzzer.Expression args = 2;
+inline int FuncPtrStmt::_internal_args_size() const {
+  return _internal_args().size();
+}
+inline int FuncPtrStmt::args_size() const {
+  return _internal_args_size();
+}
+inline void FuncPtrStmt::clear_args() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.args_.Clear();
+  ClearHasBitForRepeated(_impl_._has_bits_[0],
+                  0x00000001U);
+}
+inline ::solidity::test::sol2protofuzzer::Expression* PROTOBUF_NONNULL FuncPtrStmt::mutable_args(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.FuncPtrStmt.args)
+  return _internal_mutable_args()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>* PROTOBUF_NONNULL FuncPtrStmt::mutable_args()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBitForRepeated(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.sol2protofuzzer.FuncPtrStmt.args)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_args();
+}
+inline const ::solidity::test::sol2protofuzzer::Expression& FuncPtrStmt::args(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FuncPtrStmt.args)
+  return _internal_args().Get(index);
+}
+inline ::solidity::test::sol2protofuzzer::Expression* PROTOBUF_NONNULL FuncPtrStmt::add_args()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::solidity::test::sol2protofuzzer::Expression* _add =
+      _internal_mutable_args()->InternalAddWithArena(
+          ::google::protobuf::MessageLite::internal_visibility(), GetArena());
+  SetHasBitForRepeated(_impl_._has_bits_[0], 0x00000001U);
+  // @@protoc_insertion_point(field_add:solidity.test.sol2protofuzzer.FuncPtrStmt.args)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>& FuncPtrStmt::args() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:solidity.test.sol2protofuzzer.FuncPtrStmt.args)
+  return _internal_args();
+}
+inline const ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>&
+FuncPtrStmt::_internal_args() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.args_;
+}
+inline ::google::protobuf::RepeatedPtrField<::solidity::test::sol2protofuzzer::Expression>* PROTOBUF_NONNULL
+FuncPtrStmt::_internal_mutable_args() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.args_;
+}
+
 // -------------------------------------------------------------------
 
 // StructField
