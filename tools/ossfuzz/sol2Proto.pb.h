@@ -1508,17 +1508,18 @@ enum ParamType : int {
   PARAM_BOOL = 1,
   PARAM_ADDRESS = 2,
   PARAM_BYTES32 = 3,
+  PARAM_STRUCT = 4,
 };
 
 extern const uint32_t ParamType_internal_data_[];
 inline constexpr ParamType ParamType_MIN =
     static_cast<ParamType>(0);
 inline constexpr ParamType ParamType_MAX =
-    static_cast<ParamType>(3);
+    static_cast<ParamType>(4);
 [[nodiscard]] inline bool ParamType_IsValid(int value) {
-  return 0 <= value && value <= 3;
+  return 0 <= value && value <= 4;
 }
-inline constexpr int ParamType_ARRAYSIZE = 3 + 1;
+inline constexpr int ParamType_ARRAYSIZE = 4 + 1;
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 ParamType_descriptor();
 [[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(ParamType) {
@@ -1533,7 +1534,7 @@ template <typename T>
 }
 template <>
 [[nodiscard]] inline const ::std::string& ParamType_Name(ParamType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<ParamType_descriptor, 0, 3>(
+  return ::google::protobuf::internal::NameOfDenseEnum<ParamType_descriptor, 0, 4>(
       static_cast<int>(value));
 }
 [[nodiscard]] inline bool ParamType_Parse(
@@ -21241,6 +21242,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
     kReturnsTwoFieldNumber = 10,
     kNonVirtualFieldNumber = 11,
     kOverrideBaseFieldNumber = 12,
+    kReturnsStructFieldNumber = 13,
   };
   // repeated .solidity.test.sol2protofuzzer.ParamType param_types = 9;
   [[nodiscard]] int param_types_size()
@@ -21374,11 +21376,23 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
   void _internal_set_override_base(bool value);
 
   public:
+  // optional bool returns_struct = 13;
+  [[nodiscard]] bool has_returns_struct()
+      const;
+  void clear_returns_struct() ;
+  [[nodiscard]] bool returns_struct() const;
+  void set_returns_struct(bool value);
+
+  private:
+  bool _internal_returns_struct() const;
+  void _internal_set_returns_struct(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.FunctionDef)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 10,
+  static const ::google::protobuf::internal::TcParseTable<4, 11,
                                    4, 0,
                                    2>
       _table_;
@@ -21412,6 +21426,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED FunctionDef final : public ::google
     bool returns_two_;
     bool non_virtual_;
     bool override_base_;
+    bool returns_struct_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -37513,6 +37528,35 @@ inline bool FunctionDef::_internal_override_base() const {
 inline void FunctionDef::_internal_set_override_base(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.override_base_ = value;
+}
+
+// optional bool returns_struct = 13;
+inline bool FunctionDef::has_returns_struct() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000400U);
+  return value;
+}
+inline void FunctionDef::clear_returns_struct() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.returns_struct_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline bool FunctionDef::returns_struct() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.FunctionDef.returns_struct)
+  return _internal_returns_struct();
+}
+inline void FunctionDef::set_returns_struct(bool value) {
+  _internal_set_returns_struct(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.FunctionDef.returns_struct)
+}
+inline bool FunctionDef::_internal_returns_struct() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.returns_struct_;
+}
+inline void FunctionDef::_internal_set_returns_struct(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.returns_struct_ = value;
 }
 
 // -------------------------------------------------------------------

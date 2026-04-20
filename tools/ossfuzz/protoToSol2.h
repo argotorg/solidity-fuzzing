@@ -72,6 +72,15 @@ private:
 		/// When true, emit with `override`; name/signature were copied from
 		/// a base-contract function during the inheritance-resolution pass.
 		bool isOverride = false;
+		/// When true, return type is `<structParamTypeName> memory` and
+		/// return statements are wrapped in a struct literal.
+		bool returnsStruct = false;
+		/// Struct type name used for PARAM_STRUCT params and/or struct
+		/// returns — populated per-function at preprocessing time; empty
+		/// if the contract has no eligible struct.
+		std::string structParamTypeName;
+		/// Number of fields in the chosen struct (for building literals).
+		unsigned structParamFieldCount = 0;
 	};
 
 	struct FreeFuncInfo
@@ -323,6 +332,10 @@ private:
 	/// True when current function returns (uint256, uint256)
 	bool m_currentReturnsTwo = false;
 	unsigned m_currentFuncIdx = 0;
+	/// When non-empty, current function returns a struct of this name;
+	/// visitReturn wraps the uint256 value in `<name>(v, 0, 0, ...)`.
+	std::string m_currentStructReturnType;
+	unsigned m_currentStructReturnFieldCount = 0;
 
 	/// Info about all generated contracts
 	std::vector<ContractInfo> m_contracts;

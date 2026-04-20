@@ -364,6 +364,69 @@ std::string ProtoConverter::visit(Program const& _p)
 		m_contracts.push_back(info);
 	}
 
+	// Struct-param/return fixup pass: validate PARAM_STRUCT entries and
+	// the returns_struct flag against contract scope (only honored for
+	// internal/private functions — external/public ABI encoding would
+	// require flattening, which the harness doesn't do). Falls back to
+	// PARAM_UINT256 / no-op when the contract has no eligible struct
+	// (first struct with a uint-compatible first field).
+	for (unsigned i = 0; i < numContracts; i++)
+	{
+		auto const& c = _p.contracts(i);
+		auto& info = m_contracts[i];
+
+		std::string structName;
+		unsigned structFieldCount = 0;
+		for (auto const& sd : info.structDefs)
+		{
+			if (!sd.fields.empty() && sd.fields[0].isUintCompatible)
+			{
+				structName = sd.name;
+				structFieldCount = static_cast<unsigned>(sd.fields.size());
+				break;
+			}
+		}
+
+		unsigned numFuncs = std::min(
+			static_cast<unsigned>(c.functions_size()),
+			s_maxFunctions
+		);
+		for (unsigned j = 0; j < numFuncs && j < info.functions.size(); j++)
+		{
+			auto& fi = info.functions[j];
+			bool eligibleScope =
+				(fi.vis == INTERNAL || fi.vis == PRIVATE) && !structName.empty();
+
+			// Downgrade PARAM_STRUCT entries when out-of-scope.
+			if (!eligibleScope)
+			{
+				for (auto& pt : fi.paramTypes)
+					if (pt == PARAM_STRUCT)
+						pt = PARAM_UINT256;
+			}
+
+			// Returns-struct: only honored for internal/private; also
+			// clear returnTwo (single struct return is the only shape).
+			auto const& fp = c.functions(j);
+			bool wantsStructReturn =
+				fp.has_returns_struct() && fp.returns_struct();
+			if (wantsStructReturn && eligibleScope)
+			{
+				fi.returnsStruct = true;
+				fi.returnTwo = false;
+			}
+
+			bool usesStruct = fi.returnsStruct;
+			for (auto pt : fi.paramTypes)
+				if (pt == PARAM_STRUCT) { usesStruct = true; break; }
+			if (usesStruct)
+			{
+				fi.structParamTypeName = structName;
+				fi.structParamFieldCount = structFieldCount;
+			}
+		}
+	}
+
 	// Process inheritance: a contract can inherit from up to 2 bases with lower index.
 	// Diamond inheritance is prevented by checking that no two bases share an ancestor.
 	for (unsigned i = 0; i < numContracts; i++)
@@ -450,6 +513,15 @@ std::string ProtoConverter::visit(Program const& _p)
 			{
 				if (bfi.vis == PRIVATE) continue;
 				if (bfi.nonVirtual) continue;
+				// Skip struct-using base functions: struct types are
+				// named per-contract and the override would need to
+				// reference the base's struct by inherited name, which
+				// we don't wire through here.
+				if (bfi.returnsStruct) continue;
+				bool hasStruct = false;
+				for (auto pt : bfi.paramTypes)
+					if (pt == PARAM_STRUCT) { hasStruct = true; break; }
+				if (hasStruct) continue;
 				candidates.push_back(bfi);
 			}
 			for (unsigned bb : baseInfo.baseIndices)
@@ -616,6 +688,8 @@ std::string ProtoConverter::visit(Program const& _p)
 		m_inFreeFunction = true;
 		m_canReturn = true;
 		m_currentReturnsTwo = false;
+		m_currentStructReturnType.clear();
+		m_currentStructReturnFieldCount = 0;
 		m_currentFuncIdx = i;
 		// Mark as not inside any contract
 		m_currentContract = static_cast<unsigned>(m_contracts.size());
@@ -855,6 +929,8 @@ std::string ProtoConverter::visitContract(ContractDef const& _c, unsigned _idx)
 		m_inConstructor = true;
 		m_canReturn = false;
 		m_currentReturnsTwo = false;
+		m_currentStructReturnType.clear();
+		m_currentStructReturnFieldCount = 0;
 		m_currentMutability = payable ? PAYABLE : NONPAYABLE;
 		m_currentFuncIdx = 0;
 		collectInheritedInfo(info);
@@ -943,6 +1019,8 @@ std::string ProtoConverter::visitContract(ContractDef const& _c, unsigned _idx)
 				ParamType pt = (p < fi.paramTypes.size()) ? fi.paramTypes[p] : PARAM_UINT256;
 				if (pt == PARAM_UINT256)
 					o << "uint256 p" << p;
+				else if (pt == PARAM_STRUCT)
+					o << fi.structParamTypeName << " memory _p" << p;
 				else
 					o << paramTypeSolStr(pt) << " _p" << p;
 			}
@@ -953,7 +1031,15 @@ std::string ProtoConverter::visitContract(ContractDef const& _c, unsigned _idx)
 				o << " virtual";
 			if (!isLibrary && fi.isOverride)
 				o << " override";
-			if (fi.returnTwo)
+			if (fi.returnsStruct)
+			{
+				o << " returns (" << fi.structParamTypeName << " memory) {\n";
+				o << "\t\treturn " << fi.structParamTypeName << "(" << defaultUintLiteral();
+				for (unsigned k = 1; k < fi.structParamFieldCount; k++)
+					o << ", 0";
+				o << ");\n";
+			}
+			else if (fi.returnTwo)
 			{
 				o << " returns (uint256, uint256) {\n";
 				o << "\t\treturn (" << defaultUintLiteral() << ", " << defaultUintLiteral() << ");\n";
@@ -1038,6 +1124,8 @@ std::string ProtoConverter::visitFunction(
 	m_currentMutability = actualMut;
 	m_canReturn = true;
 	m_currentReturnsTwo = fi.returnTwo;
+	m_currentStructReturnType = fi.returnsStruct ? fi.structParamTypeName : "";
+	m_currentStructReturnFieldCount = fi.returnsStruct ? fi.structParamFieldCount : 0;
 
 	// Set up state access
 	m_canReadState = (actualMut == VIEW || actualMut == NONPAYABLE || actualMut == PAYABLE);
@@ -1066,6 +1154,8 @@ std::string ProtoConverter::visitFunction(
 		ParamType pt = (i < fi.paramTypes.size()) ? fi.paramTypes[i] : PARAM_UINT256;
 		if (pt == PARAM_UINT256)
 			o << "uint256 p" << i;
+		else if (pt == PARAM_STRUCT)
+			o << fi.structParamTypeName << " memory _p" << i;
 		else
 			o << paramTypeSolStr(pt) << " _p" << i;
 	}
@@ -1092,7 +1182,9 @@ std::string ProtoConverter::visitFunction(
 		o << " " << _cinfo.modifiers[modIdx].name << "()";
 	}
 
-	if (fi.returnTwo)
+	if (fi.returnsStruct)
+		o << " returns (" << fi.structParamTypeName << " memory) {\n";
+	else if (fi.returnTwo)
 		o << " returns (uint256, uint256) {\n";
 	else
 		o << " returns (uint256) {\n";
@@ -1107,10 +1199,19 @@ std::string ProtoConverter::visitFunction(
 			o << "\t\tuint256 p" << i << " = uint256(uint160(_p" << i << "));\n";
 		else if (pt == PARAM_BYTES32)
 			o << "\t\tuint256 p" << i << " = uint256(_p" << i << ");\n";
+		else if (pt == PARAM_STRUCT)
+			o << "\t\tuint256 p" << i << " = _p" << i << ".f0;\n";
 	}
 	o << body;
 	// Always return something to ensure the function compiles
-	if (fi.returnTwo)
+	if (fi.returnsStruct)
+	{
+		o << "\t\treturn " << fi.structParamTypeName << "(0";
+		for (unsigned k = 1; k < fi.structParamFieldCount; k++)
+			o << ", 0";
+		o << ");\n";
+	}
+	else if (fi.returnTwo)
 		o << "\t\treturn (0, 0);\n";
 	else
 		o << "\t\treturn 0;\n";
@@ -1498,7 +1599,15 @@ std::string ProtoConverter::visitDoWhile(DoWhileStmt const& _s)
 std::string ProtoConverter::visitReturn(ReturnStmt const& _s)
 {
 	std::ostringstream o;
-	if (m_currentReturnsTwo)
+	if (!m_currentStructReturnType.empty())
+	{
+		std::string v = _s.has_val() ? visitUintExpr(_s.val()) : "0";
+		o << indent() << "return " << m_currentStructReturnType << "(" << v;
+		for (unsigned k = 1; k < m_currentStructReturnFieldCount; k++)
+			o << ", 0";
+		o << ");\n";
+	}
+	else if (m_currentReturnsTwo)
 	{
 		std::string v1 = _s.has_val() ? visitUintExpr(_s.val()) : "0";
 		std::string v2 = std::to_string(randomNumber() % 100);
@@ -2222,7 +2331,12 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			auto const& target = m_contracts[m_currentContract].functions[targetIdx];
 			// Skip external functions (need this. prefix which changes context)
 			// Skip returns_two functions (can't be used as uint256 expressions)
-			if (target.vis != EXTERNAL && !target.returnTwo)
+			// Skip functions that return a struct or take struct params —
+			// calling them requires struct literals at the call site.
+			bool targetUsesStruct = target.returnsStruct;
+			for (auto pt : target.paramTypes)
+				if (pt == PARAM_STRUCT) { targetUsesStruct = true; break; }
+			if (target.vis != EXTERNAL && !target.returnTwo && !targetUsesStruct)
 			{
 				// Check mutability compatibility:
 				// pure can only call pure
@@ -2509,6 +2623,13 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 				auto const& bf = base.functions[fi];
 				if (bf.vis == PRIVATE)
 					continue;
+				if (bf.returnsStruct || bf.returnTwo)
+					continue;
+				bool takesStruct = false;
+				for (auto pt : bf.paramTypes)
+					if (pt == PARAM_STRUCT) { takesStruct = true; break; }
+				if (takesStruct)
+					continue;
 				// Check mutability compatibility
 				bool canCall = true;
 				if (m_currentMutability == PURE && bf.mut != PURE)
@@ -2559,6 +2680,13 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			{
 				auto const& lf = m_contracts[ci].functions[fi];
 				if (lf.numParams < 1)
+					continue;
+				if (lf.returnsStruct || lf.returnTwo)
+					continue;
+				bool takesStruct = false;
+				for (auto pt : lf.paramTypes)
+					if (pt == PARAM_STRUCT) { takesStruct = true; break; }
+				if (takesStruct)
 					continue;
 				bool canCall = true;
 				if (m_currentMutability == PURE && lf.mut != PURE)
@@ -3567,6 +3695,8 @@ std::string ProtoConverter::setupAndVisitBlock(
 	m_inConstructor = false;
 	m_canReturn = false;
 	m_currentReturnsTwo = false;
+	m_currentStructReturnType.clear();
+	m_currentStructReturnFieldCount = 0;
 	m_currentFuncIdx = 0;
 	collectInheritedInfo(_cinfo);
 

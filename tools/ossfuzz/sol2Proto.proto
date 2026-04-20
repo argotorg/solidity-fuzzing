@@ -830,6 +830,12 @@ enum ParamType {
 	PARAM_BOOL = 1;
 	PARAM_ADDRESS = 2;
 	PARAM_BYTES32 = 3;
+	// Take a contract-local struct (S<cIdx>_0) by memory, extract its
+	// first field as the uint256 shadow. Only honored for internal/
+	// private functions (external/public fall back to PARAM_UINT256)
+	// to avoid ABI-encoding complexity in the harness. Requires the
+	// contract to have a struct whose first field is uint-compatible.
+	PARAM_STRUCT = 4;
 }
 
 message FunctionDef {
@@ -861,6 +867,12 @@ message FunctionDef {
 	// function with `override`. Exercises override resolution (has ICE'd
 	// historically on modifier + override + multi-base interactions).
 	optional bool override_base = 12;
+	// When true (and the visibility is internal/private and the contract
+	// has a struct with a uint-compatible first field), change the
+	// return type to `<StructName> memory` and wrap return values in a
+	// struct literal. Exercises StructType lowering (calldata/memory/
+	// storage copy paths, isDynamicallyEncoded, etc.).
+	optional bool returns_struct = 13;
 }
 
 message ConstructorDef {

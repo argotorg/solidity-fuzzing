@@ -2302,7 +2302,8 @@ inline constexpr FunctionDef::Impl_::Impl_(
         share_name_with_prev_{false},
         returns_two_{false},
         non_virtual_{false},
-        override_base_{false} {}
+        override_base_{false},
+        returns_struct_{false} {}
 
 template <typename>
 constexpr FunctionDef::FunctionDef(::_pbi::ConstantInitialized)
@@ -3172,7 +3173,7 @@ const ::uint32_t
         0,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_._has_bits_),
-        13, // hasbit index offset
+        14, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.num_params_),
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.vis_),
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.mut_),
@@ -3183,6 +3184,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.returns_two_),
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.non_virtual_),
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.override_base_),
+        PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::FunctionDef, _impl_.returns_struct_),
         2,
         3,
         4,
@@ -3193,6 +3195,7 @@ const ::uint32_t
         7,
         8,
         9,
+        10,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::solidity::test::sol2protofuzzer::ConstructorDef, _impl_._has_bits_),
         6, // hasbit index offset
@@ -3381,13 +3384,13 @@ static const ::_pbi::MigrationSchema
         {554, sizeof(::solidity::test::sol2protofuzzer::ReceiveDef)},
         {559, sizeof(::solidity::test::sol2protofuzzer::FallbackDef)},
         {564, sizeof(::solidity::test::sol2protofuzzer::FunctionDef)},
-        {587, sizeof(::solidity::test::sol2protofuzzer::ConstructorDef)},
-        {596, sizeof(::solidity::test::sol2protofuzzer::StateVarDecl)},
-        {607, sizeof(::solidity::test::sol2protofuzzer::UsingForBinding)},
-        {614, sizeof(::solidity::test::sol2protofuzzer::UsingForDirective)},
-        {627, sizeof(::solidity::test::sol2protofuzzer::ContractDef)},
-        {656, sizeof(::solidity::test::sol2protofuzzer::FreeFunctionDef)},
-        {667, sizeof(::solidity::test::sol2protofuzzer::Program)},
+        {589, sizeof(::solidity::test::sol2protofuzzer::ConstructorDef)},
+        {598, sizeof(::solidity::test::sol2protofuzzer::StateVarDecl)},
+        {609, sizeof(::solidity::test::sol2protofuzzer::UsingForBinding)},
+        {616, sizeof(::solidity::test::sol2protofuzzer::UsingForDirective)},
+        {629, sizeof(::solidity::test::sol2protofuzzer::ContractDef)},
+        {658, sizeof(::solidity::test::sol2protofuzzer::FreeFunctionDef)},
+        {669, sizeof(::solidity::test::sol2protofuzzer::Program)},
 };
 static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::solidity::test::sol2protofuzzer::_IntegerType_default_instance_._instance,
@@ -3827,7 +3830,7 @@ const char descriptor_table_protodef_sol2Proto_2eproto[] ABSL_ATTRIBUTE_SECTION_
     "ef\0222\n\004body\030\001 \002(\0132$.solidity.test.sol2pro"
     "tofuzzer.Block\"A\n\013FallbackDef\0222\n\004body\030\001 "
     "\002(\0132$.solidity.test.sol2protofuzzer.Bloc"
-    "k\"\211\003\n\013FunctionDef\022\022\n\nnum_params\030\001 \002(\r\0226\n"
+    "k\"\241\003\n\013FunctionDef\022\022\n\nnum_params\030\001 \002(\r\0226\n"
     "\003vis\030\003 \002(\0162).solidity.test.sol2protofuzz"
     "er.Visibility\022;\n\003mut\030\004 \002(\0162..solidity.te"
     "st.sol2protofuzzer.StateMutability\0222\n\004bo"
@@ -3836,73 +3839,74 @@ const char descriptor_table_protodef_sol2Proto_2eproto[] ABSL_ATTRIBUTE_SECTION_
     "e_with_prev\030\010 \001(\010\022=\n\013param_types\030\t \003(\0162("
     ".solidity.test.sol2protofuzzer.ParamType"
     "\022\023\n\013returns_two\030\n \001(\010\022\023\n\013non_virtual\030\013 \001"
-    "(\010\022\025\n\roverride_base\030\014 \001(\010J\004\010\002\020\003J\004\010\005\020\006\"h\n"
-    "\016ConstructorDef\0222\n\004body\030\001 \002(\0132$.solidity"
-    ".test.sol2protofuzzer.Block\022\017\n\007payable\030\002"
-    " \002(\010\022\021\n\thas_param\030\003 \001(\010\"\230\001\n\014StateVarDecl"
-    "\0225\n\004type\030\001 \002(\0132\'.solidity.test.sol2proto"
-    "fuzzer.TypeName\022\024\n\014is_transient\030\005 \001(\010\022\023\n"
-    "\013is_constant\030\006 \001(\010\022\024\n\014is_immutable\030\007 \001(\010"
-    "J\004\010\002\020\003J\004\010\003\020\004J\004\010\004\020\005\"\355\002\n\017UsingForBinding\022\024"
-    "\n\014function_idx\030\001 \002(\r\022R\n\roperator_kind\030\002 "
-    "\001(\0162;.solidity.test.sol2protofuzzer.Usin"
-    "gForBinding.OperatorKind\"\357\001\n\014OperatorKin"
-    "d\022\013\n\007OP_NONE\020\000\022\n\n\006OP_ADD\020\001\022\n\n\006OP_SUB\020\002\022\n"
-    "\n\006OP_MUL\020\003\022\n\n\006OP_DIV\020\004\022\n\n\006OP_MOD\020\005\022\t\n\005OP"
-    "_EQ\020\006\022\n\n\006OP_NEQ\020\007\022\t\n\005OP_LT\020\010\022\t\n\005OP_GT\020\t\022"
-    "\n\n\006OP_LTE\020\n\022\n\n\006OP_GTE\020\013\022\016\n\nOP_BIT_AND\020\014\022"
-    "\r\n\tOP_BIT_OR\020\r\022\016\n\nOP_BIT_XOR\020\016\022\016\n\nOP_BIT"
-    "_NOT\020\017\022\022\n\016OP_UNARY_MINUS\020\020\"\301\001\n\021UsingForD"
-    "irective\022\027\n\017target_type_idx\030\001 \002(\r\022@\n\010bin"
-    "dings\030\002 \003(\0132..solidity.test.sol2protofuz"
-    "zer.UsingForBinding\022\021\n\tis_global\030\003 \001(\010\022\036"
-    "\n\026allow_invalid_external\030\004 \001(\010\022\036\n\026allow_"
-    "self_referential\030\005 \001(\010\"\251\006\n\013ContractDef\022="
-    "\n\004kind\030\001 \002(\0162/.solidity.test.sol2protofu"
-    "zzer.ContractDef.Kind\022\r\n\005bases\030\002 \003(\r\0229\n\007"
-    "structs\030\003 \003(\0132(.solidity.test.sol2protof"
-    "uzzer.StructDef\0225\n\005enums\030\004 \003(\0132&.solidit"
-    "y.test.sol2protofuzzer.EnumDef\022\?\n\nstate_"
-    "vars\030\005 \003(\0132+.solidity.test.sol2protofuzz"
-    "er.StateVarDecl\022=\n\tfunctions\030\006 \003(\0132*.sol"
-    "idity.test.sol2protofuzzer.FunctionDef\0227"
-    "\n\006events\030\007 \003(\0132\'.solidity.test.sol2proto"
-    "fuzzer.EventDef\0227\n\006errors\030\010 \003(\0132\'.solidi"
-    "ty.test.sol2protofuzzer.ErrorDef\022B\n\013cons"
-    "tructor\030\t \001(\0132-.solidity.test.sol2protof"
-    "uzzer.ConstructorDef\022=\n\tmodifiers\030\n \003(\0132"
-    "*.solidity.test.sol2protofuzzer.Modifier"
-    "Def\022:\n\007receive\030\013 \001(\0132).solidity.test.sol"
-    "2protofuzzer.ReceiveDef\022A\n\rfallback_func"
-    "\030\014 \001(\0132*.solidity.test.sol2protofuzzer.F"
-    "allbackDef\022C\n\tusing_for\030\r \003(\01320.solidity"
-    ".test.sol2protofuzzer.UsingForDirective\""
-    "!\n\004Kind\022\014\n\010CONTRACT\020\000\022\013\n\007LIBRARY\020\001\"\206\001\n\017F"
-    "reeFunctionDef\022\022\n\nnum_params\030\001 \002(\r\0222\n\004bo"
-    "dy\030\002 \002(\0132$.solidity.test.sol2protofuzzer"
-    ".Block\022\025\n\remit_external\030\003 \001(\010\022\024\n\014use_udv"
-    "t_sig\030\004 \001(\010\"\377\002\n\007Program\022=\n\tcontracts\030\001 \003"
-    "(\0132*.solidity.test.sol2protofuzzer.Contr"
-    "actDef\022\014\n\004seed\030\002 \002(\004\022\016\n\006via_ir\030\003 \002(\010\022\020\n\010"
-    "optimize\030\004 \002(\010\022\025\n\rcalldata_data\030\005 \001(\014\022\024\n"
-    "\014create2_salt\030\006 \001(\014\022F\n\016free_functions\030\007 "
-    "\003(\0132..solidity.test.sol2protofuzzer.Free"
-    "FunctionDef\022\020\n\010gen_udvt\030\n \001(\010\022\025\n\roptimis"
-    "er_seq\030\010 \003(\r\022\035\n\025optimiser_cleanup_seq\030\t "
-    "\003(\r\022H\n\016file_using_for\030\013 \003(\01320.solidity.t"
-    "est.sol2protofuzzer.UsingForDirective*A\n"
-    "\nVisibility\022\n\n\006PUBLIC\020\000\022\014\n\010EXTERNAL\020\001\022\014\n"
-    "\010INTERNAL\020\002\022\013\n\007PRIVATE\020\003*B\n\017StateMutabil"
-    "ity\022\010\n\004PURE\020\000\022\010\n\004VIEW\020\001\022\013\n\007PAYABLE\020\002\022\016\n\n"
-    "NONPAYABLE\020\003*T\n\tParamType\022\021\n\rPARAM_UINT2"
-    "56\020\000\022\016\n\nPARAM_BOOL\020\001\022\021\n\rPARAM_ADDRESS\020\002\022"
-    "\021\n\rPARAM_BYTES32\020\003"
+    "(\010\022\025\n\roverride_base\030\014 \001(\010\022\026\n\016returns_str"
+    "uct\030\r \001(\010J\004\010\002\020\003J\004\010\005\020\006\"h\n\016ConstructorDef\022"
+    "2\n\004body\030\001 \002(\0132$.solidity.test.sol2protof"
+    "uzzer.Block\022\017\n\007payable\030\002 \002(\010\022\021\n\thas_para"
+    "m\030\003 \001(\010\"\230\001\n\014StateVarDecl\0225\n\004type\030\001 \002(\0132\'"
+    ".solidity.test.sol2protofuzzer.TypeName\022"
+    "\024\n\014is_transient\030\005 \001(\010\022\023\n\013is_constant\030\006 \001"
+    "(\010\022\024\n\014is_immutable\030\007 \001(\010J\004\010\002\020\003J\004\010\003\020\004J\004\010\004"
+    "\020\005\"\355\002\n\017UsingForBinding\022\024\n\014function_idx\030\001"
+    " \002(\r\022R\n\roperator_kind\030\002 \001(\0162;.solidity.t"
+    "est.sol2protofuzzer.UsingForBinding.Oper"
+    "atorKind\"\357\001\n\014OperatorKind\022\013\n\007OP_NONE\020\000\022\n"
+    "\n\006OP_ADD\020\001\022\n\n\006OP_SUB\020\002\022\n\n\006OP_MUL\020\003\022\n\n\006OP"
+    "_DIV\020\004\022\n\n\006OP_MOD\020\005\022\t\n\005OP_EQ\020\006\022\n\n\006OP_NEQ\020"
+    "\007\022\t\n\005OP_LT\020\010\022\t\n\005OP_GT\020\t\022\n\n\006OP_LTE\020\n\022\n\n\006O"
+    "P_GTE\020\013\022\016\n\nOP_BIT_AND\020\014\022\r\n\tOP_BIT_OR\020\r\022\016"
+    "\n\nOP_BIT_XOR\020\016\022\016\n\nOP_BIT_NOT\020\017\022\022\n\016OP_UNA"
+    "RY_MINUS\020\020\"\301\001\n\021UsingForDirective\022\027\n\017targ"
+    "et_type_idx\030\001 \002(\r\022@\n\010bindings\030\002 \003(\0132..so"
+    "lidity.test.sol2protofuzzer.UsingForBind"
+    "ing\022\021\n\tis_global\030\003 \001(\010\022\036\n\026allow_invalid_"
+    "external\030\004 \001(\010\022\036\n\026allow_self_referential"
+    "\030\005 \001(\010\"\251\006\n\013ContractDef\022=\n\004kind\030\001 \002(\0162/.s"
+    "olidity.test.sol2protofuzzer.ContractDef"
+    ".Kind\022\r\n\005bases\030\002 \003(\r\0229\n\007structs\030\003 \003(\0132(."
+    "solidity.test.sol2protofuzzer.StructDef\022"
+    "5\n\005enums\030\004 \003(\0132&.solidity.test.sol2proto"
+    "fuzzer.EnumDef\022\?\n\nstate_vars\030\005 \003(\0132+.sol"
+    "idity.test.sol2protofuzzer.StateVarDecl\022"
+    "=\n\tfunctions\030\006 \003(\0132*.solidity.test.sol2p"
+    "rotofuzzer.FunctionDef\0227\n\006events\030\007 \003(\0132\'"
+    ".solidity.test.sol2protofuzzer.EventDef\022"
+    "7\n\006errors\030\010 \003(\0132\'.solidity.test.sol2prot"
+    "ofuzzer.ErrorDef\022B\n\013constructor\030\t \001(\0132-."
+    "solidity.test.sol2protofuzzer.Constructo"
+    "rDef\022=\n\tmodifiers\030\n \003(\0132*.solidity.test."
+    "sol2protofuzzer.ModifierDef\022:\n\007receive\030\013"
+    " \001(\0132).solidity.test.sol2protofuzzer.Rec"
+    "eiveDef\022A\n\rfallback_func\030\014 \001(\0132*.solidit"
+    "y.test.sol2protofuzzer.FallbackDef\022C\n\tus"
+    "ing_for\030\r \003(\01320.solidity.test.sol2protof"
+    "uzzer.UsingForDirective\"!\n\004Kind\022\014\n\010CONTR"
+    "ACT\020\000\022\013\n\007LIBRARY\020\001\"\206\001\n\017FreeFunctionDef\022\022"
+    "\n\nnum_params\030\001 \002(\r\0222\n\004body\030\002 \002(\0132$.solid"
+    "ity.test.sol2protofuzzer.Block\022\025\n\remit_e"
+    "xternal\030\003 \001(\010\022\024\n\014use_udvt_sig\030\004 \001(\010\"\377\002\n\007"
+    "Program\022=\n\tcontracts\030\001 \003(\0132*.solidity.te"
+    "st.sol2protofuzzer.ContractDef\022\014\n\004seed\030\002"
+    " \002(\004\022\016\n\006via_ir\030\003 \002(\010\022\020\n\010optimize\030\004 \002(\010\022\025"
+    "\n\rcalldata_data\030\005 \001(\014\022\024\n\014create2_salt\030\006 "
+    "\001(\014\022F\n\016free_functions\030\007 \003(\0132..solidity.t"
+    "est.sol2protofuzzer.FreeFunctionDef\022\020\n\010g"
+    "en_udvt\030\n \001(\010\022\025\n\roptimiser_seq\030\010 \003(\r\022\035\n\025"
+    "optimiser_cleanup_seq\030\t \003(\r\022H\n\016file_usin"
+    "g_for\030\013 \003(\01320.solidity.test.sol2protofuz"
+    "zer.UsingForDirective*A\n\nVisibility\022\n\n\006P"
+    "UBLIC\020\000\022\014\n\010EXTERNAL\020\001\022\014\n\010INTERNAL\020\002\022\013\n\007P"
+    "RIVATE\020\003*B\n\017StateMutability\022\010\n\004PURE\020\000\022\010\n"
+    "\004VIEW\020\001\022\013\n\007PAYABLE\020\002\022\016\n\nNONPAYABLE\020\003*f\n\t"
+    "ParamType\022\021\n\rPARAM_UINT256\020\000\022\016\n\nPARAM_BO"
+    "OL\020\001\022\021\n\rPARAM_ADDRESS\020\002\022\021\n\rPARAM_BYTES32"
+    "\020\003\022\020\n\014PARAM_STRUCT\020\004"
 };
 static ::absl::once_flag descriptor_table_sol2Proto_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_sol2Proto_2eproto = {
     false,
     false,
-    16698,
+    16740,
     descriptor_table_protodef_sol2Proto_2eproto,
     "sol2Proto.proto",
     &descriptor_table_sol2Proto_2eproto_once,
@@ -4085,7 +4089,7 @@ ParamType_descriptor() {
   return file_level_enum_descriptors_sol2Proto_2eproto[23];
 }
 PROTOBUF_CONSTINIT const uint32_t ParamType_internal_data_[] = {
-    262144u, 0u, };
+    327680u, 0u, };
 // ===================================================================
 
 class IntegerType::_Internal {
@@ -31442,9 +31446,9 @@ FunctionDef::FunctionDef(
                offsetof(Impl_, num_params_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, num_params_),
-           offsetof(Impl_, override_base_) -
+           offsetof(Impl_, returns_struct_) -
                offsetof(Impl_, num_params_) +
-               sizeof(Impl_::override_base_));
+               sizeof(Impl_::returns_struct_));
 
   // @@protoc_insertion_point(copy_constructor:solidity.test.sol2protofuzzer.FunctionDef)
 }
@@ -31467,9 +31471,9 @@ inline void FunctionDef::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, body_),
            0,
-           offsetof(Impl_, override_base_) -
+           offsetof(Impl_, returns_struct_) -
                offsetof(Impl_, body_) +
-               sizeof(Impl_::override_base_));
+               sizeof(Impl_::returns_struct_));
 }
 FunctionDef::~FunctionDef() {
   // @@protoc_insertion_point(destructor:solidity.test.sol2protofuzzer.FunctionDef)
@@ -31547,16 +31551,16 @@ FunctionDef::GetClassData() const {
   return FunctionDef_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 10, 4, 0, 2>
+const ::_pbi::TcParseTable<4, 11, 4, 0, 2>
 FunctionDef::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_._has_bits_),
     0, // no _extensions_
-    12, 120,  // max_field_number, fast_idx_mask
+    13, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294963218,  // skipmap
+    4294959122,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    10,  // num_field_entries
+    11,  // num_field_entries
     4,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     FunctionDef_class_data_.base(),
@@ -31595,7 +31599,7 @@ FunctionDef::_table_ = {
       PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.share_name_with_prev_)}},
     // repeated .solidity.test.sol2protofuzzer.ParamType param_types = 9;
     {::_pbi::TcParser::FastEr0R1,
-     {72, 0, 3,
+     {72, 0, 4,
       PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.param_types_)}},
     // optional bool returns_two = 10;
     {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(FunctionDef, _impl_.returns_two_), 7>(),
@@ -31609,7 +31613,10 @@ FunctionDef::_table_ = {
     {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(FunctionDef, _impl_.override_base_), 9>(),
      {96, 9, 0,
       PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.override_base_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // optional bool returns_struct = 13;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(FunctionDef, _impl_.returns_struct_), 10>(),
+     {104, 10, 0,
+      PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.returns_struct_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
   }}, {{
@@ -31635,12 +31642,14 @@ FunctionDef::_table_ = {
     {PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.non_virtual_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // optional bool override_base = 12;
     {PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.override_base_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // optional bool returns_struct = 13;
+    {PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.returns_struct_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   {{
       {::_pbi::TcParser::GetTable<::solidity::test::sol2protofuzzer::Block>()},
       {0, 3},
       {0, 3},
-      {0, 3},
+      {0, 4},
   }},
   {{
   }},
@@ -31667,10 +31676,10 @@ PROTOBUF_NOINLINE void FunctionDef::Clear() {
         reinterpret_cast<char*>(&_impl_.returns_two_) -
         reinterpret_cast<char*>(&_impl_.num_params_)) + sizeof(_impl_.returns_two_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
     ::memset(&_impl_.non_virtual_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.override_base_) -
-        reinterpret_cast<char*>(&_impl_.non_virtual_)) + sizeof(_impl_.override_base_));
+        reinterpret_cast<char*>(&_impl_.returns_struct_) -
+        reinterpret_cast<char*>(&_impl_.non_virtual_)) + sizeof(_impl_.returns_struct_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -31768,6 +31777,13 @@ PROTOBUF_NOINLINE void FunctionDef::Clear() {
         12, this_._internal_override_base(), target);
   }
 
+  // optional bool returns_struct = 13;
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteBoolToArray(
+        13, this_._internal_returns_struct(), target);
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -31793,7 +31809,7 @@ PROTOBUF_NOINLINE void FunctionDef::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  total_size += ::absl::popcount(0x000003c0U & cached_has_bits) * 2;
+  total_size += ::absl::popcount(0x000007c0U & cached_has_bits) * 2;
    {
     // repeated .solidity.test.sol2protofuzzer.ParamType param_types = 9;
     if (CheckHasBitForRepeated(cached_has_bits, 0x00000001U)) {
@@ -31883,12 +31899,15 @@ void FunctionDef::MergeImpl(::google::protobuf::MessageLite& to_msg,
       _this->_impl_.returns_two_ = from._impl_.returns_two_;
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       _this->_impl_.non_virtual_ = from._impl_.non_virtual_;
     }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       _this->_impl_.override_base_ = from._impl_.override_base_;
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      _this->_impl_.returns_struct_ = from._impl_.returns_struct_;
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
@@ -31921,8 +31940,8 @@ void FunctionDef::InternalSwap(FunctionDef* PROTOBUF_RESTRICT PROTOBUF_NONNULL o
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   _impl_.param_types_.InternalSwap(&other->_impl_.param_types_);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.override_base_)
-      + sizeof(FunctionDef::_impl_.override_base_)
+      PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.returns_struct_)
+      + sizeof(FunctionDef::_impl_.returns_struct_)
       - PROTOBUF_FIELD_OFFSET(FunctionDef, _impl_.body_)>(
           reinterpret_cast<char*>(&_impl_.body_),
           reinterpret_cast<char*>(&other->_impl_.body_));
