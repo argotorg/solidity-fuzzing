@@ -26,6 +26,7 @@
 #include <libevmasm/Exceptions.h>
 #include <liblangutil/Exceptions.h>
 
+#include <libyul/Exceptions.h>
 #include <libyul/YulString.h>
 
 #include <evmone/evmone.h>
@@ -89,7 +90,40 @@ static RunResult runOnce(
 		methodName,
 		s_gasLimit
 	);
-	evmc::Result result = evmoneUtil.compileDeployAndExecute({}, _extraCalldataHex);
+	// Compile-path failures that are either known non-bugs or the domain of
+	// sol_ice_ossfuzz. Swallow them here so this differential fuzzer does not
+	// crash on inputs the frontend-ICE hunter is meant to catch separately.
+	// Note: solAssert() in the diff-checking code below throws
+	// langutil::InternalCompilerError too — it MUST not be caught here.
+	evmc::Result result{EVMC_INTERNAL_ERROR};
+	try
+	{
+		result = evmoneUtil.compileDeployAndExecute({}, _extraCalldataHex);
+	}
+	catch (langutil::InternalCompilerError const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
+	catch (langutil::UnimplementedFeatureError const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
+	catch (langutil::StackTooDeepError const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
+	catch (evmasm::StackTooDeepException const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
+	catch (yul::YulAssertion const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
+	catch (yul::YulException const&)
+	{
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
 	bool subCallOOG = hostContext.m_subCallOutOfGas;
 
 	// Capture logs
@@ -157,7 +191,11 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		extraCalldataHex = toHex(calldataBytes);
 	}
 
-	try
+	// No outer try/catch here on purpose: runOnce() already swallows ICE,
+	// UnimplementedFeature, StackTooDeep, and Yul exceptions (those are the
+	// domain of sol_ice_ossfuzz). Any exception reaching this scope — notably
+	// the langutil::InternalCompilerError that solAssert() throws on a diff —
+	// is a real bug and MUST propagate so libFuzzer records the crash.
 	{
 		// Build custom optimizer sequences from proto if provided
 		std::string optimizerSeq = _input.optimiser_seq_size() > 0
@@ -249,13 +287,5 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 				modeLabel + ": revert data differs"
 			);
 		}
-	}
-	catch (evmasm::StackTooDeepException const&)
-	{
-		// Stack-too-deep in legacy codegen is expected for some inputs.
-	}
-	catch (langutil::StackTooDeepError const&)
-	{
-		// Stack-too-deep in IR codegen is expected for some inputs.
 	}
 }
