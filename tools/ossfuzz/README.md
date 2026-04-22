@@ -45,12 +45,13 @@ done
 |---|---|---|
 | `sol_ice_ossfuzz` | `sol_ice_ossfuzz.cpp` | Solidity frontend `sol2Proto` → `CompilerStack::compile` |
 | `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` | SSA stack shuffler |
-| `strictasm_opt_ossfuzz` | `strictasm_opt_ossfuzz.cpp` | Yul optimizer |
+
 
 ### Legacy fuzzers
 
 | Executable | Source | What it feeds random bytes to |
 |---|---|---|
+| `strictasm_opt_ossfuzz` | `strictasm_opt_ossfuzz.cpp` | Yul optimizer |
 | `strictasm_assembly_ossfuzz` | `strictasm_assembly_ossfuzz.cpp` | Yul assembler |
 | `const_opt_ossfuzz` | `const_opt_ossfuzz.cpp` | Constant optimizer |
 | `solc_ossfuzz` | `solc_ossfuzz.cpp` | Solidity compiler |
