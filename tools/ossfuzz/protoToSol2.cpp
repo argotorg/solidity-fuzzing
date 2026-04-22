@@ -1359,6 +1359,12 @@ std::string ProtoConverter::visitStatement(Statement const& _s)
 	case Statement::kTupleDestruct:
 		result = visitTupleDestruct(_s.tuple_destruct());
 		break;
+	case Statement::kStructLocalDecl:
+		result = visitStructLocalDecl(_s.struct_local_decl());
+		break;
+	case Statement::kStructTupleAlias:
+		result = visitStructTupleAlias(_s.struct_tuple_alias());
+		break;
 	case Statement::kSelfdestructStmt:
 		// selfdestruct requires non-pure, non-view. Skip in constructors
 		// (would destroy the contract being created).
@@ -1953,6 +1959,153 @@ std::string ProtoConverter::visitArrayPop(ArrayPopStmt const& _s)
 	// Guard against popping from empty array
 	std::ostringstream o;
 	o << indent() << "if (" << sv.name << ".length > 0) " << sv.name << ".pop();\n";
+	return o.str();
+}
+
+std::string ProtoConverter::visitStructLocalDecl(StructLocalDeclStmt const& _s)
+{
+	if (m_localVarCount >= s_maxLocalVars)
+		return "";
+
+	auto eligible = eligibleMemoryStructs();
+	if (eligible.empty())
+		return "";
+
+	unsigned structDefIdx = eligible[_s.struct_idx() % eligible.size()];
+	std::string const& sname = m_currentStructDefs[structDefIdx].name;
+
+	std::string varName = "m" + std::to_string(m_varCounter++);
+	m_localVarCount++;
+
+	if (!m_structLocalsStack.empty())
+		m_structLocalsStack.back().push_back({varName, structDefIdx});
+
+	std::ostringstream o;
+	o << indent() << sname << " memory " << varName << ";\n";
+	return o.str();
+}
+
+std::string ProtoConverter::visitStructTupleAlias(StructTupleAliasStmt const& _s)
+{
+	// Requires a state-writing context (nonpayable/payable).
+	if (m_currentMutability == PURE || m_currentMutability == VIEW)
+		return "";
+	if (!m_canReadState)
+		return "";
+
+	// Candidate resolution strategy:
+	//  1. Prefer an already-declared in-scope memory struct local whose
+	//     struct type has >= 2 matching storage state vars — that way a
+	//     preceding StructLocalDeclStmt can compose with this statement.
+	//  2. Otherwise fall back to declaring an anonymous memory local in a
+	//     fresh block scope, so a single proto message can trigger the
+	//     pattern without requiring libfuzzer to sequence two statements.
+	// Either way, the statement is a no-op if no struct type exists with
+	// both (a) all-uint-compatible fields and (b) >= 2 storage state vars.
+	std::string localName;
+	unsigned chosenStructDefIdx = 0;
+	std::vector<std::pair<std::string, unsigned>> matchingStateVars;
+	bool declareLocalInline = false;
+
+	auto findMatching = [&](unsigned structDefIdx)
+	{
+		std::vector<std::pair<std::string, unsigned>> match;
+		for (auto const& sv : m_currentStructStateVars)
+			if (sv.second == structDefIdx)
+				match.push_back(sv);
+		return match;
+	};
+
+	auto locals = allStructLocals();
+	if (!locals.empty())
+	{
+		unsigned nLocals = static_cast<unsigned>(locals.size());
+		unsigned startIdx = _s.local_sel() % nLocals;
+		for (unsigned probe = 0; probe < nLocals; probe++)
+		{
+			auto const& cand = locals[(startIdx + probe) % nLocals];
+			auto match = findMatching(cand.structDefIdx);
+			if (match.size() >= 2)
+			{
+				localName = cand.name;
+				chosenStructDefIdx = cand.structDefIdx;
+				matchingStateVars = std::move(match);
+				break;
+			}
+		}
+	}
+
+	if (localName.empty())
+	{
+		auto eligible = eligibleMemoryStructs();
+		if (eligible.empty())
+			return "";
+		unsigned nEligible = static_cast<unsigned>(eligible.size());
+		unsigned startIdx = _s.local_sel() % nEligible;
+		for (unsigned probe = 0; probe < nEligible; probe++)
+		{
+			unsigned structDefIdx = eligible[(startIdx + probe) % nEligible];
+			auto match = findMatching(structDefIdx);
+			if (match.size() >= 2)
+			{
+				chosenStructDefIdx = structDefIdx;
+				matchingStateVars = std::move(match);
+				localName = "ma" + std::to_string(m_varCounter++);
+				declareLocalInline = true;
+				break;
+			}
+		}
+		if (localName.empty())
+			return "";
+	}
+
+	unsigned nSVs = static_cast<unsigned>(matchingStateVars.size());
+	unsigned sa = _s.sa_sel() % nSVs;
+	unsigned sb = _s.sb_sel() % nSVs;
+	if (sb == sa)
+		sb = (sb + 1) % nSVs;
+	std::string const& saName = matchingStateVars[sa].first;
+	std::string const& sbName = matchingStateVars[sb].first;
+
+	auto const& structDef = m_currentStructDefs[chosenStructDefIdx];
+	std::string const& sname = structDef.name;
+
+	// Build two distinct struct literals so the RHS tuple elements carry
+	// observably different values — otherwise the legacy/viaIR divergence
+	// has nothing to reveal.
+	auto makeLiteral = [&](unsigned base)
+	{
+		std::ostringstream lit;
+		lit << sname << "(";
+		for (unsigned i = 0; i < structDef.fields.size(); i++)
+		{
+			if (i > 0) lit << ", ";
+			// Small values (< 256) narrow implicitly into any uint width.
+			lit << (base + i);
+		}
+		lit << ")";
+		return lit.str();
+	};
+
+	std::ostringstream o;
+	if (declareLocalInline)
+	{
+		o << indent() << "{\n";
+		m_indentLevel++;
+		o << indent() << sname << " memory " << localName << ";\n";
+	}
+	o << indent() << saName << " = " << makeLiteral(1) << ";\n";
+	o << indent() << sbName << " = " << makeLiteral(11) << ";\n";
+	o << indent() << "(" << localName << ", " << saName << ") = ("
+	  << saName << ", " << sbName << ");\n";
+	// Commit the memory struct into storage so the divergence surfaces in
+	// the differential storage oracle.
+	o << indent() << saName << " = " << localName << ";\n";
+	if (declareLocalInline)
+	{
+		m_indentLevel--;
+		o << indent() << "}\n";
+	}
 	return o.str();
 }
 
@@ -3606,12 +3759,15 @@ bool ProtoConverter::isUintType(ElementaryType const& _t)
 void ProtoConverter::pushScope()
 {
 	m_scopeStack.emplace_back();
+	m_structLocalsStack.emplace_back();
 }
 
 void ProtoConverter::popScope()
 {
 	if (!m_scopeStack.empty())
 		m_scopeStack.pop_back();
+	if (!m_structLocalsStack.empty())
+		m_structLocalsStack.pop_back();
 }
 
 void ProtoConverter::addVar(std::string const& _name)
@@ -3637,6 +3793,36 @@ std::vector<std::pair<std::string, unsigned>> ProtoConverter::allStructVars()
 	if (m_canReadState)
 		return m_currentStructStateVars;
 	return {};
+}
+
+std::vector<ProtoConverter::StructLocalInfo> ProtoConverter::allStructLocals()
+{
+	std::vector<StructLocalInfo> out;
+	for (auto const& scope : m_structLocalsStack)
+		for (auto const& l : scope)
+			out.push_back(l);
+	return out;
+}
+
+std::vector<unsigned> ProtoConverter::eligibleMemoryStructs()
+{
+	std::vector<unsigned> out;
+	for (unsigned i = 0; i < m_currentStructDefs.size(); i++)
+	{
+		auto const& sd = m_currentStructDefs[i];
+		if (sd.fields.empty())
+			continue;
+		bool allUint = true;
+		for (auto const& f : sd.fields)
+			if (!f.isUintCompatible)
+			{
+				allUint = false;
+				break;
+			}
+		if (allUint)
+			out.push_back(i);
+	}
+	return out;
 }
 
 std::string ProtoConverter::findVar(uint32_t _hint)

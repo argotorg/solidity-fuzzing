@@ -701,6 +701,35 @@ message TupleDestructStmt {
 	repeated Expression args = 2;
 }
 
+// Declare a memory-typed struct local: `S memory _mN;`. Adds `_mN` to the
+// current scope as a memory struct reference. Subsequent statements (notably
+// StructTupleAliasStmt) can use it as a memory lvalue. No-op when the
+// contract has no struct whose fields are all uint-compatible elementary
+// types, or when the local-variable budget is exhausted.
+message StructLocalDeclStmt {
+	// Mod-indexed into the contract's list of all-uint-compatible structs.
+	required uint32 struct_idx = 1;
+}
+
+// `(memLocal, sA) = (sA, sB); sA = memLocal;` — aliasing-sensitive tuple
+// assignment between a memory struct local and two storage struct state
+// vars of the same type. Legacy vs viaIR codegen has historically diverged
+// on this shape (RHS tuple element aliases an LHS lvalue). The statement is
+// self-contained: it initialises sA and sB to distinct struct literals, so
+// the divergence surfaces regardless of prior writes, and ends with a
+// `sA = memLocal;` to commit the memory value into storage where the
+// differential storage oracle can observe it. Skipped when prerequisites
+// aren't met (pure/view caller, no matching memory local in scope, or
+// fewer than 2 storage state vars of that struct type).
+message StructTupleAliasStmt {
+	// Mod-indexed selector picking which in-scope memory struct local to use.
+	required uint32 local_sel = 1;
+	// Mod-indexed selectors picking sA and sB from the pool of storage
+	// state vars whose struct type matches the chosen memory local's.
+	required uint32 sa_sel = 2;
+	required uint32 sb_sel = 3;
+}
+
 // Array length expression: arr.length
 message ArrayLengthExpr {
 	required uint32 var_idx = 1;
@@ -734,6 +763,8 @@ message Statement {
 		FixedAsmStmt fixed_asm = 24;
 		AbiEncodeStructStmt abi_encode_struct = 25;
 		FuncPtrStmt func_ptr = 26;
+		StructLocalDeclStmt struct_local_decl = 27;
+		StructTupleAliasStmt struct_tuple_alias = 28;
 	}
 }
 

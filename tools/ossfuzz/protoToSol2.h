@@ -163,6 +163,16 @@ private:
 		bool isImmutable = false;
 	};
 
+	/// A memory-typed struct local in scope. Tracked alongside the uint-var
+	/// scope stack so that struct-aware statements (e.g. StructTupleAliasStmt)
+	/// can pick one without having to grep for it in raw scope names.
+	struct StructLocalInfo
+	{
+		std::string name;
+		/// Index into m_currentStructDefs for the local's struct type.
+		unsigned structDefIdx;
+	};
+
 	struct ContractInfo
 	{
 		std::string name;
@@ -209,6 +219,8 @@ private:
 	std::string visitArrayPush(ArrayPushStmt const& _s);
 	std::string visitArrayPop(ArrayPopStmt const& _s);
 	std::string visitTupleDestruct(TupleDestructStmt const& _s);
+	std::string visitStructLocalDecl(StructLocalDeclStmt const& _s);
+	std::string visitStructTupleAlias(StructTupleAliasStmt const& _s);
 
 	// Expression visitors — generate uint256-typed or bool-typed expressions
 	std::string visitUintExpr(Expression const& _e);
@@ -261,6 +273,14 @@ private:
 	std::vector<std::string> allUintVars();
 	/// Get all struct state variables accessible in current context.
 	std::vector<std::pair<std::string, unsigned>> allStructVars();
+	/// Flatten m_structLocalsStack into a single list of in-scope memory
+	/// struct locals. Returned in declaration order across scopes.
+	std::vector<StructLocalInfo> allStructLocals();
+	/// Indices into m_currentStructDefs for structs whose fields are all
+	/// uint-compatible — the only shape safe for memory/storage copies and
+	/// default-value memory construction emitted by the struct-tuple-alias
+	/// statement.
+	std::vector<unsigned> eligibleMemoryStructs();
 
 	// ===== Helpers =====
 	std::string indent();
@@ -363,6 +383,10 @@ private:
 	std::vector<EnumDefInfo> m_currentEnumDefs;
 	/// Scope stack: each scope is a list of uint256 variable names
 	std::vector<std::vector<std::string>> m_scopeStack;
+	/// Memory struct locals scope stack, pushed/popped in lockstep with
+	/// m_scopeStack. Each inner vector holds StructLocalInfo entries for
+	/// struct-typed memory locals declared in that block scope.
+	std::vector<std::vector<StructLocalInfo>> m_structLocalsStack;
 	/// Whether current contract used _cdl/_cds helpers (emit only if needed)
 	bool m_usedCdl = false;
 	bool m_usedCds = false;

@@ -256,9 +256,15 @@ extern StructFieldDefaultTypeInternal _StructField_default_instance_;
 class StructFunctionField;
 struct StructFunctionFieldDefaultTypeInternal;
 extern StructFunctionFieldDefaultTypeInternal _StructFunctionField_default_instance_;
+class StructLocalDeclStmt;
+struct StructLocalDeclStmtDefaultTypeInternal;
+extern StructLocalDeclStmtDefaultTypeInternal _StructLocalDeclStmt_default_instance_;
 class StructMemberAccess;
 struct StructMemberAccessDefaultTypeInternal;
 extern StructMemberAccessDefaultTypeInternal _StructMemberAccess_default_instance_;
+class StructTupleAliasStmt;
+struct StructTupleAliasStmtDefaultTypeInternal;
+extern StructTupleAliasStmtDefaultTypeInternal _StructTupleAliasStmt_default_instance_;
 class SuperCallExpr;
 struct SuperCallExprDefaultTypeInternal;
 extern SuperCallExprDefaultTypeInternal _SuperCallExpr_default_instance_;
@@ -383,7 +389,9 @@ template<> ::solidity::test::sol2protofuzzer::StructArrayField* Arena::CreateMay
 template<> ::solidity::test::sol2protofuzzer::StructDef* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructDef>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructField* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructField>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructFunctionField* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructFunctionField>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructLocalDeclStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::StructMemberAccess* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructMemberAccess>(Arena*);
+template<> ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::StructTupleAliasStmt>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::SuperCallExpr* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::SuperCallExpr>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::TernaryOp* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::TernaryOp>(Arena*);
 template<> ::solidity::test::sol2protofuzzer::TryCatchStmt* Arena::CreateMaybeMessage<::solidity::test::sol2protofuzzer::TryCatchStmt>(Arena*);
@@ -14559,6 +14567,359 @@ class TupleDestructStmt final :
 };
 // -------------------------------------------------------------------
 
+class StructLocalDeclStmt final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.StructLocalDeclStmt) */ {
+ public:
+  inline StructLocalDeclStmt() : StructLocalDeclStmt(nullptr) {}
+  ~StructLocalDeclStmt() override;
+  explicit PROTOBUF_CONSTEXPR StructLocalDeclStmt(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  StructLocalDeclStmt(const StructLocalDeclStmt& from);
+  StructLocalDeclStmt(StructLocalDeclStmt&& from) noexcept
+    : StructLocalDeclStmt() {
+    *this = ::std::move(from);
+  }
+
+  inline StructLocalDeclStmt& operator=(const StructLocalDeclStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline StructLocalDeclStmt& operator=(StructLocalDeclStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const StructLocalDeclStmt& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const StructLocalDeclStmt* internal_default_instance() {
+    return reinterpret_cast<const StructLocalDeclStmt*>(
+               &_StructLocalDeclStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    66;
+
+  friend void swap(StructLocalDeclStmt& a, StructLocalDeclStmt& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(StructLocalDeclStmt* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(StructLocalDeclStmt* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  StructLocalDeclStmt* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<StructLocalDeclStmt>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const StructLocalDeclStmt& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const StructLocalDeclStmt& from) {
+    StructLocalDeclStmt::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(StructLocalDeclStmt* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.StructLocalDeclStmt";
+  }
+  protected:
+  explicit StructLocalDeclStmt(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kStructIdxFieldNumber = 1,
+  };
+  // required uint32 struct_idx = 1;
+  bool has_struct_idx() const;
+  private:
+  bool _internal_has_struct_idx() const;
+  public:
+  void clear_struct_idx();
+  uint32_t struct_idx() const;
+  void set_struct_idx(uint32_t value);
+  private:
+  uint32_t _internal_struct_idx() const;
+  void _internal_set_struct_idx(uint32_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.StructLocalDeclStmt)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    uint32_t struct_idx_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
+class StructTupleAliasStmt final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.StructTupleAliasStmt) */ {
+ public:
+  inline StructTupleAliasStmt() : StructTupleAliasStmt(nullptr) {}
+  ~StructTupleAliasStmt() override;
+  explicit PROTOBUF_CONSTEXPR StructTupleAliasStmt(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  StructTupleAliasStmt(const StructTupleAliasStmt& from);
+  StructTupleAliasStmt(StructTupleAliasStmt&& from) noexcept
+    : StructTupleAliasStmt() {
+    *this = ::std::move(from);
+  }
+
+  inline StructTupleAliasStmt& operator=(const StructTupleAliasStmt& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline StructTupleAliasStmt& operator=(StructTupleAliasStmt&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const StructTupleAliasStmt& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const StructTupleAliasStmt* internal_default_instance() {
+    return reinterpret_cast<const StructTupleAliasStmt*>(
+               &_StructTupleAliasStmt_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    67;
+
+  friend void swap(StructTupleAliasStmt& a, StructTupleAliasStmt& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(StructTupleAliasStmt* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(StructTupleAliasStmt* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  StructTupleAliasStmt* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<StructTupleAliasStmt>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const StructTupleAliasStmt& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const StructTupleAliasStmt& from) {
+    StructTupleAliasStmt::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(StructTupleAliasStmt* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "solidity.test.sol2protofuzzer.StructTupleAliasStmt";
+  }
+  protected:
+  explicit StructTupleAliasStmt(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kLocalSelFieldNumber = 1,
+    kSaSelFieldNumber = 2,
+    kSbSelFieldNumber = 3,
+  };
+  // required uint32 local_sel = 1;
+  bool has_local_sel() const;
+  private:
+  bool _internal_has_local_sel() const;
+  public:
+  void clear_local_sel();
+  uint32_t local_sel() const;
+  void set_local_sel(uint32_t value);
+  private:
+  uint32_t _internal_local_sel() const;
+  void _internal_set_local_sel(uint32_t value);
+  public:
+
+  // required uint32 sa_sel = 2;
+  bool has_sa_sel() const;
+  private:
+  bool _internal_has_sa_sel() const;
+  public:
+  void clear_sa_sel();
+  uint32_t sa_sel() const;
+  void set_sa_sel(uint32_t value);
+  private:
+  uint32_t _internal_sa_sel() const;
+  void _internal_set_sa_sel(uint32_t value);
+  public:
+
+  // required uint32 sb_sel = 3;
+  bool has_sb_sel() const;
+  private:
+  bool _internal_has_sb_sel() const;
+  public:
+  void clear_sb_sel();
+  uint32_t sb_sel() const;
+  void set_sb_sel(uint32_t value);
+  private:
+  uint32_t _internal_sb_sel() const;
+  void _internal_set_sb_sel(uint32_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.StructTupleAliasStmt)
+ private:
+  class _Internal;
+
+  // helper for ByteSizeLong()
+  size_t RequiredFieldsByteSizeFallback() const;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    uint32_t local_sel_;
+    uint32_t sa_sel_;
+    uint32_t sb_sel_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_sol2Proto_2eproto;
+};
+// -------------------------------------------------------------------
+
 class ArrayLengthExpr final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:solidity.test.sol2protofuzzer.ArrayLengthExpr) */ {
  public:
@@ -14614,7 +14975,7 @@ class ArrayLengthExpr final :
                &_ArrayLengthExpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    66;
+    68;
 
   friend void swap(ArrayLengthExpr& a, ArrayLengthExpr& b) {
     a.Swap(&b);
@@ -14796,6 +15157,8 @@ class Statement final :
     kFixedAsm = 24,
     kAbiEncodeStruct = 25,
     kFuncPtr = 26,
+    kStructLocalDecl = 27,
+    kStructTupleAlias = 28,
     STMT_ONEOF_NOT_SET = 0,
   };
 
@@ -14804,7 +15167,7 @@ class Statement final :
                &_Statement_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    67;
+    69;
 
   friend void swap(Statement& a, Statement& b) {
     a.Swap(&b);
@@ -14903,6 +15266,8 @@ class Statement final :
     kFixedAsmFieldNumber = 24,
     kAbiEncodeStructFieldNumber = 25,
     kFuncPtrFieldNumber = 26,
+    kStructLocalDeclFieldNumber = 27,
+    kStructTupleAliasFieldNumber = 28,
   };
   // .solidity.test.sol2protofuzzer.VarDeclStmt var_decl = 1;
   bool has_var_decl() const;
@@ -15372,6 +15737,42 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::FuncPtrStmt* func_ptr);
   ::solidity::test::sol2protofuzzer::FuncPtrStmt* unsafe_arena_release_func_ptr();
 
+  // .solidity.test.sol2protofuzzer.StructLocalDeclStmt struct_local_decl = 27;
+  bool has_struct_local_decl() const;
+  private:
+  bool _internal_has_struct_local_decl() const;
+  public:
+  void clear_struct_local_decl();
+  const ::solidity::test::sol2protofuzzer::StructLocalDeclStmt& struct_local_decl() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* release_struct_local_decl();
+  ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* mutable_struct_local_decl();
+  void set_allocated_struct_local_decl(::solidity::test::sol2protofuzzer::StructLocalDeclStmt* struct_local_decl);
+  private:
+  const ::solidity::test::sol2protofuzzer::StructLocalDeclStmt& _internal_struct_local_decl() const;
+  ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* _internal_mutable_struct_local_decl();
+  public:
+  void unsafe_arena_set_allocated_struct_local_decl(
+      ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* struct_local_decl);
+  ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* unsafe_arena_release_struct_local_decl();
+
+  // .solidity.test.sol2protofuzzer.StructTupleAliasStmt struct_tuple_alias = 28;
+  bool has_struct_tuple_alias() const;
+  private:
+  bool _internal_has_struct_tuple_alias() const;
+  public:
+  void clear_struct_tuple_alias();
+  const ::solidity::test::sol2protofuzzer::StructTupleAliasStmt& struct_tuple_alias() const;
+  PROTOBUF_NODISCARD ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* release_struct_tuple_alias();
+  ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* mutable_struct_tuple_alias();
+  void set_allocated_struct_tuple_alias(::solidity::test::sol2protofuzzer::StructTupleAliasStmt* struct_tuple_alias);
+  private:
+  const ::solidity::test::sol2protofuzzer::StructTupleAliasStmt& _internal_struct_tuple_alias() const;
+  ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* _internal_mutable_struct_tuple_alias();
+  public:
+  void unsafe_arena_set_allocated_struct_tuple_alias(
+      ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* struct_tuple_alias);
+  ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* unsafe_arena_release_struct_tuple_alias();
+
   void clear_stmt_oneof();
   StmtOneofCase stmt_oneof_case() const;
   // @@protoc_insertion_point(class_scope:solidity.test.sol2protofuzzer.Statement)
@@ -15403,6 +15804,8 @@ class Statement final :
   void set_has_fixed_asm();
   void set_has_abi_encode_struct();
   void set_has_func_ptr();
+  void set_has_struct_local_decl();
+  void set_has_struct_tuple_alias();
 
   inline bool has_stmt_oneof() const;
   inline void clear_has_stmt_oneof();
@@ -15440,6 +15843,8 @@ class Statement final :
       ::solidity::test::sol2protofuzzer::FixedAsmStmt* fixed_asm_;
       ::solidity::test::sol2protofuzzer::AbiEncodeStructStmt* abi_encode_struct_;
       ::solidity::test::sol2protofuzzer::FuncPtrStmt* func_ptr_;
+      ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* struct_local_decl_;
+      ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* struct_tuple_alias_;
     } stmt_oneof_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     uint32_t _oneof_case_[1];
@@ -15505,7 +15910,7 @@ class FuncPtrStmt final :
                &_FuncPtrStmt_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    68;
+    70;
 
   friend void swap(FuncPtrStmt& a, FuncPtrStmt& b) {
     a.Swap(&b);
@@ -15691,7 +16096,7 @@ class StructField final :
                &_StructField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    69;
+    71;
 
   friend void swap(StructField& a, StructField& b) {
     a.Swap(&b);
@@ -15909,7 +16314,7 @@ class StructArrayField final :
                &_StructArrayField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    70;
+    72;
 
   friend void swap(StructArrayField& a, StructArrayField& b) {
     a.Swap(&b);
@@ -16104,7 +16509,7 @@ class StructFunctionField final :
                &_StructFunctionField_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    71;
+    73;
 
   friend void swap(StructFunctionField& a, StructFunctionField& b) {
     a.Swap(&b);
@@ -16264,7 +16669,7 @@ class StructDef final :
                &_StructDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    72;
+    74;
 
   friend void swap(StructDef& a, StructDef& b) {
     a.Swap(&b);
@@ -16428,7 +16833,7 @@ class EnumDef final :
                &_EnumDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    73;
+    75;
 
   friend void swap(EnumDef& a, EnumDef& b) {
     a.Swap(&b);
@@ -16588,7 +16993,7 @@ class EventDef final :
                &_EventDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    76;
 
   friend void swap(EventDef& a, EventDef& b) {
     a.Swap(&b);
@@ -16772,7 +17177,7 @@ class ErrorDef final :
                &_ErrorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    77;
 
   friend void swap(ErrorDef& a, ErrorDef& b) {
     a.Swap(&b);
@@ -16932,7 +17337,7 @@ class ModifierDef final :
                &_ModifierDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    78;
 
   friend void swap(ModifierDef& a, ModifierDef& b) {
     a.Swap(&b);
@@ -17097,7 +17502,7 @@ class ReceiveDef final :
                &_ReceiveDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    77;
+    79;
 
   friend void swap(ReceiveDef& a, ReceiveDef& b) {
     a.Swap(&b);
@@ -17262,7 +17667,7 @@ class FallbackDef final :
                &_FallbackDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    78;
+    80;
 
   friend void swap(FallbackDef& a, FallbackDef& b) {
     a.Swap(&b);
@@ -17427,7 +17832,7 @@ class FunctionDef final :
                &_FunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    79;
+    81;
 
   friend void swap(FunctionDef& a, FunctionDef& b) {
     a.Swap(&b);
@@ -17749,7 +18154,7 @@ class ConstructorDef final :
                &_ConstructorDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    80;
+    82;
 
   friend void swap(ConstructorDef& a, ConstructorDef& b) {
     a.Swap(&b);
@@ -17947,7 +18352,7 @@ class StateVarDecl final :
                &_StateVarDecl_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    81;
+    83;
 
   friend void swap(StateVarDecl& a, StateVarDecl& b) {
     a.Swap(&b);
@@ -18157,7 +18562,7 @@ class UsingForBinding final :
                &_UsingForBinding_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    82;
+    84;
 
   friend void swap(UsingForBinding& a, UsingForBinding& b) {
     a.Swap(&b);
@@ -18392,7 +18797,7 @@ class UsingForDirective final :
                &_UsingForDirective_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    83;
+    85;
 
   friend void swap(UsingForDirective& a, UsingForDirective& b) {
     a.Swap(&b);
@@ -18617,7 +19022,7 @@ class ContractDef final :
                &_ContractDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    84;
+    86;
 
   friend void swap(ContractDef& a, ContractDef& b) {
     a.Swap(&b);
@@ -19051,7 +19456,7 @@ class FreeFunctionDef final :
                &_FreeFunctionDef_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    85;
+    87;
 
   friend void swap(FreeFunctionDef& a, FreeFunctionDef& b) {
     a.Swap(&b);
@@ -19264,7 +19669,7 @@ class Program final :
                &_Program_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    86;
+    88;
 
   friend void swap(Program& a, Program& b) {
     a.Swap(&b);
@@ -29573,6 +29978,126 @@ TupleDestructStmt::args() const {
 
 // -------------------------------------------------------------------
 
+// StructLocalDeclStmt
+
+// required uint32 struct_idx = 1;
+inline bool StructLocalDeclStmt::_internal_has_struct_idx() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool StructLocalDeclStmt::has_struct_idx() const {
+  return _internal_has_struct_idx();
+}
+inline void StructLocalDeclStmt::clear_struct_idx() {
+  _impl_.struct_idx_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline uint32_t StructLocalDeclStmt::_internal_struct_idx() const {
+  return _impl_.struct_idx_;
+}
+inline uint32_t StructLocalDeclStmt::struct_idx() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructLocalDeclStmt.struct_idx)
+  return _internal_struct_idx();
+}
+inline void StructLocalDeclStmt::_internal_set_struct_idx(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.struct_idx_ = value;
+}
+inline void StructLocalDeclStmt::set_struct_idx(uint32_t value) {
+  _internal_set_struct_idx(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructLocalDeclStmt.struct_idx)
+}
+
+// -------------------------------------------------------------------
+
+// StructTupleAliasStmt
+
+// required uint32 local_sel = 1;
+inline bool StructTupleAliasStmt::_internal_has_local_sel() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool StructTupleAliasStmt::has_local_sel() const {
+  return _internal_has_local_sel();
+}
+inline void StructTupleAliasStmt::clear_local_sel() {
+  _impl_.local_sel_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline uint32_t StructTupleAliasStmt::_internal_local_sel() const {
+  return _impl_.local_sel_;
+}
+inline uint32_t StructTupleAliasStmt::local_sel() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructTupleAliasStmt.local_sel)
+  return _internal_local_sel();
+}
+inline void StructTupleAliasStmt::_internal_set_local_sel(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.local_sel_ = value;
+}
+inline void StructTupleAliasStmt::set_local_sel(uint32_t value) {
+  _internal_set_local_sel(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructTupleAliasStmt.local_sel)
+}
+
+// required uint32 sa_sel = 2;
+inline bool StructTupleAliasStmt::_internal_has_sa_sel() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool StructTupleAliasStmt::has_sa_sel() const {
+  return _internal_has_sa_sel();
+}
+inline void StructTupleAliasStmt::clear_sa_sel() {
+  _impl_.sa_sel_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline uint32_t StructTupleAliasStmt::_internal_sa_sel() const {
+  return _impl_.sa_sel_;
+}
+inline uint32_t StructTupleAliasStmt::sa_sel() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructTupleAliasStmt.sa_sel)
+  return _internal_sa_sel();
+}
+inline void StructTupleAliasStmt::_internal_set_sa_sel(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.sa_sel_ = value;
+}
+inline void StructTupleAliasStmt::set_sa_sel(uint32_t value) {
+  _internal_set_sa_sel(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructTupleAliasStmt.sa_sel)
+}
+
+// required uint32 sb_sel = 3;
+inline bool StructTupleAliasStmt::_internal_has_sb_sel() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool StructTupleAliasStmt::has_sb_sel() const {
+  return _internal_has_sb_sel();
+}
+inline void StructTupleAliasStmt::clear_sb_sel() {
+  _impl_.sb_sel_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline uint32_t StructTupleAliasStmt::_internal_sb_sel() const {
+  return _impl_.sb_sel_;
+}
+inline uint32_t StructTupleAliasStmt::sb_sel() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.StructTupleAliasStmt.sb_sel)
+  return _internal_sb_sel();
+}
+inline void StructTupleAliasStmt::_internal_set_sb_sel(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.sb_sel_ = value;
+}
+inline void StructTupleAliasStmt::set_sb_sel(uint32_t value) {
+  _internal_set_sb_sel(value);
+  // @@protoc_insertion_point(field_set:solidity.test.sol2protofuzzer.StructTupleAliasStmt.sb_sel)
+}
+
+// -------------------------------------------------------------------
+
 // ArrayLengthExpr
 
 // required uint32 var_idx = 1;
@@ -31528,6 +32053,154 @@ inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* Statement::_internal_muta
 inline ::solidity::test::sol2protofuzzer::FuncPtrStmt* Statement::mutable_func_ptr() {
   ::solidity::test::sol2protofuzzer::FuncPtrStmt* _msg = _internal_mutable_func_ptr();
   // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.func_ptr)
+  return _msg;
+}
+
+// .solidity.test.sol2protofuzzer.StructLocalDeclStmt struct_local_decl = 27;
+inline bool Statement::_internal_has_struct_local_decl() const {
+  return stmt_oneof_case() == kStructLocalDecl;
+}
+inline bool Statement::has_struct_local_decl() const {
+  return _internal_has_struct_local_decl();
+}
+inline void Statement::set_has_struct_local_decl() {
+  _impl_._oneof_case_[0] = kStructLocalDecl;
+}
+inline void Statement::clear_struct_local_decl() {
+  if (_internal_has_struct_local_decl()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.stmt_oneof_.struct_local_decl_;
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* Statement::release_struct_local_decl() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.struct_local_decl)
+  if (_internal_has_struct_local_decl()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* temp = _impl_.stmt_oneof_.struct_local_decl_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.struct_local_decl_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::StructLocalDeclStmt& Statement::_internal_struct_local_decl() const {
+  return _internal_has_struct_local_decl()
+      ? *_impl_.stmt_oneof_.struct_local_decl_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::StructLocalDeclStmt&>(::solidity::test::sol2protofuzzer::_StructLocalDeclStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::StructLocalDeclStmt& Statement::struct_local_decl() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.struct_local_decl)
+  return _internal_struct_local_decl();
+}
+inline ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* Statement::unsafe_arena_release_struct_local_decl() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.struct_local_decl)
+  if (_internal_has_struct_local_decl()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* temp = _impl_.stmt_oneof_.struct_local_decl_;
+    _impl_.stmt_oneof_.struct_local_decl_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_struct_local_decl(::solidity::test::sol2protofuzzer::StructLocalDeclStmt* struct_local_decl) {
+  clear_stmt_oneof();
+  if (struct_local_decl) {
+    set_has_struct_local_decl();
+    _impl_.stmt_oneof_.struct_local_decl_ = struct_local_decl;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.struct_local_decl)
+}
+inline ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* Statement::_internal_mutable_struct_local_decl() {
+  if (!_internal_has_struct_local_decl()) {
+    clear_stmt_oneof();
+    set_has_struct_local_decl();
+    _impl_.stmt_oneof_.struct_local_decl_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::StructLocalDeclStmt >(GetArenaForAllocation());
+  }
+  return _impl_.stmt_oneof_.struct_local_decl_;
+}
+inline ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* Statement::mutable_struct_local_decl() {
+  ::solidity::test::sol2protofuzzer::StructLocalDeclStmt* _msg = _internal_mutable_struct_local_decl();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.struct_local_decl)
+  return _msg;
+}
+
+// .solidity.test.sol2protofuzzer.StructTupleAliasStmt struct_tuple_alias = 28;
+inline bool Statement::_internal_has_struct_tuple_alias() const {
+  return stmt_oneof_case() == kStructTupleAlias;
+}
+inline bool Statement::has_struct_tuple_alias() const {
+  return _internal_has_struct_tuple_alias();
+}
+inline void Statement::set_has_struct_tuple_alias() {
+  _impl_._oneof_case_[0] = kStructTupleAlias;
+}
+inline void Statement::clear_struct_tuple_alias() {
+  if (_internal_has_struct_tuple_alias()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.stmt_oneof_.struct_tuple_alias_;
+    }
+    clear_has_stmt_oneof();
+  }
+}
+inline ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* Statement::release_struct_tuple_alias() {
+  // @@protoc_insertion_point(field_release:solidity.test.sol2protofuzzer.Statement.struct_tuple_alias)
+  if (_internal_has_struct_tuple_alias()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* temp = _impl_.stmt_oneof_.struct_tuple_alias_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.stmt_oneof_.struct_tuple_alias_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::solidity::test::sol2protofuzzer::StructTupleAliasStmt& Statement::_internal_struct_tuple_alias() const {
+  return _internal_has_struct_tuple_alias()
+      ? *_impl_.stmt_oneof_.struct_tuple_alias_
+      : reinterpret_cast< ::solidity::test::sol2protofuzzer::StructTupleAliasStmt&>(::solidity::test::sol2protofuzzer::_StructTupleAliasStmt_default_instance_);
+}
+inline const ::solidity::test::sol2protofuzzer::StructTupleAliasStmt& Statement::struct_tuple_alias() const {
+  // @@protoc_insertion_point(field_get:solidity.test.sol2protofuzzer.Statement.struct_tuple_alias)
+  return _internal_struct_tuple_alias();
+}
+inline ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* Statement::unsafe_arena_release_struct_tuple_alias() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:solidity.test.sol2protofuzzer.Statement.struct_tuple_alias)
+  if (_internal_has_struct_tuple_alias()) {
+    clear_has_stmt_oneof();
+    ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* temp = _impl_.stmt_oneof_.struct_tuple_alias_;
+    _impl_.stmt_oneof_.struct_tuple_alias_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Statement::unsafe_arena_set_allocated_struct_tuple_alias(::solidity::test::sol2protofuzzer::StructTupleAliasStmt* struct_tuple_alias) {
+  clear_stmt_oneof();
+  if (struct_tuple_alias) {
+    set_has_struct_tuple_alias();
+    _impl_.stmt_oneof_.struct_tuple_alias_ = struct_tuple_alias;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:solidity.test.sol2protofuzzer.Statement.struct_tuple_alias)
+}
+inline ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* Statement::_internal_mutable_struct_tuple_alias() {
+  if (!_internal_has_struct_tuple_alias()) {
+    clear_stmt_oneof();
+    set_has_struct_tuple_alias();
+    _impl_.stmt_oneof_.struct_tuple_alias_ = CreateMaybeMessage< ::solidity::test::sol2protofuzzer::StructTupleAliasStmt >(GetArenaForAllocation());
+  }
+  return _impl_.stmt_oneof_.struct_tuple_alias_;
+}
+inline ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* Statement::mutable_struct_tuple_alias() {
+  ::solidity::test::sol2protofuzzer::StructTupleAliasStmt* _msg = _internal_mutable_struct_tuple_alias();
+  // @@protoc_insertion_point(field_mutable:solidity.test.sol2protofuzzer.Statement.struct_tuple_alias)
   return _msg;
 }
 
@@ -34769,6 +35442,10 @@ Program::file_using_for() const {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
