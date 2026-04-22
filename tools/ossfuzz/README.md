@@ -18,16 +18,6 @@ Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
 UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
 ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
 
-Run multiple passes in parallel:
-```bash
-DIR=`pwd`
-for pass in c S L M s r D; do
-  mkdir -p my_corpus_$pass
-  tmux new-window -t "0" -c "$DIR" -n "fuzz-$pass"
-  tmux send-keys -t "$SESSION:$pass" \
-    "./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_$pass my_corpus_$pass/" Enter
-done
-```
 
 ### Non-differential fuzzers (LibFuzzer + EVMOne)
 
