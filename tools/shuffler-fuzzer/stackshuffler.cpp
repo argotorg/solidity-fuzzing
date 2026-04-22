@@ -28,6 +28,8 @@
 
 #include "StackShufflerTestCommon.h"
 
+#include <libyul/Exceptions.h>
+
 #include <libsolutil/CommonIO.h>
 
 #include <boost/program_options.hpp>
@@ -126,41 +128,39 @@ Allowed options)",
 
 		auto stackData = *testConfig.initial;
 		std::ostringstream traceOutput;
-		StackShufflerResult shuffleResult;
+		std::optional<std::string> shuffleFailure;
 		{
 			TraceRecorder trace(traceOutput, *testConfig.targetStackTop, testConfig.targetStackTailSet, *testConfig.targetStackSize);
 			trace.record("(initial)", *testConfig.initial);
 			StackManipulationCallbacks callbacks;
 			callbacks.hook = [&](std::string const& op){ trace.record(op, stackData); };
 			TestStack stack(stackData, std::move(callbacks));
-			shuffleResult = StackShuffler<StackManipulationCallbacks>::shuffle(
-				stack,
-				*testConfig.targetStackTop,
-				testConfig.targetStackTailSet,
-				*testConfig.targetStackSize
-			);
+			try
+			{
+				StackShuffler<StackManipulationCallbacks>::shuffle(
+					stack,
+					*testConfig.targetStackTop,
+					testConfig.targetStackTailSet,
+					*testConfig.targetStackSize
+				);
+			}
+			catch (YulAssertion const& _exception)
+			{
+				shuffleFailure = boost::diagnostic_information(_exception);
+			}
 			// TraceRecorder destructor fires here, writing the trace table to traceOutput
 		}
 
 		if (verbose)
 			std::cout << traceOutput.str();
 
-		switch (shuffleResult.status)
+		if (!shuffleFailure)
 		{
-		case StackShufflerResult::Status::Admissible:
 			std::cout << "Status: Admissible" << std::endl;
 			return 0;
-		case StackShufflerResult::Status::StackTooDeep:
-			std::cout << fmt::format("Status: StackTooDeep (culprit: {})", slotToString(shuffleResult.culprit)) << std::endl;
-			return 1;
-		case StackShufflerResult::Status::MaxIterationsReached:
-			std::cout << "Status: MaxIterationsReached" << std::endl;
-			return 1;
-		case StackShufflerResult::Status::Continue:
-			std::cerr << "Error: Unexpected Continue status from shuffle()" << std::endl;
-			return 2;
 		}
-		return 2;
+		std::cout << "Status: Failed\n" << *shuffleFailure << std::endl;
+		return 1;
 	}
 	catch (po::error const& _exception)
 	{
