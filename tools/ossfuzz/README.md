@@ -35,7 +35,8 @@ done
 |---|---|---|
 | `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, | Opt with stack alloc off vs on (legacy codegen) |
 | `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Self-checking `test()` must not revert and must return 0 |
-| `sol_recstruct_alias_ossfuzz` | `solRecStructAliasFuzzer.cpp` | Storage-to-storage struct assignment.  `test()`  |
+| `sol_recstruct_alias_ossfuzz` | `solRecStructAliasFuzzer.cpp` | Storage-to-storage struct assignment aliasing (report #1392 family). Three shapes: `root=root.children[i]` (DIRECT), through a `Node storage p` local (VIA_POINTER), and grandchild (`root=root.children[i].children[j]`). Primitive fields vary in type (`uint8..256`, `int256`, `address`, `bool`, `bytes32`) to exercise packing/cleanup paths. Self-checking `test()` returns a bitmask of mismatched fields; nonzero = bug. |
+| `sol_roundtrip_ossfuzz` | `solRoundtripFuzzer.cpp` | Identity-oracle fuzzer over Solidity primitives. Each probe picks (type, op, seed) and generates one of: `abi.decode(abi.encode(v), (T)) == v`, storage↔memory round-trip, `delete x; x == defaultOf(T)`, integer cast ladder `T(uint256(v)) == v`. Types cover `uint8..256`, `int256`, `address`, `bool`, `bytes32`. Non-differential — violating any identity sets a mask bit; harness asserts mask is zero. |
 
 
 ### Crash-only fuzzers (LibFuzzer, no EVMOne)

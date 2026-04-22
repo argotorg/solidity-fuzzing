@@ -56,13 +56,15 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 - `sol_proto_ossfuzz_evmone` and `sol_proto_ossfuzz_evmone_viair` — both built from `solProtoFuzzer2.cpp`; the `_viair` variant adds `-DFUZZER_MODE_VIAIR`.
 - `yul_proto_ossfuzz_evmone{,_ssacfg,_check_stack_alloc,_no_ssa}` and `yul_proto_ossfuzz_evmone_single_pass_<abbr>` (one per pass in `c S L M s r D`) — all built from `yulProtoFuzzerEvmone.cpp` with `FUZZER_MODE_*` defines. The single-pass variants additionally set `FUZZER_SINGLE_PASS_CHAR="<abbr>"` so the target pass is baked in at compile time (no env var).
 - `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError` + `StackTooDeep*` are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
-- `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated minimal grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits only the bug-shape. Non-differential: the generated `test()` self-checks and returns a bitmask of mismatching fields; the harness asserts the return is zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
+- `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits three aliasing shapes: DIRECT (`root=root.children[i]`), VIA_POINTER (through a `Node storage p` local), GRANDCHILD (`root=root.children[i].children[j]`). Primitive field types vary across `uint8..256 / int256 / address / bool / bytes32` to stress storage packing. Non-differential — `test()` returns a bitmask of mismatching fields; harness asserts zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
+- `sol_roundtrip_ossfuzz` — identity-oracle fuzzer (`solRoundtripProto.proto` + `protoToSolRoundtrip.cpp` + `solRoundtripFuzzer.cpp`). Each proto is a list of probes; each probe picks a type T, an op, and a seed. Ops: ABI round-trip, storage↔memory round-trip, delete-default, integer cast ladder. Same bitmask oracle: any violated identity sets a bit; harness asserts zero. Catches codegen/encoder bugs that corrupt the same way on both codegens (so differential fuzzers miss them).
 
 ### Proto grammar → Solidity/Yul converters
 
 - `protoToSol.cpp` / `protoToSol.h` + `solProto.proto` — used by the legacy `sol_proto_ossfuzz_nondiff`.
 - `protoToSol2.cpp` / `protoToSol2.h` + `sol2Proto.proto` — newer grammar used by the differential `sol_proto_ossfuzz_evmone*` and by `sol_ice_ossfuzz`.
-- `protoToSolRecStructAlias.cpp` / `.h` + `solRecStructAliasProto.proto` — narrow one-shape grammar for `sol_recstruct_alias_ossfuzz`.
+- `protoToSolRecStructAlias.cpp` / `.h` + `solRecStructAliasProto.proto` — aliasing-shape grammar for `sol_recstruct_alias_ossfuzz`.
+- `protoToSolRoundtrip.cpp` / `.h` + `solRoundtripProto.proto` — identity-probe grammar for `sol_roundtrip_ossfuzz`.
 - `protoToYul.cpp` + `yulProto.proto` — Yul grammar.
 
 ### Differential flow (`solProtoFuzzer2.cpp`, `yulProtoFuzzerEvmone.cpp`)

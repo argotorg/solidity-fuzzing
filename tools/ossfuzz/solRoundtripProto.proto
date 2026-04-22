@@ -1,0 +1,82 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+
+// Self-checking fuzzer that asserts a menu of value-preserving identities
+// for Solidity primitive types. Each probe picks a type T, a value V, and
+// an identity operation whose post-state must equal the pre-state. Any
+// mismatch sets a bit in the returned uint256 mask; the harness asserts
+// the mask is zero.
+//
+// This fuzzer is intentionally non-differential: bugs that corrupt the
+// same way on both codegens (legacy vs IR) still show up, because the
+// oracle is the identity itself, not a second compilation.
+//
+// Shapes covered per probe:
+//   ABI_ROUNDTRIP        abi.decode(abi.encode(v), (T)) == v
+//   STORAGE_MEM_ROUND    state = v; local = state; state = local; state == v
+//   DELETE_DEFAULT       state = v; delete state; state == defaultOf(T)
+//   CAST_LADDER          integer-only: T(uint256(T(v))) == v and T(wider(v)) == v
+//
+// Probes that are type/op-incompatible (e.g. CAST_LADDER on ADDRESS) are
+// downgraded to ABI_ROUNDTRIP in the converter so the bit layout stays
+// stable per input.
+
+syntax = "proto2";
+
+package solidity.test.solroundtrip;
+
+enum PrimType {
+    U8 = 0;
+    U16 = 1;
+    U32 = 2;
+    U64 = 3;
+    U128 = 4;
+    U256 = 5;
+    I256 = 6;
+    ADDRESS = 7;
+    BOOL = 8;
+    BYTES32 = 9;
+}
+
+enum IdentityOp {
+    ABI_ROUNDTRIP = 0;
+    STORAGE_MEM_ROUND = 1;
+    DELETE_DEFAULT = 2;
+    CAST_LADDER = 3;
+}
+
+message Probe {
+    required PrimType type = 1;
+    required IdentityOp op = 2;
+    // Seed used to derive V. Four special seeds exercise edge values:
+    //   seed % 4 == 0 → zero / false / address(0)
+    //   seed % 4 == 1 → type(T).max (saturated to type width)
+    //   seed % 4 == 2 → one  (or true)
+    //   seed % 4 == 3 → derived from (seed >> 2)
+    // The non-zero cases are important for DELETE_DEFAULT — deleting a
+    // zero is indistinguishable from a correctly-deleted value.
+    optional uint64 seed = 3;
+}
+
+message Program {
+    // Probes run in order inside the generated test(). Truncated to
+    // kMaxProbes in the converter.
+    repeated Probe probes = 1;
+    optional bool via_ir = 2;
+    optional bool optimize = 3;
+}
