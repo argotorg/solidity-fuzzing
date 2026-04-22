@@ -1,0 +1,77 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+
+// Narrow grammar aimed at one bug shape only: storage-to-storage whole-struct
+// assignment of the form `root = root.children[i]`, where `children` is a
+// dynamic array of the enclosing struct type. Any field placed after the
+// recursive array is a candidate for being zeroed by the copy because the
+// compiler clears the array (which contains the source struct) before
+// finishing the member-wise copy.
+//
+// The converter emits a single contract that:
+//   1. Declares a recursive struct with prefix_field_count primitives before
+//      the `children` array and suffix_field_count primitives after.
+//   2. Pushes push_count children, writes known-nonzero values into the
+//      chosen child, snapshots every primitive, then does the aliased copy.
+//   3. Returns a bitmask of mismatching (post != snap) primitive fields.
+//
+// The harness asserts the return value is zero. Any nonzero bit is a bug.
+
+syntax = "proto2";
+
+package solidity.test.solrecstructalias;
+
+message StructLayout {
+    // Number of uint256 primitive fields BEFORE the recursive `children`
+    // array. Clamped to [0, kMaxFieldsPerSide] in the converter.
+    optional uint32 prefix_field_count = 1;
+    // Number of uint256 primitive fields AFTER the recursive `children`
+    // array. Clamped to [0, kMaxFieldsPerSide] in the converter. A value
+    // of 0 means no suffix field — the bug, if present, cannot manifest
+    // in that shape, but we keep the grammar expressive so libFuzzer can
+    // discover that only suffix fields matter.
+    optional uint32 suffix_field_count = 2;
+}
+
+message Program {
+    required StructLayout struct_layout = 1;
+
+    // Number of pushes on root.children before the aliased assignment.
+    // Clamped to [1, kMaxPushes] in the converter so that at least one
+    // child exists to assign from.
+    optional uint32 push_count = 2;
+
+    // Which child index to use as the copy source. Clamped modulo
+    // push_count in the converter.
+    optional uint32 child_index = 3;
+
+    // Seed for the values written into the source child's primitive fields.
+    // Field i is assigned (seed ^ 0xA5A5_A5A5_A5A5_A5A5 + i + 1) so that no
+    // field is zero (zero would alias the bug-after-zeroing state and mask
+    // detection).
+    optional uint64 seed = 4;
+
+    // Compile with --via-ir (IR codegen path) when true; legacy codegen
+    // otherwise. Both codegens carry the bug per the report.
+    optional bool via_ir = 5;
+
+    // Apply the standard optimizer when true. Left as a flag so libFuzzer
+    // can explore both optimization levels; not expected to hide or
+    // uncover the bug on its own.
+    optional bool optimize = 6;
+}

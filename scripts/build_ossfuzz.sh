@@ -9,7 +9,7 @@ function generate_protobuf_bindings
 {
   cd "${ROOTDIR}"/tools/ossfuzz
   # Generate protobuf C++ bindings
-  for protoName in yul abiV2 sol sol2 shuffler;
+  for protoName in yul abiV2 sol sol2 shuffler solRecStructAlias;
   do
     protoc "${protoName}"Proto.proto --cpp_out .
   done

@@ -33,8 +33,9 @@ done
 
 | Executable | Source / Mode | What it checks |
 |---|---|---|
-| `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, `FUZZER_MODE_CHECK_STACK_ALLOC` | Opt with stack alloc off vs on (legacy codegen) |
-| `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Single config: `test()` must not revert and must return 0 |
+| `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, | Opt with stack alloc off vs on (legacy codegen) |
+| `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Self-checking `test()` must not revert and must return 0 |
+| `sol_recstruct_alias_ossfuzz` | `solRecStructAliasFuzzer.cpp` | Storage-to-storage struct assignment.  `test()`  |
 
 
 ### Crash-only fuzzers (LibFuzzer, no EVMOne)
