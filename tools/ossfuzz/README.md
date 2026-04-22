@@ -12,7 +12,7 @@ All differential fuzzers use the latest EVM version.
 | `yul_proto_ossfuzz_evmone` | `yulProtoFuzzerEvmone.cpp` | Unopt Yul vs fully-optimized Yul |
 | `yul_proto_ossfuzz_evmone_ssacfg` | `yulProtoFuzzerEvmone.cpp` | Unopt legacy codegen vs opt SSA CFG codegen |
 | `yul_proto_ossfuzz_evmone_single_pass_<abbr>` | `yulProtoFuzzerEvmone.cpp` | Prereq passes only vs prereq + one pass: `c S L M s r D` |
-| `yul_proto_ossfuzz_evmone_no_ssa` | `yulProtoFuzzerEvmone.cpp`  | Unopt vs full opt  w/ `a`=SSATransform stripped — exposes SSA-assuming passes to non-SSA Yul |
+| `yul_proto_ossfuzz_evmone_no_ssa` | `yulProtoFuzzerEvmone.cpp`  | Unopt vs full opt  w/ SSATransform stripped |
 
 Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
 UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
