@@ -54,7 +54,7 @@ make -j$(nproc)
 Most `*_ossfuzz_*` binaries share a source file and are differentiated by compile definitions (see `tools/ossfuzz/CMakeLists.txt` and the table in `tools/ossfuzz/README.md`):
 
 - `sol_proto_ossfuzz_evmone` and `sol_proto_ossfuzz_evmone_viair` — both built from `solProtoFuzzer2.cpp`; the `_viair` variant adds `-DFUZZER_MODE_VIAIR`.
-- `yul_proto_ossfuzz_evmone{,_ssacfg,_single_pass,_check_stack_alloc}` — all built from `yulProtoFuzzerEvmone.cpp` with `FUZZER_MODE_*` defines.
+- `yul_proto_ossfuzz_evmone{,_ssacfg,_check_stack_alloc,_no_ssa}` and `yul_proto_ossfuzz_evmone_single_pass_<abbr>` (one per pass in `c S L M s r D`) — all built from `yulProtoFuzzerEvmone.cpp` with `FUZZER_MODE_*` defines. The single-pass variants additionally set `FUZZER_SINGLE_PASS_CHAR="<abbr>"` so the target pass is baked in at compile time (no env var).
 - `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError` + `StackTooDeep*` are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
 
 ### Proto grammar → Solidity/Yul converters
@@ -117,4 +117,4 @@ Wraps `check_sol_proto_files.py` — dumps N random corpus entries via the given
 
 ## Parallel fuzzing for `single_pass`
 
-`yul_proto_ossfuzz_evmone_single_pass` selects the target pass via `FUZZER_PASS` env var. Usable pass abbreviations include `c S L M s r D`. See `tools/ossfuzz/README.md` for a tmux-based parallel launcher.
+There is one binary per target pass — `yul_proto_ossfuzz_evmone_single_pass_<abbr>` — each with the pass baked in at compile time via `FUZZER_SINGLE_PASS_CHAR`. Currently built: `c S L M s r D`. To add another, extend the `foreach(pass …)` in `tools/ossfuzz/CMakeLists.txt`. See `tools/ossfuzz/README.md` for a tmux-based parallel launcher.
