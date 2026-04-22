@@ -25,10 +25,9 @@ namespace test {
 namespace solrecstructalias {
 PROTOBUF_CONSTEXPR StructLayout::StructLayout(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_._has_bits_)*/{}
-  , /*decltype(_impl_._cached_size_)*/{}
-  , /*decltype(_impl_.prefix_field_count_)*/0u
-  , /*decltype(_impl_.suffix_field_count_)*/0u} {}
+    /*decltype(_impl_.prefix_types_)*/{}
+  , /*decltype(_impl_.suffix_types_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
 struct StructLayoutDefaultTypeInternal {
   PROTOBUF_CONSTEXPR StructLayoutDefaultTypeInternal()
       : _instance(::_pbi::ConstantInitialized{}) {}
@@ -47,7 +46,10 @@ PROTOBUF_CONSTEXPR Program::Program(
   , /*decltype(_impl_.child_index_)*/0u
   , /*decltype(_impl_.seed_)*/uint64_t{0u}
   , /*decltype(_impl_.via_ir_)*/false
-  , /*decltype(_impl_.optimize_)*/false} {}
+  , /*decltype(_impl_.optimize_)*/false
+  , /*decltype(_impl_.shape_)*/0
+  , /*decltype(_impl_.grandchild_push_count_)*/0u
+  , /*decltype(_impl_.grandchild_index_)*/0u} {}
 struct ProgramDefaultTypeInternal {
   PROTOBUF_CONSTEXPR ProgramDefaultTypeInternal()
       : _instance(::_pbi::ConstantInitialized{}) {}
@@ -61,20 +63,18 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORIT
 }  // namespace test
 }  // namespace solidity
 static ::_pb::Metadata file_level_metadata_solRecStructAliasProto_2eproto[2];
-static constexpr ::_pb::EnumDescriptor const** file_level_enum_descriptors_solRecStructAliasProto_2eproto = nullptr;
+static const ::_pb::EnumDescriptor* file_level_enum_descriptors_solRecStructAliasProto_2eproto[2];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_solRecStructAliasProto_2eproto = nullptr;
 
 const uint32_t TableStruct_solRecStructAliasProto_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _impl_._has_bits_),
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
-  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _impl_.prefix_field_count_),
-  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _impl_.suffix_field_count_),
-  0,
-  1,
+  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _impl_.prefix_types_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::StructLayout, _impl_.suffix_types_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_._has_bits_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -87,16 +87,22 @@ const uint32_t TableStruct_solRecStructAliasProto_2eproto::offsets[] PROTOBUF_SE
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.seed_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.via_ir_),
   PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.optimize_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.shape_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.grandchild_push_count_),
+  PROTOBUF_FIELD_OFFSET(::solidity::test::solrecstructalias::Program, _impl_.grandchild_index_),
   0,
   1,
   2,
   3,
   4,
   5,
+  6,
+  7,
+  8,
 };
 static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-  { 0, 8, -1, sizeof(::solidity::test::solrecstructalias::StructLayout)},
-  { 10, 22, -1, sizeof(::solidity::test::solrecstructalias::Program)},
+  { 0, -1, -1, sizeof(::solidity::test::solrecstructalias::StructLayout)},
+  { 8, 23, -1, sizeof(::solidity::test::solrecstructalias::Program)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -106,17 +112,26 @@ static const ::_pb::Message* const file_default_instances[] = {
 
 const char descriptor_table_protodef_solRecStructAliasProto_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
   "\n\034solRecStructAliasProto.proto\022\037solidity"
-  ".test.solrecstructalias\"F\n\014StructLayout\022"
-  "\032\n\022prefix_field_count\030\001 \001(\r\022\032\n\022suffix_fi"
-  "eld_count\030\002 \001(\r\"\250\001\n\007Program\022D\n\rstruct_la"
-  "yout\030\001 \002(\0132-.solidity.test.solrecstructa"
-  "lias.StructLayout\022\022\n\npush_count\030\002 \001(\r\022\023\n"
-  "\013child_index\030\003 \001(\r\022\014\n\004seed\030\004 \001(\004\022\016\n\006via_"
-  "ir\030\005 \001(\010\022\020\n\010optimize\030\006 \001(\010"
+  ".test.solrecstructalias\"\220\001\n\014StructLayout"
+  "\022\?\n\014prefix_types\030\001 \003(\0162).solidity.test.s"
+  "olrecstructalias.PrimType\022\?\n\014suffix_type"
+  "s\030\002 \003(\0162).solidity.test.solrecstructalia"
+  "s.PrimType\"\235\002\n\007Program\022D\n\rstruct_layout\030"
+  "\001 \002(\0132-.solidity.test.solrecstructalias."
+  "StructLayout\022\022\n\npush_count\030\002 \001(\r\022\023\n\013chil"
+  "d_index\030\003 \001(\r\022\014\n\004seed\030\004 \001(\004\022\016\n\006via_ir\030\005 "
+  "\001(\010\022\020\n\010optimize\030\006 \001(\010\022:\n\005shape\030\007 \001(\0162+.s"
+  "olidity.test.solrecstructalias.AliasShap"
+  "e\022\035\n\025grandchild_push_count\030\010 \001(\r\022\030\n\020gran"
+  "dchild_index\030\t \001(\r*o\n\010PrimType\022\006\n\002U8\020\000\022\007"
+  "\n\003U16\020\001\022\007\n\003U32\020\002\022\007\n\003U64\020\003\022\010\n\004U128\020\004\022\010\n\004U"
+  "256\020\005\022\010\n\004I256\020\006\022\013\n\007ADDRESS\020\007\022\010\n\004BOOL\020\010\022\013"
+  "\n\007BYTES32\020\t*9\n\nAliasShape\022\n\n\006DIRECT\020\000\022\017\n"
+  "\013VIA_POINTER\020\001\022\016\n\nGRANDCHILD\020\002"
   ;
 static ::_pbi::once_flag descriptor_table_solRecStructAliasProto_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_solRecStructAliasProto_2eproto = {
-    false, false, 306, descriptor_table_protodef_solRecStructAliasProto_2eproto,
+    false, false, 670, descriptor_table_protodef_solRecStructAliasProto_2eproto,
     "solRecStructAliasProto.proto",
     &descriptor_table_solRecStructAliasProto_2eproto_once, nullptr, 0, 2,
     schemas, file_default_instances, TableStruct_solRecStructAliasProto_2eproto::offsets,
@@ -132,18 +147,48 @@ PROTOBUF_ATTRIBUTE_INIT_PRIORITY2 static ::_pbi::AddDescriptorsRunner dynamic_in
 namespace solidity {
 namespace test {
 namespace solrecstructalias {
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* PrimType_descriptor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_solRecStructAliasProto_2eproto);
+  return file_level_enum_descriptors_solRecStructAliasProto_2eproto[0];
+}
+bool PrimType_IsValid(int value) {
+  switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+      return true;
+    default:
+      return false;
+  }
+}
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* AliasShape_descriptor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_solRecStructAliasProto_2eproto);
+  return file_level_enum_descriptors_solRecStructAliasProto_2eproto[1];
+}
+bool AliasShape_IsValid(int value) {
+  switch (value) {
+    case 0:
+    case 1:
+    case 2:
+      return true;
+    default:
+      return false;
+  }
+}
+
 
 // ===================================================================
 
 class StructLayout::_Internal {
  public:
-  using HasBits = decltype(std::declval<StructLayout>()._impl_._has_bits_);
-  static void set_has_prefix_field_count(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static void set_has_suffix_field_count(HasBits* has_bits) {
-    (*has_bits)[0] |= 2u;
-  }
 };
 
 StructLayout::StructLayout(::PROTOBUF_NAMESPACE_ID::Arena* arena,
@@ -156,15 +201,11 @@ StructLayout::StructLayout(const StructLayout& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   StructLayout* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_._has_bits_){from._impl_._has_bits_}
-    , /*decltype(_impl_._cached_size_)*/{}
-    , decltype(_impl_.prefix_field_count_){}
-    , decltype(_impl_.suffix_field_count_){}};
+      decltype(_impl_.prefix_types_){from._impl_.prefix_types_}
+    , decltype(_impl_.suffix_types_){from._impl_.suffix_types_}
+    , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::memcpy(&_impl_.prefix_field_count_, &from._impl_.prefix_field_count_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.suffix_field_count_) -
-    reinterpret_cast<char*>(&_impl_.prefix_field_count_)) + sizeof(_impl_.suffix_field_count_));
   // @@protoc_insertion_point(copy_constructor:solidity.test.solrecstructalias.StructLayout)
 }
 
@@ -173,10 +214,9 @@ inline void StructLayout::SharedCtor(
   (void)arena;
   (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_._has_bits_){}
+      decltype(_impl_.prefix_types_){arena}
+    , decltype(_impl_.suffix_types_){arena}
     , /*decltype(_impl_._cached_size_)*/{}
-    , decltype(_impl_.prefix_field_count_){0u}
-    , decltype(_impl_.suffix_field_count_){0u}
   };
 }
 
@@ -191,6 +231,8 @@ StructLayout::~StructLayout() {
 
 inline void StructLayout::SharedDtor() {
   GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.prefix_types_.~RepeatedField();
+  _impl_.suffix_types_.~RepeatedField();
 }
 
 void StructLayout::SetCachedSize(int size) const {
@@ -203,37 +245,55 @@ void StructLayout::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
-    ::memset(&_impl_.prefix_field_count_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&_impl_.suffix_field_count_) -
-        reinterpret_cast<char*>(&_impl_.prefix_field_count_)) + sizeof(_impl_.suffix_field_count_));
-  }
-  _impl_._has_bits_.Clear();
+  _impl_.prefix_types_.Clear();
+  _impl_.suffix_types_.Clear();
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 const char* StructLayout::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
   while (!ctx->Done(&ptr)) {
     uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // optional uint32 prefix_field_count = 1;
+      // repeated .solidity.test.solrecstructalias.PrimType prefix_types = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 8)) {
-          _Internal::set_has_prefix_field_count(&has_bits);
-          _impl_.prefix_field_count_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+            CHK_(ptr);
+            if (PROTOBUF_PREDICT_TRUE(::solidity::test::solrecstructalias::PrimType_IsValid(val))) {
+              _internal_add_prefix_types(static_cast<::solidity::test::solrecstructalias::PrimType>(val));
+            } else {
+              ::PROTOBUF_NAMESPACE_ID::internal::WriteVarint(1, val, mutable_unknown_fields());
+            }
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<8>(ptr));
+        } else if (static_cast<uint8_t>(tag) == 10) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedEnumParser<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(_internal_mutable_prefix_types(), ptr, ctx, ::solidity::test::solrecstructalias::PrimType_IsValid, &_internal_metadata_, 1);
           CHK_(ptr);
         } else
           goto handle_unusual;
         continue;
-      // optional uint32 suffix_field_count = 2;
+      // repeated .solidity.test.solrecstructalias.PrimType suffix_types = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
-          _Internal::set_has_suffix_field_count(&has_bits);
-          _impl_.suffix_field_count_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+            CHK_(ptr);
+            if (PROTOBUF_PREDICT_TRUE(::solidity::test::solrecstructalias::PrimType_IsValid(val))) {
+              _internal_add_suffix_types(static_cast<::solidity::test::solrecstructalias::PrimType>(val));
+            } else {
+              ::PROTOBUF_NAMESPACE_ID::internal::WriteVarint(2, val, mutable_unknown_fields());
+            }
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<16>(ptr));
+        } else if (static_cast<uint8_t>(tag) == 18) {
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::PackedEnumParser<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(_internal_mutable_suffix_types(), ptr, ctx, ::solidity::test::solrecstructalias::PrimType_IsValid, &_internal_metadata_, 2);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -254,7 +314,6 @@ const char* StructLayout::_InternalParse(const char* ptr, ::_pbi::ParseContext* 
     CHK_(ptr != nullptr);
   }  // while
 message_done:
-  _impl_._has_bits_.Or(has_bits);
   return ptr;
 failure:
   ptr = nullptr;
@@ -268,17 +327,18 @@ uint8_t* StructLayout::_InternalSerialize(
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  cached_has_bits = _impl_._has_bits_[0];
-  // optional uint32 prefix_field_count = 1;
-  if (cached_has_bits & 0x00000001u) {
+  // repeated .solidity.test.solrecstructalias.PrimType prefix_types = 1;
+  for (int i = 0, n = this->_internal_prefix_types_size(); i < n; i++) {
     target = stream->EnsureSpace(target);
-    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(1, this->_internal_prefix_field_count(), target);
+    target = ::_pbi::WireFormatLite::WriteEnumToArray(
+        1, this->_internal_prefix_types(i), target);
   }
 
-  // optional uint32 suffix_field_count = 2;
-  if (cached_has_bits & 0x00000002u) {
+  // repeated .solidity.test.solrecstructalias.PrimType suffix_types = 2;
+  for (int i = 0, n = this->_internal_suffix_types_size(); i < n; i++) {
     target = stream->EnsureSpace(target);
-    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(2, this->_internal_suffix_field_count(), target);
+    target = ::_pbi::WireFormatLite::WriteEnumToArray(
+        2, this->_internal_suffix_types(i), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -297,19 +357,26 @@ size_t StructLayout::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
-    // optional uint32 prefix_field_count = 1;
-    if (cached_has_bits & 0x00000001u) {
-      total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_prefix_field_count());
+  // repeated .solidity.test.solrecstructalias.PrimType prefix_types = 1;
+  {
+    size_t data_size = 0;
+    unsigned int count = static_cast<unsigned int>(this->_internal_prefix_types_size());for (unsigned int i = 0; i < count; i++) {
+      data_size += ::_pbi::WireFormatLite::EnumSize(
+        this->_internal_prefix_types(static_cast<int>(i)));
     }
-
-    // optional uint32 suffix_field_count = 2;
-    if (cached_has_bits & 0x00000002u) {
-      total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_suffix_field_count());
-    }
-
+    total_size += (1UL * count) + data_size;
   }
+
+  // repeated .solidity.test.solrecstructalias.PrimType suffix_types = 2;
+  {
+    size_t data_size = 0;
+    unsigned int count = static_cast<unsigned int>(this->_internal_suffix_types_size());for (unsigned int i = 0; i < count; i++) {
+      data_size += ::_pbi::WireFormatLite::EnumSize(
+        this->_internal_suffix_types(static_cast<int>(i)));
+    }
+    total_size += (1UL * count) + data_size;
+  }
+
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
 }
 
@@ -328,16 +395,8 @@ void StructLayout::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::P
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  cached_has_bits = from._impl_._has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
-    if (cached_has_bits & 0x00000001u) {
-      _this->_impl_.prefix_field_count_ = from._impl_.prefix_field_count_;
-    }
-    if (cached_has_bits & 0x00000002u) {
-      _this->_impl_.suffix_field_count_ = from._impl_.suffix_field_count_;
-    }
-    _this->_impl_._has_bits_[0] |= cached_has_bits;
-  }
+  _this->_impl_.prefix_types_.MergeFrom(from._impl_.prefix_types_);
+  _this->_impl_.suffix_types_.MergeFrom(from._impl_.suffix_types_);
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
 
@@ -355,13 +414,8 @@ bool StructLayout::IsInitialized() const {
 void StructLayout::InternalSwap(StructLayout* other) {
   using std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
-  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(StructLayout, _impl_.suffix_field_count_)
-      + sizeof(StructLayout::_impl_.suffix_field_count_)
-      - PROTOBUF_FIELD_OFFSET(StructLayout, _impl_.prefix_field_count_)>(
-          reinterpret_cast<char*>(&_impl_.prefix_field_count_),
-          reinterpret_cast<char*>(&other->_impl_.prefix_field_count_));
+  _impl_.prefix_types_.InternalSwap(&other->_impl_.prefix_types_);
+  _impl_.suffix_types_.InternalSwap(&other->_impl_.suffix_types_);
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata StructLayout::GetMetadata() const {
@@ -394,6 +448,15 @@ class Program::_Internal {
   static void set_has_optimize(HasBits* has_bits) {
     (*has_bits)[0] |= 32u;
   }
+  static void set_has_shape(HasBits* has_bits) {
+    (*has_bits)[0] |= 64u;
+  }
+  static void set_has_grandchild_push_count(HasBits* has_bits) {
+    (*has_bits)[0] |= 128u;
+  }
+  static void set_has_grandchild_index(HasBits* has_bits) {
+    (*has_bits)[0] |= 256u;
+  }
   static bool MissingRequiredFields(const HasBits& has_bits) {
     return ((has_bits[0] & 0x00000001) ^ 0x00000001) != 0;
   }
@@ -420,15 +483,18 @@ Program::Program(const Program& from)
     , decltype(_impl_.child_index_){}
     , decltype(_impl_.seed_){}
     , decltype(_impl_.via_ir_){}
-    , decltype(_impl_.optimize_){}};
+    , decltype(_impl_.optimize_){}
+    , decltype(_impl_.shape_){}
+    , decltype(_impl_.grandchild_push_count_){}
+    , decltype(_impl_.grandchild_index_){}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   if (from._internal_has_struct_layout()) {
     _this->_impl_.struct_layout_ = new ::solidity::test::solrecstructalias::StructLayout(*from._impl_.struct_layout_);
   }
   ::memcpy(&_impl_.push_count_, &from._impl_.push_count_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.optimize_) -
-    reinterpret_cast<char*>(&_impl_.push_count_)) + sizeof(_impl_.optimize_));
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.grandchild_index_) -
+    reinterpret_cast<char*>(&_impl_.push_count_)) + sizeof(_impl_.grandchild_index_));
   // @@protoc_insertion_point(copy_constructor:solidity.test.solrecstructalias.Program)
 }
 
@@ -445,6 +511,9 @@ inline void Program::SharedCtor(
     , decltype(_impl_.seed_){uint64_t{0u}}
     , decltype(_impl_.via_ir_){false}
     , decltype(_impl_.optimize_){false}
+    , decltype(_impl_.shape_){0}
+    , decltype(_impl_.grandchild_push_count_){0u}
+    , decltype(_impl_.grandchild_index_){0u}
   };
 }
 
@@ -477,11 +546,12 @@ void Program::Clear() {
     GOOGLE_DCHECK(_impl_.struct_layout_ != nullptr);
     _impl_.struct_layout_->Clear();
   }
-  if (cached_has_bits & 0x0000003eu) {
+  if (cached_has_bits & 0x000000feu) {
     ::memset(&_impl_.push_count_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&_impl_.optimize_) -
-        reinterpret_cast<char*>(&_impl_.push_count_)) + sizeof(_impl_.optimize_));
+        reinterpret_cast<char*>(&_impl_.grandchild_push_count_) -
+        reinterpret_cast<char*>(&_impl_.push_count_)) + sizeof(_impl_.grandchild_push_count_));
   }
+  _impl_.grandchild_index_ = 0u;
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
@@ -542,6 +612,37 @@ const char* Program::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) 
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 48)) {
           _Internal::set_has_optimize(&has_bits);
           _impl_.optimize_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional .solidity.test.solrecstructalias.AliasShape shape = 7;
+      case 7:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 56)) {
+          uint64_t val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+          if (PROTOBUF_PREDICT_TRUE(::solidity::test::solrecstructalias::AliasShape_IsValid(val))) {
+            _internal_set_shape(static_cast<::solidity::test::solrecstructalias::AliasShape>(val));
+          } else {
+            ::PROTOBUF_NAMESPACE_ID::internal::WriteVarint(7, val, mutable_unknown_fields());
+          }
+        } else
+          goto handle_unusual;
+        continue;
+      // optional uint32 grandchild_push_count = 8;
+      case 8:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 64)) {
+          _Internal::set_has_grandchild_push_count(&has_bits);
+          _impl_.grandchild_push_count_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional uint32 grandchild_index = 9;
+      case 9:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 72)) {
+          _Internal::set_has_grandchild_index(&has_bits);
+          _impl_.grandchild_index_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -614,6 +715,25 @@ uint8_t* Program::_InternalSerialize(
     target = ::_pbi::WireFormatLite::WriteBoolToArray(6, this->_internal_optimize(), target);
   }
 
+  // optional .solidity.test.solrecstructalias.AliasShape shape = 7;
+  if (cached_has_bits & 0x00000040u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteEnumToArray(
+      7, this->_internal_shape(), target);
+  }
+
+  // optional uint32 grandchild_push_count = 8;
+  if (cached_has_bits & 0x00000080u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(8, this->_internal_grandchild_push_count(), target);
+  }
+
+  // optional uint32 grandchild_index = 9;
+  if (cached_has_bits & 0x00000100u) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(9, this->_internal_grandchild_index(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -637,7 +757,7 @@ size_t Program::ByteSizeLong() const {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000003eu) {
+  if (cached_has_bits & 0x000000feu) {
     // optional uint32 push_count = 2;
     if (cached_has_bits & 0x00000002u) {
       total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_push_count());
@@ -663,7 +783,23 @@ size_t Program::ByteSizeLong() const {
       total_size += 1 + 1;
     }
 
+    // optional .solidity.test.solrecstructalias.AliasShape shape = 7;
+    if (cached_has_bits & 0x00000040u) {
+      total_size += 1 +
+        ::_pbi::WireFormatLite::EnumSize(this->_internal_shape());
+    }
+
+    // optional uint32 grandchild_push_count = 8;
+    if (cached_has_bits & 0x00000080u) {
+      total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_grandchild_push_count());
+    }
+
   }
+  // optional uint32 grandchild_index = 9;
+  if (cached_has_bits & 0x00000100u) {
+    total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_grandchild_index());
+  }
+
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
 }
 
@@ -683,7 +819,7 @@ void Program::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOB
   (void) cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000003fu) {
+  if (cached_has_bits & 0x000000ffu) {
     if (cached_has_bits & 0x00000001u) {
       _this->_internal_mutable_struct_layout()->::solidity::test::solrecstructalias::StructLayout::MergeFrom(
           from._internal_struct_layout());
@@ -703,7 +839,16 @@ void Program::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOB
     if (cached_has_bits & 0x00000020u) {
       _this->_impl_.optimize_ = from._impl_.optimize_;
     }
+    if (cached_has_bits & 0x00000040u) {
+      _this->_impl_.shape_ = from._impl_.shape_;
+    }
+    if (cached_has_bits & 0x00000080u) {
+      _this->_impl_.grandchild_push_count_ = from._impl_.grandchild_push_count_;
+    }
     _this->_impl_._has_bits_[0] |= cached_has_bits;
+  }
+  if (cached_has_bits & 0x00000100u) {
+    _this->_internal_set_grandchild_index(from._internal_grandchild_index());
   }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
@@ -725,8 +870,8 @@ void Program::InternalSwap(Program* other) {
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(Program, _impl_.optimize_)
-      + sizeof(Program::_impl_.optimize_)
+      PROTOBUF_FIELD_OFFSET(Program, _impl_.grandchild_index_)
+      + sizeof(Program::_impl_.grandchild_index_)
       - PROTOBUF_FIELD_OFFSET(Program, _impl_.struct_layout_)>(
           reinterpret_cast<char*>(&_impl_.struct_layout_),
           reinterpret_cast<char*>(&other->_impl_.struct_layout_));

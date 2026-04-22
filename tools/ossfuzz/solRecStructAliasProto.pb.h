@@ -29,6 +29,7 @@
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>  // IWYU pragma: export
 #include <google/protobuf/extension_set.h>  // IWYU pragma: export
+#include <google/protobuf/generated_enum_reflection.h>
 #include <google/protobuf/unknown_field_set.h>
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
@@ -64,6 +65,61 @@ namespace solidity {
 namespace test {
 namespace solrecstructalias {
 
+enum PrimType : int {
+  U8 = 0,
+  U16 = 1,
+  U32 = 2,
+  U64 = 3,
+  U128 = 4,
+  U256 = 5,
+  I256 = 6,
+  ADDRESS = 7,
+  BOOL = 8,
+  BYTES32 = 9
+};
+bool PrimType_IsValid(int value);
+constexpr PrimType PrimType_MIN = U8;
+constexpr PrimType PrimType_MAX = BYTES32;
+constexpr int PrimType_ARRAYSIZE = PrimType_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* PrimType_descriptor();
+template<typename T>
+inline const std::string& PrimType_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, PrimType>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function PrimType_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    PrimType_descriptor(), enum_t_value);
+}
+inline bool PrimType_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, PrimType* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<PrimType>(
+    PrimType_descriptor(), name, value);
+}
+enum AliasShape : int {
+  DIRECT = 0,
+  VIA_POINTER = 1,
+  GRANDCHILD = 2
+};
+bool AliasShape_IsValid(int value);
+constexpr AliasShape AliasShape_MIN = DIRECT;
+constexpr AliasShape AliasShape_MAX = GRANDCHILD;
+constexpr int AliasShape_ARRAYSIZE = AliasShape_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* AliasShape_descriptor();
+template<typename T>
+inline const std::string& AliasShape_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, AliasShape>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function AliasShape_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    AliasShape_descriptor(), enum_t_value);
+}
+inline bool AliasShape_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, AliasShape* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<AliasShape>(
+    AliasShape_descriptor(), name, value);
+}
 // ===================================================================
 
 class StructLayout final :
@@ -194,34 +250,42 @@ class StructLayout final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kPrefixFieldCountFieldNumber = 1,
-    kSuffixFieldCountFieldNumber = 2,
+    kPrefixTypesFieldNumber = 1,
+    kSuffixTypesFieldNumber = 2,
   };
-  // optional uint32 prefix_field_count = 1;
-  bool has_prefix_field_count() const;
+  // repeated .solidity.test.solrecstructalias.PrimType prefix_types = 1;
+  int prefix_types_size() const;
   private:
-  bool _internal_has_prefix_field_count() const;
+  int _internal_prefix_types_size() const;
   public:
-  void clear_prefix_field_count();
-  uint32_t prefix_field_count() const;
-  void set_prefix_field_count(uint32_t value);
+  void clear_prefix_types();
   private:
-  uint32_t _internal_prefix_field_count() const;
-  void _internal_set_prefix_field_count(uint32_t value);
+  ::solidity::test::solrecstructalias::PrimType _internal_prefix_types(int index) const;
+  void _internal_add_prefix_types(::solidity::test::solrecstructalias::PrimType value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>* _internal_mutable_prefix_types();
   public:
+  ::solidity::test::solrecstructalias::PrimType prefix_types(int index) const;
+  void set_prefix_types(int index, ::solidity::test::solrecstructalias::PrimType value);
+  void add_prefix_types(::solidity::test::solrecstructalias::PrimType value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>& prefix_types() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>* mutable_prefix_types();
 
-  // optional uint32 suffix_field_count = 2;
-  bool has_suffix_field_count() const;
+  // repeated .solidity.test.solrecstructalias.PrimType suffix_types = 2;
+  int suffix_types_size() const;
   private:
-  bool _internal_has_suffix_field_count() const;
+  int _internal_suffix_types_size() const;
   public:
-  void clear_suffix_field_count();
-  uint32_t suffix_field_count() const;
-  void set_suffix_field_count(uint32_t value);
+  void clear_suffix_types();
   private:
-  uint32_t _internal_suffix_field_count() const;
-  void _internal_set_suffix_field_count(uint32_t value);
+  ::solidity::test::solrecstructalias::PrimType _internal_suffix_types(int index) const;
+  void _internal_add_suffix_types(::solidity::test::solrecstructalias::PrimType value);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>* _internal_mutable_suffix_types();
   public:
+  ::solidity::test::solrecstructalias::PrimType suffix_types(int index) const;
+  void set_suffix_types(int index, ::solidity::test::solrecstructalias::PrimType value);
+  void add_suffix_types(::solidity::test::solrecstructalias::PrimType value);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>& suffix_types() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>* mutable_suffix_types();
 
   // @@protoc_insertion_point(class_scope:solidity.test.solrecstructalias.StructLayout)
  private:
@@ -231,10 +295,9 @@ class StructLayout final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedField<int> prefix_types_;
+    ::PROTOBUF_NAMESPACE_ID::RepeatedField<int> suffix_types_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    uint32_t prefix_field_count_;
-    uint32_t suffix_field_count_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_solRecStructAliasProto_2eproto;
@@ -375,6 +438,9 @@ class Program final :
     kSeedFieldNumber = 4,
     kViaIrFieldNumber = 5,
     kOptimizeFieldNumber = 6,
+    kShapeFieldNumber = 7,
+    kGrandchildPushCountFieldNumber = 8,
+    kGrandchildIndexFieldNumber = 9,
   };
   // required .solidity.test.solrecstructalias.StructLayout struct_layout = 1;
   bool has_struct_layout() const;
@@ -459,6 +525,45 @@ class Program final :
   void _internal_set_optimize(bool value);
   public:
 
+  // optional .solidity.test.solrecstructalias.AliasShape shape = 7;
+  bool has_shape() const;
+  private:
+  bool _internal_has_shape() const;
+  public:
+  void clear_shape();
+  ::solidity::test::solrecstructalias::AliasShape shape() const;
+  void set_shape(::solidity::test::solrecstructalias::AliasShape value);
+  private:
+  ::solidity::test::solrecstructalias::AliasShape _internal_shape() const;
+  void _internal_set_shape(::solidity::test::solrecstructalias::AliasShape value);
+  public:
+
+  // optional uint32 grandchild_push_count = 8;
+  bool has_grandchild_push_count() const;
+  private:
+  bool _internal_has_grandchild_push_count() const;
+  public:
+  void clear_grandchild_push_count();
+  uint32_t grandchild_push_count() const;
+  void set_grandchild_push_count(uint32_t value);
+  private:
+  uint32_t _internal_grandchild_push_count() const;
+  void _internal_set_grandchild_push_count(uint32_t value);
+  public:
+
+  // optional uint32 grandchild_index = 9;
+  bool has_grandchild_index() const;
+  private:
+  bool _internal_has_grandchild_index() const;
+  public:
+  void clear_grandchild_index();
+  uint32_t grandchild_index() const;
+  void set_grandchild_index(uint32_t value);
+  private:
+  uint32_t _internal_grandchild_index() const;
+  void _internal_set_grandchild_index(uint32_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:solidity.test.solrecstructalias.Program)
  private:
   class _Internal;
@@ -475,6 +580,9 @@ class Program final :
     uint64_t seed_;
     bool via_ir_;
     bool optimize_;
+    int shape_;
+    uint32_t grandchild_push_count_;
+    uint32_t grandchild_index_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_solRecStructAliasProto_2eproto;
@@ -490,60 +598,94 @@ class Program final :
 #endif  // __GNUC__
 // StructLayout
 
-// optional uint32 prefix_field_count = 1;
-inline bool StructLayout::_internal_has_prefix_field_count() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  return value;
+// repeated .solidity.test.solrecstructalias.PrimType prefix_types = 1;
+inline int StructLayout::_internal_prefix_types_size() const {
+  return _impl_.prefix_types_.size();
 }
-inline bool StructLayout::has_prefix_field_count() const {
-  return _internal_has_prefix_field_count();
+inline int StructLayout::prefix_types_size() const {
+  return _internal_prefix_types_size();
 }
-inline void StructLayout::clear_prefix_field_count() {
-  _impl_.prefix_field_count_ = 0u;
-  _impl_._has_bits_[0] &= ~0x00000001u;
+inline void StructLayout::clear_prefix_types() {
+  _impl_.prefix_types_.Clear();
 }
-inline uint32_t StructLayout::_internal_prefix_field_count() const {
-  return _impl_.prefix_field_count_;
+inline ::solidity::test::solrecstructalias::PrimType StructLayout::_internal_prefix_types(int index) const {
+  return static_cast< ::solidity::test::solrecstructalias::PrimType >(_impl_.prefix_types_.Get(index));
 }
-inline uint32_t StructLayout::prefix_field_count() const {
-  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.StructLayout.prefix_field_count)
-  return _internal_prefix_field_count();
+inline ::solidity::test::solrecstructalias::PrimType StructLayout::prefix_types(int index) const {
+  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.StructLayout.prefix_types)
+  return _internal_prefix_types(index);
 }
-inline void StructLayout::_internal_set_prefix_field_count(uint32_t value) {
-  _impl_._has_bits_[0] |= 0x00000001u;
-  _impl_.prefix_field_count_ = value;
+inline void StructLayout::set_prefix_types(int index, ::solidity::test::solrecstructalias::PrimType value) {
+  assert(::solidity::test::solrecstructalias::PrimType_IsValid(value));
+  _impl_.prefix_types_.Set(index, value);
+  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.StructLayout.prefix_types)
 }
-inline void StructLayout::set_prefix_field_count(uint32_t value) {
-  _internal_set_prefix_field_count(value);
-  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.StructLayout.prefix_field_count)
+inline void StructLayout::_internal_add_prefix_types(::solidity::test::solrecstructalias::PrimType value) {
+  assert(::solidity::test::solrecstructalias::PrimType_IsValid(value));
+  _impl_.prefix_types_.Add(value);
+}
+inline void StructLayout::add_prefix_types(::solidity::test::solrecstructalias::PrimType value) {
+  _internal_add_prefix_types(value);
+  // @@protoc_insertion_point(field_add:solidity.test.solrecstructalias.StructLayout.prefix_types)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>&
+StructLayout::prefix_types() const {
+  // @@protoc_insertion_point(field_list:solidity.test.solrecstructalias.StructLayout.prefix_types)
+  return _impl_.prefix_types_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>*
+StructLayout::_internal_mutable_prefix_types() {
+  return &_impl_.prefix_types_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>*
+StructLayout::mutable_prefix_types() {
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.solrecstructalias.StructLayout.prefix_types)
+  return _internal_mutable_prefix_types();
 }
 
-// optional uint32 suffix_field_count = 2;
-inline bool StructLayout::_internal_has_suffix_field_count() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
-  return value;
+// repeated .solidity.test.solrecstructalias.PrimType suffix_types = 2;
+inline int StructLayout::_internal_suffix_types_size() const {
+  return _impl_.suffix_types_.size();
 }
-inline bool StructLayout::has_suffix_field_count() const {
-  return _internal_has_suffix_field_count();
+inline int StructLayout::suffix_types_size() const {
+  return _internal_suffix_types_size();
 }
-inline void StructLayout::clear_suffix_field_count() {
-  _impl_.suffix_field_count_ = 0u;
-  _impl_._has_bits_[0] &= ~0x00000002u;
+inline void StructLayout::clear_suffix_types() {
+  _impl_.suffix_types_.Clear();
 }
-inline uint32_t StructLayout::_internal_suffix_field_count() const {
-  return _impl_.suffix_field_count_;
+inline ::solidity::test::solrecstructalias::PrimType StructLayout::_internal_suffix_types(int index) const {
+  return static_cast< ::solidity::test::solrecstructalias::PrimType >(_impl_.suffix_types_.Get(index));
 }
-inline uint32_t StructLayout::suffix_field_count() const {
-  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.StructLayout.suffix_field_count)
-  return _internal_suffix_field_count();
+inline ::solidity::test::solrecstructalias::PrimType StructLayout::suffix_types(int index) const {
+  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.StructLayout.suffix_types)
+  return _internal_suffix_types(index);
 }
-inline void StructLayout::_internal_set_suffix_field_count(uint32_t value) {
-  _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.suffix_field_count_ = value;
+inline void StructLayout::set_suffix_types(int index, ::solidity::test::solrecstructalias::PrimType value) {
+  assert(::solidity::test::solrecstructalias::PrimType_IsValid(value));
+  _impl_.suffix_types_.Set(index, value);
+  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.StructLayout.suffix_types)
 }
-inline void StructLayout::set_suffix_field_count(uint32_t value) {
-  _internal_set_suffix_field_count(value);
-  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.StructLayout.suffix_field_count)
+inline void StructLayout::_internal_add_suffix_types(::solidity::test::solrecstructalias::PrimType value) {
+  assert(::solidity::test::solrecstructalias::PrimType_IsValid(value));
+  _impl_.suffix_types_.Add(value);
+}
+inline void StructLayout::add_suffix_types(::solidity::test::solrecstructalias::PrimType value) {
+  _internal_add_suffix_types(value);
+  // @@protoc_insertion_point(field_add:solidity.test.solrecstructalias.StructLayout.suffix_types)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>&
+StructLayout::suffix_types() const {
+  // @@protoc_insertion_point(field_list:solidity.test.solrecstructalias.StructLayout.suffix_types)
+  return _impl_.suffix_types_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>*
+StructLayout::_internal_mutable_suffix_types() {
+  return &_impl_.suffix_types_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedField<int>*
+StructLayout::mutable_suffix_types() {
+  // @@protoc_insertion_point(field_mutable_list:solidity.test.solrecstructalias.StructLayout.suffix_types)
+  return _internal_mutable_suffix_types();
 }
 
 // -------------------------------------------------------------------
@@ -780,6 +922,91 @@ inline void Program::set_optimize(bool value) {
   // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.Program.optimize)
 }
 
+// optional .solidity.test.solrecstructalias.AliasShape shape = 7;
+inline bool Program::_internal_has_shape() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000040u) != 0;
+  return value;
+}
+inline bool Program::has_shape() const {
+  return _internal_has_shape();
+}
+inline void Program::clear_shape() {
+  _impl_.shape_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000040u;
+}
+inline ::solidity::test::solrecstructalias::AliasShape Program::_internal_shape() const {
+  return static_cast< ::solidity::test::solrecstructalias::AliasShape >(_impl_.shape_);
+}
+inline ::solidity::test::solrecstructalias::AliasShape Program::shape() const {
+  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.Program.shape)
+  return _internal_shape();
+}
+inline void Program::_internal_set_shape(::solidity::test::solrecstructalias::AliasShape value) {
+  assert(::solidity::test::solrecstructalias::AliasShape_IsValid(value));
+  _impl_._has_bits_[0] |= 0x00000040u;
+  _impl_.shape_ = value;
+}
+inline void Program::set_shape(::solidity::test::solrecstructalias::AliasShape value) {
+  _internal_set_shape(value);
+  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.Program.shape)
+}
+
+// optional uint32 grandchild_push_count = 8;
+inline bool Program::_internal_has_grandchild_push_count() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000080u) != 0;
+  return value;
+}
+inline bool Program::has_grandchild_push_count() const {
+  return _internal_has_grandchild_push_count();
+}
+inline void Program::clear_grandchild_push_count() {
+  _impl_.grandchild_push_count_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000080u;
+}
+inline uint32_t Program::_internal_grandchild_push_count() const {
+  return _impl_.grandchild_push_count_;
+}
+inline uint32_t Program::grandchild_push_count() const {
+  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.Program.grandchild_push_count)
+  return _internal_grandchild_push_count();
+}
+inline void Program::_internal_set_grandchild_push_count(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000080u;
+  _impl_.grandchild_push_count_ = value;
+}
+inline void Program::set_grandchild_push_count(uint32_t value) {
+  _internal_set_grandchild_push_count(value);
+  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.Program.grandchild_push_count)
+}
+
+// optional uint32 grandchild_index = 9;
+inline bool Program::_internal_has_grandchild_index() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000100u) != 0;
+  return value;
+}
+inline bool Program::has_grandchild_index() const {
+  return _internal_has_grandchild_index();
+}
+inline void Program::clear_grandchild_index() {
+  _impl_.grandchild_index_ = 0u;
+  _impl_._has_bits_[0] &= ~0x00000100u;
+}
+inline uint32_t Program::_internal_grandchild_index() const {
+  return _impl_.grandchild_index_;
+}
+inline uint32_t Program::grandchild_index() const {
+  // @@protoc_insertion_point(field_get:solidity.test.solrecstructalias.Program.grandchild_index)
+  return _internal_grandchild_index();
+}
+inline void Program::_internal_set_grandchild_index(uint32_t value) {
+  _impl_._has_bits_[0] |= 0x00000100u;
+  _impl_.grandchild_index_ = value;
+}
+inline void Program::set_grandchild_index(uint32_t value) {
+  _internal_set_grandchild_index(value);
+  // @@protoc_insertion_point(field_set:solidity.test.solrecstructalias.Program.grandchild_index)
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
@@ -791,6 +1018,21 @@ inline void Program::set_optimize(bool value) {
 }  // namespace solrecstructalias
 }  // namespace test
 }  // namespace solidity
+
+PROTOBUF_NAMESPACE_OPEN
+
+template <> struct is_proto_enum< ::solidity::test::solrecstructalias::PrimType> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::solrecstructalias::PrimType>() {
+  return ::solidity::test::solrecstructalias::PrimType_descriptor();
+}
+template <> struct is_proto_enum< ::solidity::test::solrecstructalias::AliasShape> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::solidity::test::solrecstructalias::AliasShape>() {
+  return ::solidity::test::solrecstructalias::AliasShape_descriptor();
+}
+
+PROTOBUF_NAMESPACE_CLOSE
 
 // @@protoc_insertion_point(global_scope)
 

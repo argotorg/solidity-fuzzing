@@ -19,7 +19,6 @@
 
 #include <tools/ossfuzz/solRecStructAliasProto.pb.h>
 
-#include <cstdint>
 #include <string>
 
 namespace solidity::test::solrecstructalias
@@ -32,22 +31,20 @@ public:
 	ProtoConverter(ProtoConverter const&) = delete;
 	ProtoConverter(ProtoConverter&&) = delete;
 
-	/// Convert @p _p into a Solidity source that exercises the aliased
-	/// storage struct-copy pattern.
+	/// Convert @p _p into a Solidity source that exercises one shape from
+	/// the recursive-storage-struct aliasing family.
 	///
-	/// Also populates @ref m_primFieldCount — the harness uses this to
-	/// know how many low bits of the return value must be zero.
+	/// Also populates @ref m_primFieldCount — the harness uses it to know
+	/// how many low bits of the returned bitmask are meaningful.
 	std::string protoToSolidity(Program const& _p);
 
 	/// Total number of primitive fields in the struct after grammar
 	/// clamping (prefix + suffix). Valid after @ref protoToSolidity.
-	/// The test function returns a uint256 bitmask with bit i set when
-	/// primitive field i differs post-copy; only the low m_primFieldCount
-	/// bits are meaningful.
 	unsigned primitiveFieldCount() const { return m_primFieldCount; }
 
-	/// Clamp limits. Kept small — the bug is expressible with one prefix
-	/// and one suffix field, and tiny sources keep libFuzzer throughput up.
+	/// Clamp limits. The grammar is intentionally tight — the bug is
+	/// reachable with 1 field and 1 push, but the fuzzer needs enough
+	/// room to permute packing and index orderings.
 	static constexpr unsigned kMaxFieldsPerSide = 3;
 	static constexpr unsigned kMaxPushes = 3;
 
