@@ -28,10 +28,16 @@
  *   optimized SSA CFG codegen
  * - FUZZER_MODE_CHECK_STACK_ALLOC (yul_proto_ossfuzz_evmone_check_stack_alloc):
  *   optimized without vs with stack allocation
- * - FUZZER_MODE_SINGLE_PASS (yul_proto_ossfuzz_evmone_single_pass): prerequisite
- *   passes only vs prerequisite + single optimizer pass. The target pass is
- *   selected at runtime via the FUZZER_PASS environment variable (a single
- *   character abbreviation, e.g. FUZZER_PASS=c for CommonSubexpressionEliminator).
+ * - FUZZER_MODE_SINGLE_PASS (yul_proto_ossfuzz_evmone_single_pass_<abbr>):
+ *   prerequisite passes only vs prerequisite + single optimizer pass. The target
+ *   pass is baked in at compile time via FUZZER_SINGLE_PASS_CHAR (a string
+ *   containing one abbreviation character, e.g. "c" for
+ *   CommonSubexpressionEliminator). One binary per pass — no env vars.
+ * - FUZZER_MODE_NO_SSA (yul_proto_ossfuzz_evmone_no_ssa): unoptimized vs
+ *   optimized with every 'a' (SSATransform) stripped from both the step and
+ *   cleanup sequences. Exposes passes that assume SSA input (notably
+ *   UnusedStoreEliminator) to non-SSA Yul — the same condition that arises
+ *   when user-written inline assembly introduces variable reassignments.
  */
 
 #include <tools/ossfuzz/yulProto.pb.h>
@@ -55,6 +61,7 @@
 
 #include <src/libfuzzer/libfuzzer_macro.h>
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <cstring>
@@ -76,7 +83,8 @@ static evmc::VM evmone = evmc::VM{evmc_create_evmone()};
 /// - FUZZER_MODE_CHECK_STACK_ALLOC: optimized with optimizeStackAllocation off
 ///   vs optimized with optimizeStackAllocation on (both legacy codegen)
 /// - FUZZER_MODE_SINGLE_PASS: prerequisite passes only vs prerequisite + single
-///   optimizer pass (both legacy codegen). Pass selected via FUZZER_PASS env var.
+///   optimizer pass (both legacy codegen). Pass is baked in at compile time
+///   via FUZZER_SINGLE_PASS_CHAR (one binary per pass).
 #ifdef FUZZER_MODE_SSACFG
 static constexpr bool s_modeSSACFG = true;
 #else
@@ -90,9 +98,23 @@ static constexpr bool s_modeCheckStackAlloc = false;
 #endif
 
 #ifdef FUZZER_MODE_SINGLE_PASS
+#  ifndef FUZZER_SINGLE_PASS_CHAR
+#    error "FUZZER_MODE_SINGLE_PASS requires FUZZER_SINGLE_PASS_CHAR to be defined at compile time (use the per-pass CMake targets)"
+#  endif
 static constexpr bool s_modeSinglePass = true;
 #else
 static constexpr bool s_modeSinglePass = false;
+// Stub so getSinglePassAbbreviation() compiles in non-single-pass binaries;
+// never used at runtime because s_modeSinglePass gates every call.
+#  ifndef FUZZER_SINGLE_PASS_CHAR
+#    define FUZZER_SINGLE_PASS_CHAR ""
+#  endif
+#endif
+
+#ifdef FUZZER_MODE_NO_SSA
+static constexpr bool s_modeNoSSA = true;
+#else
+static constexpr bool s_modeNoSSA = false;
 #endif
 
 /// Gas limit for EVM execution — bounds runtime and memory usage
@@ -186,32 +208,25 @@ RunResult runYulOnce(
 	return RunResult{std::move(callResult), subCallOOG, std::move(logs), std::move(storage), std::move(transientStorage), std::move(contractCreationOrder)};
 }
 
-/// Returns the single-pass optimizer abbreviation from the FUZZER_PASS env var.
-/// Validates it against the known pass abbreviations. Caches the result.
-/// Aborts with a message if the env var is missing or invalid.
+/// Returns the compile-time-baked single-pass optimizer abbreviation (from
+/// FUZZER_SINGLE_PASS_CHAR). Validated once against the known pass-abbreviation
+/// map as a defence-in-depth check in case CMake is miswired. Aborts on bad
+/// input.
 std::string getSinglePassAbbreviation()
 {
 	static std::string cached = []() -> std::string {
-		char const* env = getenv("FUZZER_PASS");
-		if (!env || strlen(env) != 1)
-		{
-			std::cerr << "FUZZER_MODE_SINGLE_PASS requires FUZZER_PASS env var set to a single "
-				"optimizer step abbreviation character.\nValid abbreviations:\n";
-			for (auto const& [abbr, name] : yul::OptimiserSuite::stepAbbreviationToNameMap())
-				std::cerr << "  " << abbr << " = " << name << "\n";
-			abort();
-		}
-		char abbr = env[0];
+		std::string abbrev = FUZZER_SINGLE_PASS_CHAR;
 		auto const& map = yul::OptimiserSuite::stepAbbreviationToNameMap();
-		if (map.find(abbr) == map.end())
+		if (abbrev.size() != 1 || map.find(abbrev[0]) == map.end())
 		{
-			std::cerr << "FUZZER_PASS='" << abbr << "' is not a valid optimizer step abbreviation.\n"
-				"Valid abbreviations:\n";
+			std::cerr << "FUZZER_SINGLE_PASS_CHAR=\"" << abbrev
+				<< "\" is not a valid optimizer step abbreviation.\n"
+				   "Valid abbreviations:\n";
 			for (auto const& [a, name] : map)
 				std::cerr << "  " << a << " = " << name << "\n";
 			abort();
 		}
-		return std::string(1, abbr);
+		return abbrev;
 	}();
 	return cached;
 }
@@ -242,6 +257,18 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	std::string optimizerCleanupSeq = _input.optimiser_cleanup_seq_size() > 0
 		? buildOptimizerSequence(_input.optimiser_cleanup_seq())
 		: std::string(OptimiserSettings::DefaultYulOptimiserCleanupSteps);
+
+	// No-SSA mode: drop every 'a' (SSATransform) from both sequences so Run B
+	// applies the full optimizer without ever normalizing to SSA form. This
+	// exposes passes that assume SSA input (e.g. UnusedStoreEliminator) to the
+	// non-SSA Yul that user-written inline assembly naturally produces.
+	// 'a' is the only step that needs stripping; other SSA-dependent passes
+	// degrade gracefully (SSAReverser 'V' becomes a no-op).
+	if (s_modeNoSSA)
+	{
+		optimizerSeq.erase(std::remove(optimizerSeq.begin(), optimizerSeq.end(), 'a'), optimizerSeq.end());
+		optimizerCleanupSeq.erase(std::remove(optimizerCleanupSeq.begin(), optimizerCleanupSeq.end(), 'a'), optimizerCleanupSeq.end());
+	}
 
 	if (const char* dump_path = getenv("PROTO_FUZZER_DUMP_PATH"))
 	{
@@ -317,8 +344,10 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		settingsB.optimizeStackAllocation = true;
 	}
 
-	// Use custom optimizer sequence if provided in proto
-	if (!s_modeSinglePass && _input.optimiser_seq_size() > 0)
+	// Use custom optimizer sequence if provided in proto. Also unconditionally
+	// override in no-SSA mode so Run B picks up the 'a'-stripped sequence even
+	// when the proto does not specify one.
+	if (!s_modeSinglePass && (s_modeNoSSA || _input.optimiser_seq_size() > 0))
 	{
 		settingsB.yulOptimiserSteps = optimizerSeq;
 		settingsB.yulOptimiserCleanupSteps = optimizerCleanupSeq;
@@ -348,6 +377,8 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		? "Yul evmone fuzzer (check stack alloc): optimized without vs with stack allocation"
 		: s_modeSSACFG
 		? "Yul evmone fuzzer (SSACFG mode): unoptimized legacy vs optimized SSACFG"
+		: s_modeNoSSA
+		? "Yul evmone fuzzer (no-SSA mode): unoptimized vs optimized with SSATransform stripped"
 		: "Yul evmone fuzzer: optimized vs non-optimized";
 
 	// Compare status codes

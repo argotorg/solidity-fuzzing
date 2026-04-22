@@ -24,7 +24,7 @@ High-value passes to focus on:
 - **CommonSubexpressionEliminator** — equivalence class tracking errors
 - **FullInliner** — function inlining, scope/variable handling bugs
 
-Binary: `yul_proto_ossfuzz_evmone_single_pass`, configured via `FUZZER_PASS` env var.
+Binary: `yul_proto_ossfuzz_evmone_single_pass_<abbr>` — one per pass, with the abbreviation baked in at compile time via `FUZZER_SINGLE_PASS_CHAR`.
 
 ### 2. libevmasm Peephole Optimizer Differential
 

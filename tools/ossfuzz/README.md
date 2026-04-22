@@ -3,25 +3,29 @@
 This directory contain test harnesses in  C/C++ that define the `LLVMFuzzerTestOneInput` API.
 All differential fuzzers use the latest EVM version.
 
-### Differential fuzzers (LibFuzzer + EVMOne)
+### Differential fuzzers (LibFuzzer + EVMOne + ProtoBuf)
 
 | Executable | Source / Mode | What it compares |
 |---|---|---|
 | `sol_proto_ossfuzz_evmone` | `solProtoFuzzer2.cpp` | Unopt vs opt (same `viaIR` flag, chosen by input) |
-| `sol_proto_ossfuzz_evmone_viair` | `solProtoFuzzer2.cpp`, `FUZZER_MODE_VIAIR` | Legacy unopt (viaIR=false) vs IR opt (viaIR=true) |
+| `sol_proto_ossfuzz_evmone_viair` | `solProtoFuzzer2.cpp` | Legacy unopt (viaIR=false) vs IR opt (viaIR=true) |
 | `yul_proto_ossfuzz_evmone` | `yulProtoFuzzerEvmone.cpp` | Unopt Yul vs fully-optimized Yul |
-| `yul_proto_ossfuzz_evmone_ssacfg` | `yulProtoFuzzerEvmone.cpp`, `FUZZER_MODE_SSACFG` | Unopt legacy codegen vs opt SSA CFG codegen |
-| `yul_proto_ossfuzz_evmone_single_pass` | `yulProtoFuzzerEvmone.cpp`, `FUZZER_MODE_SINGLE_PASS` | Prereq passes only vs prereq + one target pass (set via `FUZZER_PASS`) |
+| `yul_proto_ossfuzz_evmone_ssacfg` | `yulProtoFuzzerEvmone.cpp` | Unopt legacy codegen vs opt SSA CFG codegen |
+| `yul_proto_ossfuzz_evmone_single_pass_<abbr>` | `yulProtoFuzzerEvmone.cpp` | Prereq passes only vs prereq + one pass: `c S L M s r D` |
+| `yul_proto_ossfuzz_evmone_no_ssa` | `yulProtoFuzzerEvmone.cpp`  | Unopt vs full opt  w/ `a`=SSATransform stripped — exposes SSA-assuming passes to non-SSA Yul |
 
-For `yul_proto_ossfuzz_evmone_single_pass`, run multiple passes in parallel:
+Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
+UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
+ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
+
+Run multiple passes in parallel:
 ```bash
 DIR=`pwd`
 for pass in c S L M s r D; do
   mkdir -p my_corpus_$pass
-  tmux new-window -t "0" -c "$DIR" -n "fuzz-$i"
-  tmux send-keys -t "$SESSION:$i" "$CMD" Enter
-  FUZZER_PASS=$pass ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass \
-    my_corpus_$pass/ &
+  tmux new-window -t "0" -c "$DIR" -n "fuzz-$pass"
+  tmux send-keys -t "$SESSION:$pass" \
+    "./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_$pass my_corpus_$pass/" Enter
 done
 ```
 
