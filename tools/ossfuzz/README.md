@@ -39,6 +39,7 @@ ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
 |---|---|---|
 | `sol_ice_ossfuzz` | `sol_ice_ossfuzz.cpp` | Solidity frontend `sol2Proto` → `CompilerStack::compile` |
 | `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` | SSA stack shuffler |
+| `yul_ast_comparator_fuzz` | `yulASTComparatorFuzzer.cpp` | The `yuldiff` Yul AST comparator (see below) |
 
 
 ### Legacy fuzzers
@@ -55,6 +56,65 @@ ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
 `solidity.dict` contains Solidity-specific syntactical tokens that are more
 likely to guide the fuzzer towards generating parseable and varied Solidity
 input.
+
+## `yul_ast_comparator_fuzz` — fuzzing the yuldiff AST comparator
+
+`solidity/tools/yuldiff` structurally compares two Yul ASTs while treating
+user-given variable and function names as equivalent when they correspond 1:1
+(tracked via a scoped bidirectional map). `yul_ast_comparator_fuzz` stress-tests
+that comparator directly — no codegen, no evmone.
+
+Each input is a yulProto-generated Yul program `P`. The harness parses `P`
+once, then runs two oracles. Any oracle failure aborts the process, so
+libFuzzer records it as a crash.
+
+| # | Oracle                 | Variant of `P`            | Expect     |
+|---|------------------------|---------------------------|------------|
+| 1 | α-rename invariance    | user names → fresh `yd_N` | EQUIVALENT |
+| 2 | structural sensitivity | flip one numeric literal  | MISMATCH   |
+
+Oracle 2 prefers a deep literal flip over dropping a statement, because
+any erase produces `size(a) != size(b)` which `ASTComparator` catches at
+the Block size check — the deep per-statement/per-expression paths never
+run. A literal flip keeps sizes equal, so the comparator has to walk
+through every scope down to the leaf before the `value != value` check
+fires. The middle numeric literal is picked so the flip is typically
+nested inside functions or loops. If there are no numeric literals
+(rare), the harness falls back to dropping the middle root-block
+statement as a minimal size-check probe.
+
+- **Oracle 1 fails** → false positive: comparator flags a true
+  α-equivalent as different (completeness bug in the bimap).
+- **Oracle 2 fails** → false negative: comparator calls structurally
+  different programs equivalent (soundness bug — bimap is hiding
+  real differences).
+
+Together the two are a tight characterization: a trivial
+always-EQUIVALENT implementation fails oracle 2; a trivial
+always-MISMATCH implementation fails oracle 1.
+
+Both variants are constructed on the in-memory AST (via `ASTCopier`) and
+wrapped in fresh `Object` instances that share sub-objects with the
+original by `shared_ptr`. No re-parsing is needed, so the mutation in
+oracle 2 doesn't have to produce semantically valid Yul.
+
+### Reproducing a crash
+
+```bash
+# Dump the Yul source the fuzzer synthesised for the crash input:
+PROTO_FUZZER_DUMP_PATH=bad.yul \
+  ./build_ossfuzz/tools/ossfuzz/yul_ast_comparator_fuzz crash-<hash>
+
+# Replay:
+./build_ossfuzz/tools/ossfuzz/yul_ast_comparator_fuzz crash-<hash>
+
+# Inspect the program by hand with the standalone yuldiff binary
+# (built by the solidity submodule's own cmake, not this repo's build/):
+./solidity/build/yuldiff bad.yul bad.yul   # sanity: reflexive
+```
+
+The harness prints which oracle failed, the mismatch path/reason from
+`ASTComparator`, and the source of both programs to stderr before aborting.
 
 ## Debugging stack-shuffler crashes with `stackshuffler`
 
