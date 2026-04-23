@@ -5,6 +5,10 @@ All differential fuzzers use the latest EVM version.
 
 ### Differential fuzzers (LibFuzzer + EVMOne + ProtoBuf)
 
+These check whether a system generates the same LOGs, STATE, and RETURNDATA when deployed
+and ran with a fuzz-generated CALLDATA. Hence, these are differential fuzzers over the
+deployed (via EVMOne) bytcode.
+
 | Executable | Source / Mode | What it compares |
 |---|---|---|
 | `sol_proto_ossfuzz_evmone` | `solProtoFuzzer2.cpp` | Unopt vs opt (same `viaIR` flag, chosen by input) |
@@ -13,6 +17,7 @@ All differential fuzzers use the latest EVM version.
 | `yul_proto_ossfuzz_evmone_ssacfg` | `yulProtoFuzzerEvmone.cpp` | Unopt legacy codegen vs opt SSA CFG codegen |
 | `yul_proto_ossfuzz_evmone_single_pass_<abbr>` | `yulProtoFuzzerEvmone.cpp` | Prereq passes only vs prereq + one pass: `c S L M s r D` |
 | `yul_proto_ossfuzz_evmone_no_ssa` | `yulProtoFuzzerEvmone.cpp`  | Unopt vs full opt  w/ SSATransform stripped |
+| `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, | Opt with stack alloc off vs on (legacy codegen) |
 
 Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
 UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
@@ -23,7 +28,6 @@ ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
 
 | Executable | Source / Mode | What it checks |
 |---|---|---|
-| `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, | Opt with stack alloc off vs on (legacy codegen) |
 | `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Self-checking `test()` must not revert and must return 0 |
 | `sol_recstruct_alias_ossfuzz` | `solRecStructAliasFuzzer.cpp` | Aliased storage struct copy (#1392) |
 | `sol_roundtrip_ossfuzz` | `solRoundtripFuzzer.cpp` | Primitive-type identity oracles |
