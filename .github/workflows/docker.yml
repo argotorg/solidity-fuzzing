@@ -3,9 +3,6 @@ name: Docker
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'scripts/docker/Dockerfile.ubuntu.clang.ossfuzz'
-      - '.github/workflows/docker.yml'
   workflow_dispatch:
 
 jobs:
