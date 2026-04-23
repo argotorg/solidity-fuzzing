@@ -73,15 +73,14 @@ libFuzzer records it as a crash.
 | 1 | α-rename invariance    | user names → fresh `yd_N` | EQUIVALENT |
 | 2 | structural sensitivity | flip one numeric literal  | MISMATCH   |
 
-Oracle 2 prefers a deep literal flip over dropping a statement, because
-any erase produces `size(a) != size(b)` which `ASTComparator` catches at
-the Block size check — the deep per-statement/per-expression paths never
-run. A literal flip keeps sizes equal, so the comparator has to walk
-through every scope down to the leaf before the `value != value` check
-fires. The middle numeric literal is picked so the flip is typically
-nested inside functions or loops. If there are no numeric literals
-(rare), the harness falls back to dropping the middle root-block
-statement as a minimal size-check probe.
+Oracle 2 uses two mutation strategies. Most inputs (~90%) get a literal
+flip: keeping sizes equal forces `ASTComparator` to walk every scope and
+statement down to the leaf before `value != value` fires — far more
+coverage than a top-level size diff. The remaining ~10% drop the middle
+root-block statement, so the Block size-check path also stays regularly
+exercised instead of only firing when a program happens to have no
+numeric literals. Mode is picked by hashing the Yul source, so a given
+crash input always replays with the same mutation.
 
 - **Oracle 1 fails** → false positive: comparator flags a true
   α-equivalent as different (completeness bug in the bimap).

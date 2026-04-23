@@ -211,34 +211,46 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	}
 
 	// -------- Oracle 2: structural-mutation sensitivity --------
-	// Preferred: flip a numeric literal somewhere in the tree. Equal-size
-	// variant, so ASTComparator has to walk all scopes/statements/expressions
-	// before the `_a.value != _b.value` check fires — exercises far more of
-	// the comparator than a top-level size diff does.
-	//
-	// Fallback: if there are no Expression-position numeric literals (rare
-	// for proto-gen output, but possible for tiny programs), drop the middle
-	// statement of the root block. That only hits the Block size check, which
-	// is still a useful regression guard.
+	// Two mutation strategies:
+	//   literal-flip (default, ~90%): flip one numeric literal. Equal-size
+	//     variant, so ASTComparator has to walk all scopes/statements/
+	//     expressions down to the `_a.value != _b.value` check — exercises
+	//     far more of the comparator than a top-level size diff does.
+	//   drop-mid-stmt (~10%, or fallback): drop the middle root-block
+	//     statement. Only hits the Block size check, but keeps that path
+	//     under regular coverage instead of leaving it to the rare
+	//     no-literal case.
+	// Mode is picked by hashing the Yul source so that a given crash input
+	// always replays with the same mutation.
 	{
 		Block const& root = objA->code()->root();
+		bool const forceDropStmt = (std::hash<std::string>{}(yulSource) % 10 == 0);
 
-		LiteralFlipper flipper;
-		Block mutated = flipper.translate(root);
+		Block mutated;
 		char const* tag = nullptr;
 
-		if (flipper.flipped())
-			tag = "literal-flip";
-		else if (!mutated.statements.empty())
+		if (!forceDropStmt)
 		{
-			// Drop the middle statement. Dropping any position hits the
-			// same size-check code path, so middle vs. last is identical
-			// from the comparator's POV — we just pick middle.
-			mutated.statements.erase(mutated.statements.begin() + static_cast<ptrdiff_t>(mutated.statements.size() / 2));
+			LiteralFlipper flipper;
+			mutated = flipper.translate(root);
+			if (flipper.flipped())
+				tag = "literal-flip";
+		}
+
+		if (!tag)
+		{
+			// Either forced into drop-stmt mode, or literal-flip found no
+			// Expression-position numeric literal (common for very small
+			// programs).
+			if (root.statements.empty())
+				return; // Nothing to mutate.
+			mutated = ASTCopier{}.translate(root);
+			mutated.statements.erase(
+				mutated.statements.begin()
+				+ static_cast<ptrdiff_t>(mutated.statements.size() / 2)
+			);
 			tag = "drop-mid-stmt";
 		}
-		else
-			return; // Empty root, no literals — nothing to mutate.
 
 		auto objMutated = rebuildObject(*objA, dialect, std::move(mutated));
 
