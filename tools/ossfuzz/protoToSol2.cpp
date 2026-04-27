@@ -32,6 +32,12 @@ std::string ProtoConverter::protoToSolidity(Program const& _p)
 	m_randomGen = std::make_shared<SolRandomNumGenerator>(
 		static_cast<unsigned>(_p.seed())
 	);
+	// Derive the salt directly from the proto seed (not the RNG stream) so
+	// adding this does not perturb the random-number consumption order of
+	// the rest of the converter — existing protos still drive the same
+	// structural choices, just with differently-suffixed identifier names.
+	m_nameSalt = std::string("_") +
+		static_cast<char>('a' + (static_cast<unsigned>(_p.seed()) % 26u));
 	return visit(_p);
 }
 
@@ -47,7 +53,7 @@ std::string ProtoConverter::visit(Program const& _p)
 	{
 		auto const& c = _p.contracts(i);
 		ContractInfo info;
-		info.name = "C" + std::to_string(i);
+		info.name = "C" + std::to_string(i) + m_nameSalt;
 		// Normalize kind: anything that isn't LIBRARY is treated as CONTRACT
 		info.kind = (c.kind() == ContractDef::LIBRARY) ? ContractDef::LIBRARY : ContractDef::CONTRACT;
 
@@ -63,7 +69,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		if (numFuncs == 0 && info.kind != ContractDef::LIBRARY)
 		{
 			FuncInfo fi;
-			fi.name = "f" + std::to_string(i) + "_0";
+			fi.name = "f" + std::to_string(i) + "_0" + m_nameSalt;
 			fi.numParams = 1;
 			fi.paramTypes.push_back(PARAM_UINT256);
 			fi.vis = PUBLIC;
@@ -73,7 +79,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numFuncs; j++)
 		{
 			FuncInfo fi;
-			fi.name = "f" + std::to_string(i) + "_" + std::to_string(j);
+			fi.name = "f" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			fi.numParams = std::max(1u, std::min(
 				static_cast<unsigned>(c.functions(j).num_params()),
 				s_maxParams
@@ -139,7 +145,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numStructs; j++)
 		{
 			StructDefInfo sdi;
-			sdi.name = "S" + std::to_string(i) + "_" + std::to_string(j);
+			sdi.name = "S" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			unsigned numFields = std::max(1u, std::min(
 				static_cast<unsigned>(c.structs(j).fields_size()),
 				s_maxStructFields
@@ -147,7 +153,7 @@ std::string ProtoConverter::visit(Program const& _p)
 			for (unsigned k = 0; k < numFields; k++)
 			{
 				StructFieldInfo sfi;
-				sfi.name = "f" + std::to_string(k);
+				sfi.name = "f" + std::to_string(k) + m_nameSalt;
 				if (k < static_cast<unsigned>(c.structs(j).fields_size()))
 				{
 					auto const& sf = c.structs(j).fields(k);
@@ -211,7 +217,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numEnums; j++)
 		{
 			EnumDefInfo edi;
-			edi.name = "E" + std::to_string(i) + "_" + std::to_string(j);
+			edi.name = "E" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			edi.numMembers = std::max(1u, std::min(
 				c.enums(j).num_members(),
 				static_cast<uint32_t>(s_maxEnumMembers)
@@ -230,7 +236,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		{
 			auto const& sv = c.state_vars(j);
 			StateVarInfo svi;
-			svi.name = "sv" + std::to_string(i) + "_" + std::to_string(j);
+			svi.name = "sv" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 
 			if (sv.type().type_oneof_case() == TypeName::kArray)
 			{
@@ -302,7 +308,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numEv; j++)
 		{
 			EventInfo ei;
-			ei.name = "Ev" + std::to_string(i) + "_" + std::to_string(j);
+			ei.name = "Ev" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			ei.numParams = std::min(
 				static_cast<unsigned>(c.events(j).num_params()),
 				s_maxEventParams
@@ -333,7 +339,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numErr; j++)
 		{
 			ErrorInfo eri;
-			eri.name = "Err" + std::to_string(i) + "_" + std::to_string(j);
+			eri.name = "Err" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			eri.numParams = std::min(
 				static_cast<unsigned>(c.errors(j).num_params()),
 				s_maxErrorParams
@@ -341,7 +347,7 @@ std::string ProtoConverter::visit(Program const& _p)
 			if (eri.numParams == 0)
 				eri.numParams = 1;
 			for (unsigned k = 0; k < eri.numParams; k++)
-				eri.paramNames.push_back("ep_" + std::to_string(j) + "_" + std::to_string(k));
+				eri.paramNames.push_back("ep_" + std::to_string(j) + "_" + std::to_string(k) + m_nameSalt);
 			info.errors.push_back(eri);
 		}
 
@@ -353,7 +359,7 @@ std::string ProtoConverter::visit(Program const& _p)
 		for (unsigned j = 0; j < numMod; j++)
 		{
 			ModifierInfo mi;
-			mi.name = "mod" + std::to_string(i) + "_" + std::to_string(j);
+			mi.name = "mod" + std::to_string(i) + "_" + std::to_string(j) + m_nameSalt;
 			info.modifiers.push_back(mi);
 		}
 
@@ -599,7 +605,7 @@ std::string ProtoConverter::visit(Program const& _p)
 	for (unsigned i = 0; i < numFreeFuncs; i++)
 	{
 		FreeFuncInfo ffi;
-		ffi.name = "ff" + std::to_string(i);
+		ffi.name = "ff" + std::to_string(i) + m_nameSalt;
 		ffi.numParams = std::min(
 			static_cast<unsigned>(_p.free_functions(i).num_params()),
 			s_maxParams
@@ -1200,7 +1206,7 @@ std::string ProtoConverter::visitFunction(
 		else if (pt == PARAM_BYTES32)
 			o << "\t\tuint256 p" << i << " = uint256(_p" << i << ");\n";
 		else if (pt == PARAM_STRUCT)
-			o << "\t\tuint256 p" << i << " = _p" << i << ".f0;\n";
+			o << "\t\tuint256 p" << i << " = _p" << i << ".f0" << m_nameSalt << ";\n";
 	}
 	o << body;
 	// Always return something to ensure the function compiles
@@ -1524,7 +1530,7 @@ std::string ProtoConverter::visitVarDecl(VarDeclStmt const& _s)
 	if (m_localVarCount >= s_maxLocalVars)
 		return "";
 
-	std::string varName = "v" + std::to_string(m_varCounter++);
+	std::string varName = "v" + std::to_string(m_varCounter++) + m_nameSalt;
 	m_localVarCount++;
 
 	std::ostringstream o;
@@ -1576,7 +1582,7 @@ std::string ProtoConverter::visitFor(ForStmt const& _s)
 		return "";
 
 	// Always generate a bounded for loop to prevent infinite loops
-	std::string iterVar = "i" + std::to_string(m_varCounter++);
+	std::string iterVar = "i" + std::to_string(m_varCounter++) + m_nameSalt;
 	unsigned bound = s_maxForIter;
 
 	std::ostringstream o;
@@ -1607,7 +1613,7 @@ std::string ProtoConverter::visitWhile(WhileStmt const& _s)
 		return "";
 
 	// Bounded while loop with a counter
-	std::string counterVar = "w" + std::to_string(m_varCounter++);
+	std::string counterVar = "w" + std::to_string(m_varCounter++) + m_nameSalt;
 	unsigned bound = s_maxForIter;
 
 	std::ostringstream o;
@@ -1644,7 +1650,7 @@ std::string ProtoConverter::visitDoWhile(DoWhileStmt const& _s)
 		return "";
 
 	// Bounded do-while
-	std::string counterVar = "d" + std::to_string(m_varCounter++);
+	std::string counterVar = "d" + std::to_string(m_varCounter++) + m_nameSalt;
 	unsigned bound = s_maxForIter;
 
 	std::ostringstream o;
@@ -1974,7 +1980,7 @@ std::string ProtoConverter::visitStructLocalDecl(StructLocalDeclStmt const& _s)
 	unsigned structDefIdx = eligible[_s.struct_idx() % eligible.size()];
 	std::string const& sname = m_currentStructDefs[structDefIdx].name;
 
-	std::string varName = "m" + std::to_string(m_varCounter++);
+	std::string varName = "m" + std::to_string(m_varCounter++) + m_nameSalt;
 	m_localVarCount++;
 
 	if (!m_structLocalsStack.empty())
@@ -2050,7 +2056,7 @@ std::string ProtoConverter::visitStructTupleAlias(StructTupleAliasStmt const& _s
 			{
 				chosenStructDefIdx = structDefIdx;
 				matchingStateVars = std::move(match);
-				localName = "ma" + std::to_string(m_varCounter++);
+				localName = "ma" + std::to_string(m_varCounter++) + m_nameSalt;
 				declareLocalInline = true;
 				break;
 			}
@@ -2143,8 +2149,8 @@ std::string ProtoConverter::visitTupleDestruct(TupleDestructStmt const& _s)
 	unsigned targetIdx = _s.func_id() % returnsTwoFuncs.size();
 	auto const& target = cinfo.functions[returnsTwoFuncs[targetIdx]];
 
-	std::string v1 = "v" + std::to_string(m_varCounter++);
-	std::string v2 = "v" + std::to_string(m_varCounter++);
+	std::string v1 = "v" + std::to_string(m_varCounter++) + m_nameSalt;
+	std::string v2 = "v" + std::to_string(m_varCounter++) + m_nameSalt;
 	m_localVarCount += 2;
 
 	std::ostringstream o;

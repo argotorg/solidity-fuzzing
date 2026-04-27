@@ -314,13 +314,13 @@ private:
 	static std::string assignOpStr(AssignExpr::Op _op);
 
 	// ===== Limits =====
-	static constexpr unsigned s_maxExprDepth = 2;
-	static constexpr unsigned s_maxStmtDepth = 2;
+	static constexpr unsigned s_maxExprDepth = 4;
+	static constexpr unsigned s_maxStmtDepth = 4;
 	static constexpr unsigned s_maxLocalVars = 4;
-	static constexpr unsigned s_maxContracts = 2;
-	static constexpr unsigned s_maxFunctions = 3;
+	static constexpr unsigned s_maxContracts = 4;
+	static constexpr unsigned s_maxFunctions = 6;
 	static constexpr unsigned s_maxStmtsPerBlock = 3;
-	static constexpr unsigned s_maxParams = 2;
+	static constexpr unsigned s_maxParams = 4;
 	static constexpr unsigned s_maxStateVars = 3;
 	static constexpr unsigned s_maxEvents = 2;
 	static constexpr unsigned s_maxErrors = 2;
@@ -400,6 +400,14 @@ private:
 	bool m_hasUdvt = false;
 	/// RNG
 	std::shared_ptr<SolRandomNumGenerator> m_randomGen;
+	/// Per-program identifier salt, e.g. "_q". Sampled once from the proto
+	/// seed at the start of conversion and appended to every generated
+	/// non-positional identifier (contracts, functions, state vars, events,
+	/// errors, modifiers, structs, struct fields, enums, error param names,
+	/// free functions, local/iterator variables). Param names (p<i>/_p<i>)
+	/// are intentionally NOT salted — they have positional cross-references
+	/// at call sites and in body shadow-conversion code.
+	std::string m_nameSalt;
 };
 
 } // namespace solidity::test::sol2protofuzzer
