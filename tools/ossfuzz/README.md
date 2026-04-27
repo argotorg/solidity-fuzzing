@@ -308,6 +308,51 @@ make -j$(nproc) yul_debug_runner
      ./build/yul_debug_runner bad.yul --output-dir /tmp/debug-output
    ```
 
+### Failure-frame diagnostic on status mismatches
+
+When a status code differs between two configs, the runner installs an
+evmone tracer and prints the deepest frame that ended with a non-success
+non-revert status — i.e. the actual instruction that died, not the outer
+CALL that propagated the failure:
+
+```
+--- Comparing optimized_legacy_no_stack_alloc vs optimized_legacy ---
+  Status:  DIFFER (INVALID_INSTRUCTION vs SUCCESS)
+  [optimized_legacy_no_stack_alloc] failure at PC=95 (0x5f)  opcode=0xfe (INVALID)  gas=303673  stack_height=0  status=INVALID_INSTRUCTION
+  bytecode window [79...111] / 128 bytes:
+    20 60 60 5f 39 5f 51 90 5f 52 60 01 60 b4 1b 55 fe 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
+                                                    ^^
+```
+
+Implementation in `tools/runners/evmone_tracer_facade.hpp` + `LastOpTracer`
+in `yul_debug_runner.cpp`. Mnemonic comes from
+`solidity::evmasm::instructionInfo`.
+
+### Reproducing a `single_pass_<abbr>` crash
+
+Most single-pass crashes are runtime differentials (Run A vs Run B execution
+mismatch wrapped in `solAssert`), not compiler ICEs — so `solc` alone won't
+reproduce them, you need to compile *both* configurations and run them on
+evmone. The fuzzer's two configs are:
+
+- Run A: `yulOptimiserSteps=""`, cleanup=`""` (prerequisites only)
+- Run B: `yulOptimiserSteps="<abbr>"`, cleanup=`""`
+
+`yul_debug_runner --optimizer-sequence <abbr>` is **not** byte-faithful — an
+empty `--optimizer-cleanup-sequence` falls back to defaults and the
+optimized config uses `optimizeStackAllocation=true` (fuzzer uses `false`).
+But the failure-frame diagnostic above usually pinpoints the bad instruction
+anyway, so it's the fastest debugging path. Replay the fuzzer binary
+directly when you need ground-truth reproduction:
+
+```bash
+./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_<abbr> crash-<hash>
+```
+
+If the crash is a real compile-time ICE (rare here), `solc --strict-assembly
+--optimize --yul-optimizations "<abbr>:" bad.yul` will trigger it; the empty
+string after `:` matches the fuzzer's empty cleanup steps.
+
 ### CLI options
 
 ```

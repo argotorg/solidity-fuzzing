@@ -24,11 +24,14 @@
 
 #include <tools/ossfuzz/YulEvmoneInterface.h>
 #include <tools/common/EVMHost.h>
+#include <tools/runners/evmone_tracer_facade.hpp>
 
 #include <libyul/Exceptions.h>
 #include <libyul/optimiser/Suite.h>
 
 #include <libsolidity/interface/OptimiserSettings.h>
+
+#include <libevmasm/Instruction.h>
 
 #include <liblangutil/EVMVersion.h>
 
@@ -65,6 +68,20 @@ static constexpr int64_t s_gasLimit = 400000;
 
 using TransientStorageMap = std::unordered_map<evmc::bytes32, evmc::bytes32>;
 
+/// Captures the last EVM frame that ended with a real failure (non-success,
+/// non-revert). The first such frame to end is the deepest one — that's where
+/// the actual bad instruction executed; the outer frames inherit the status.
+struct LastOpInfo
+{
+	bool captured = false;
+	bytes code;
+	uint32_t pc = 0;
+	uint8_t opcode = 0;
+	int64_t gas = 0;
+	int stackHeight = 0;
+	evmc_status_code frameStatus = EVMC_SUCCESS;
+};
+
 /// Result of a single compile-deploy-execute run.
 struct RunResult
 {
@@ -81,6 +98,72 @@ struct RunResult
 	std::map<evmc::address, TransientStorageMap> transientStorage;
 	/// Contract creation order: addresses in the order they were deployed (CREATE/CREATE2).
 	std::vector<evmc::address> contractCreationOrder;
+	LastOpInfo lastOp;
+};
+
+/// evmone tracer that captures the deepest frame to end with a non-revert
+/// failure. We track per-frame state on a stack and on execution end record
+/// the first failing frame's info — that's the actual instruction that died.
+class LastOpTracer final: public evmone::Tracer
+{
+public:
+	explicit LastOpTracer(LastOpInfo& _out): m_out(_out) {}
+
+private:
+	struct Frame
+	{
+		bytes code;
+		uint32_t pc = 0;
+		int64_t gas = 0;
+		int stackHeight = 0;
+	};
+	std::vector<Frame> m_stack;
+	LastOpInfo& m_out;
+
+	void on_execution_start(
+		evmc_revision /*_rev*/,
+		evmc_message const& /*_msg*/,
+		evmc::bytes_view _code) noexcept override
+	{
+		m_stack.push_back({bytes(_code.begin(), _code.end()), 0, 0, 0});
+	}
+
+	void on_instruction_start(
+		uint32_t _pc,
+		intx::uint<256> const* /*_stackTop*/,
+		int _stackHeight,
+		int64_t _gas,
+		evmone::ExecutionState const& /*_state*/) noexcept override
+	{
+		if (m_stack.empty())
+			return;
+		auto& top = m_stack.back();
+		top.pc = _pc;
+		top.gas = _gas;
+		top.stackHeight = _stackHeight;
+	}
+
+	void on_execution_end(evmc_result const& _result) noexcept override
+	{
+		if (m_stack.empty())
+			return;
+		if (
+			!m_out.captured &&
+			_result.status_code != EVMC_SUCCESS &&
+			_result.status_code != EVMC_REVERT
+		)
+		{
+			auto const& top = m_stack.back();
+			m_out.code = top.code;
+			m_out.pc = top.pc;
+			m_out.opcode = (top.pc < top.code.size()) ? top.code[top.pc] : 0;
+			m_out.gas = top.gas;
+			m_out.stackHeight = top.stackHeight;
+			m_out.frameStatus = _result.status_code;
+			m_out.captured = true;
+		}
+		m_stack.pop_back();
+	}
 };
 
 static std::string statusCodeToString(evmc_status_code _code)
@@ -284,16 +367,23 @@ static RunResult runYulOnce(
 		return result;
 	}
 
+	// Install a tracer to capture the deepest failing frame's last instruction.
+	// Tracer lifetime ends at removeAllTracers below; it writes into result.lastOp.
+	evmone::removeAllTracers(_vm);
+	evmone::addTracer(_vm, std::make_unique<LastOpTracer>(result.lastOp));
+
 	evmc::Result deployResult = YulEvmoneUtility::deployCode(result.bytecode, hostContext, s_gasLimit);
 	if (deployResult.status_code != EVMC_SUCCESS)
 	{
 		result.statusCode = deployResult.status_code;
+		evmone::removeAllTracers(_vm);
 		return result;
 	}
 
 	auto callMsg = YulEvmoneUtility::callMessage(deployResult.create_address, _calldata);
 	callMsg.gas = s_gasLimit;
 	evmc::Result callResult = hostContext.call(callMsg);
+	evmone::removeAllTracers(_vm);
 	result.statusCode = callResult.status_code;
 	result.subCallOutOfGas = hostContext.m_subCallOutOfGas;
 	if (callResult.output_data && callResult.output_size > 0)
@@ -506,12 +596,49 @@ static void printRunResult(std::string const& _label, RunResult const& _run, std
 	_out << std::endl;
 }
 
+/// Print failure-frame diagnostics for a single run: PC, opcode byte + mnemonic,
+/// gas remaining, stack height, plus a ±16 byte hex window around the failing PC.
+static void printLastOp(std::string const& _label, RunResult const& _r, EVMVersion _evmVersion, std::ostream& _out)
+{
+	if (!_r.lastOp.captured)
+		return;
+	auto const& op = _r.lastOp;
+	std::string mnemonic = solidity::evmasm::instructionInfo(
+		static_cast<solidity::evmasm::Instruction>(op.opcode),
+		_evmVersion
+	).name;
+	_out << "  [" << _label << "] failure at"
+	     << " PC=" << op.pc << " (0x" << std::hex << op.pc << std::dec << ")"
+	     << "  opcode=0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(op.opcode)
+	     << std::dec << std::setfill(' ') << " (" << mnemonic << ")"
+	     << "  gas=" << op.gas
+	     << "  stack_height=" << op.stackHeight
+	     << "  status=" << statusCodeToString(op.frameStatus)
+	     << std::endl;
+
+	// ±16 byte hex window around PC, with the failing byte marked.
+	constexpr size_t kWindow = 16;
+	size_t lo = (op.pc > kWindow) ? op.pc - kWindow : 0;
+	size_t hi = std::min<size_t>(op.code.size(), static_cast<size_t>(op.pc) + kWindow + 1);
+	std::ostringstream hexLine, markLine;
+	for (size_t i = lo; i < hi; ++i)
+	{
+		hexLine << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(op.code[i]) << ' ';
+		markLine << ((i == op.pc) ? "^^ " : "   ");
+	}
+	_out << "  bytecode window [" << lo << "..." << (hi - 1) << "] / "
+	     << op.code.size() << " bytes:" << std::endl;
+	_out << "    " << hexLine.str() << std::endl;
+	_out << "    " << markLine.str() << std::endl;
+}
+
 /// @returns true if a mismatch was found.
 static bool compareRuns(
 	std::string const& _labelA,
 	RunResult const& _a,
 	std::string const& _labelB,
 	RunResult const& _b,
+	EVMVersion _evmVersion,
 	bool _quiet = false
 )
 {
@@ -545,9 +672,16 @@ static bool compareRuns(
 	bool statusMatch = (_a.statusCode == _b.statusCode);
 	if (!gasRelated && !statusMatch) mismatch = true;
 	if (!_quiet)
+	{
 		std::cout << "  Status:  " << (gasRelated ? OOG_STR : matchStr(statusMatch))
 			<< " (" << statusCodeToString(_a.statusCode) << " vs " << statusCodeToString(_b.statusCode) << ")"
 			<< std::endl;
+		if (!gasRelated && !statusMatch)
+		{
+			printLastOp(_labelA, _a, _evmVersion, std::cout);
+			printLastOp(_labelB, _b, _evmVersion, std::cout);
+		}
+	}
 
 	if (_a.statusCode == EVMC_SUCCESS && _b.statusCode == EVMC_SUCCESS)
 	{
@@ -895,13 +1029,13 @@ int main(int argc, char* argv[])
 		std::cout << YELLOW << "========== DIFFERENTIAL COMPARISONS ==========" << RESET << std::endl << std::endl;
 
 	// unoptimized vs optimized (legacy) — same as yul_proto_ossfuzz_evmone
-	anyMismatch |= compareRuns(configs[0].label, results[0], configs[1].label, results[1], quiet);
+	anyMismatch |= compareRuns(configs[0].label, results[0], configs[1].label, results[1], version, quiet);
 	// unoptimized vs optimized (SSACFG) — same as yul_proto_ossfuzz_evmone_ssacfg
-	anyMismatch |= compareRuns(configs[0].label, results[0], configs[2].label, results[2], quiet);
+	anyMismatch |= compareRuns(configs[0].label, results[0], configs[2].label, results[2], version, quiet);
 	// optimized legacy vs optimized SSACFG — cross-backend
-	anyMismatch |= compareRuns(configs[1].label, results[1], configs[2].label, results[2], quiet);
+	anyMismatch |= compareRuns(configs[1].label, results[1], configs[2].label, results[2], version, quiet);
 	// optimized (no stack alloc) vs optimized (stack alloc) — same as _check_stack_alloc fuzzer
-	anyMismatch |= compareRuns(configs[3].label, results[3], configs[1].label, results[1], quiet);
+	anyMismatch |= compareRuns(configs[3].label, results[3], configs[1].label, results[1], version, quiet);
 
 	if (!quiet)
 	{
