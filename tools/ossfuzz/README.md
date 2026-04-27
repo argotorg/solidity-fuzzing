@@ -23,7 +23,6 @@ Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
 UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
 ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
 
-
 ### Non-differential fuzzers (LibFuzzer + EVMOne)
 
 | Executable | Source / Mode | What it checks |
@@ -372,7 +371,7 @@ find corpuses/my_corpus_sol_proto_ossfuzz_evmone/ -maxdepth 1 -type f -print0 \
 
 ```bash
 python3 tools/ossfuzz/check_sol_proto_files.py tmp/ \
-  --solc ./build/solc/solc
+  --solc ./build/solidity/solc/solc
 ```
 
 ### CLI options
