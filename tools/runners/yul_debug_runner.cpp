@@ -739,13 +739,13 @@ int main(int argc, char* argv[])
 	std::string irDir = outputDir.empty() ? "." : outputDir;
 
 	// Derive solc binary path from argv[0]
-	// argv[0] is like ".../build/tools/runners/yul_debug_runner", solc is at ".../build/solc/solc"
+	// argv[0] is like ".../build/tools/runners/yul_debug_runner", solc is at ".../build/solidity/solc/solc"
 	std::string solcBinary;
 	{
 		std::string self = argv[0];
 		auto pos = self.rfind('/');
 		if (pos != std::string::npos)
-			solcBinary = self.substr(0, pos) + "/../../solc/solc";
+			solcBinary = self.substr(0, pos) + "/../../solidity/solc/solc";
 	}
 
 	std::vector<RunResult> results;
