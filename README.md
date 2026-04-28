@@ -86,12 +86,16 @@ Two binaries get built — same source, different toolchain:
 | `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`    |
 
 AFL++ itself, the `afl-ts` AST-aware custom mutator, and the
-`tree-sitter-solidity` grammar are all vendored as submodules and built as
-part of the default `make` target — no system AFL++ install needed.
+`tree-sitter-solidity` grammar are all vendored as submodules — no system
+AFL++ install needed. The grammar builds in the default `make` target;
+AFL++ + afl-ts are opt-in (they need `clang` + `llvm-dev` that the
+regular host build doesn't).
 
 ```bash
-# Build everything: solc, harness, AFL++, afl-ts, tree-sitter-solidity grammar.
+# Build solc + host harness + grammar.
 mkdir build && cd build && cmake .. && make -j$(nproc) && cd ..
+# Build the AFL toolchain (~minutes; needs clang + llvm-dev + libtree-sitter-dev v0.25+).
+make -C build -j$(nproc) aflplusplus afl_ts
 
 # Build the AFL-instrumented harness in build_afl/.
 tools/afl/build_instrumented.sh

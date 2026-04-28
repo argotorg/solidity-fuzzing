@@ -109,7 +109,12 @@ endif()
 # AFLplusplus/afl-fuzz at runtime; afl-ts links against AFLplusplus/include/.
 if (EXISTS "${CMAKE_SOURCE_DIR}/AFLplusplus/Makefile")
     include(ExternalProject)
+    # EXCLUDE_FROM_ALL: building AFL++ takes minutes and needs clang/llvm-dev,
+    # which non-AFL users / CI jobs shouldn't be forced to install. Run
+    # `make aflplusplus` (or use tools/afl/build_instrumented.sh which
+    # checks for the binary) when you actually need it.
     ExternalProject_Add(aflplusplus
+        EXCLUDE_FROM_ALL 1
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/AFLplusplus"
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
@@ -134,7 +139,11 @@ endif()
 if (EXISTS "${CMAKE_SOURCE_DIR}/afl-ts/Makefile" AND DEFINED AFLPP_DIR)
     include(ExternalProject)
     set(AFL_TS_CFLAGS "-O3 -funroll-loops -fPIC -Wall -Wextra -I${AFLPP_DIR}/include")
+    # Same EXCLUDE_FROM_ALL rationale as aflplusplus: needs libtree-sitter
+    # v0.25+ headers/lib that non-AFL users may not have. Build with
+    # `make afl_ts`.
     ExternalProject_Add(afl_ts
+        EXCLUDE_FROM_ALL 1
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/afl-ts"
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1

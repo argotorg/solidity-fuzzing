@@ -76,15 +76,20 @@ The full AFL++ toolchain plus the AST-aware mutator are vendored:
 | `afl-ts/`              | github.com/jubnzv/afl-ts                       | `libts.so` (AFL++ custom-mutator library, AST splice)  |
 | `tree-sitter-solidity/`| github.com/JoranHonig/tree-sitter-solidity     | `libtree-sitter-solidity.so` (parser; loaded by afl-ts) |
 
-All three build as part of the default `make` target in `build/`:
+`tree_sitter_solidity` builds as part of the default `make` target (small,
+no extra deps). `aflplusplus` and `afl_ts` are **opt-in** via explicit
+targets — building AFL++ takes minutes and needs `clang` + `llvm-dev`
+that non-AFL CI / users shouldn't be forced to install:
 
 ```bash
 git submodule update --init --recursive
-cmake -S . -B build && make -C build -j$(nproc)
+cmake -S . -B build
+make -C build -j$(nproc)                      # solc, host harness, grammar
+make -C build -j$(nproc) aflplusplus afl_ts   # the AFL toolchain (when ready to fuzz)
 ```
 
-Need a single one rebuilt? `make -C build aflplusplus` (or `afl_ts`,
-`tree_sitter_solidity`).
+`tools/afl/build_instrumented.sh` checks that both binaries exist and
+prints the exact command above if not.
 
 `run_afl.sh` defaults to using all three: the vendored `afl-fuzz` runs the
 campaign, `libts.so` is loaded as the custom mutator, and
