@@ -129,16 +129,21 @@ tools/afl/run_afl_parallel.sh -j 8            # specific core count
 tools/afl/run_afl_parallel.sh -j 8 my_run     # custom findings dir
 ```
 
-This spawns N+1 panes in a tmux session named `solfuzz`:
+This spawns N+1 *windows* (not panes — each gets the full terminal width
+so the afl-fuzz TUIs aren't cramped) in a tmux session named `solfuzz`:
 
-- **Pane 1: dashboard** — `watch -n 5 afl-whatsup` showing live aggregate
+- **Window `dashboard`** — `watch -n 5 afl-whatsup` showing live aggregate
   stats (execs/sec across all fuzzers, paths, crashes, hangs). AFL++ has
   no built-in unified TUI, only one-shot text snapshots and per-process
   TUIs; this fills that gap.
-- **Pane 2: main fuzzer** (`-M main`, default schedule).
-- **Panes 3..N+1: secondaries** rotating through different power
-  schedules + AFL++ behaviour flags so cores explore different paths
+- **Window `main`** — main fuzzer (`-M main`, default schedule).
+- **Windows `sec1`, `sec2`, ...** — secondaries rotating through different
+  power schedules + AFL++ behaviour flags so cores explore different paths
   instead of duplicating work.
+
+Switch between windows with `Ctrl-b n` (next), `Ctrl-b p` (prev),
+`Ctrl-b <N>` (jump to window N), or `Ctrl-b w` (interactive list). The
+session opens on the dashboard.
 
 ```bash
 tmux attach -t solfuzz                        # watch the panes

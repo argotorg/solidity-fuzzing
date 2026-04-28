@@ -102,31 +102,33 @@ build_pane_cmd() {
     echo "cd '$REPO_ROOT' && env$env_str '$AFL_FUZZ_BIN' $instance_args ${COMMON_FLAGS[*]} -- '$HARNESS' @@; echo; echo '[afl-fuzz exited — Ctrl-D to close pane]'; bash"
 }
 
-# Top-of-session dashboard pane: `watch afl-whatsup` gives a live
-# aggregate view (execs/sec across all fuzzers, paths, crashes, hangs)
-# that AFL++ doesn't otherwise provide — afl-fuzz's per-process TUI only
-# shows that one process. Refreshes every 5 s.
+# Each afl-fuzz instance and the dashboard get their own tmux *window*
+# (not pane), so each gets the full terminal width and isn't cramped /
+# rolling. Switch with Ctrl-b n (next), Ctrl-b p (prev), Ctrl-b <N>
+# (jump to window N), or Ctrl-b w (interactive list).
+#
+# Window 0: dashboard. `watch afl-whatsup` is AFL++'s closest thing to a
+# live unified overview — refreshes every 5 s.
 AFL_WHATSUP="${AFL_FUZZ_BIN%/*}/afl-whatsup"
 DASHBOARD_CMD="while [[ ! -d '$FINDINGS' ]] || [[ -z \"\$(ls -A '$FINDINGS' 2>/dev/null)\" ]]; do sleep 1; done; watch -n 5 -t '$AFL_WHATSUP' -d '$FINDINGS'"
+tmux new-session -d -s "$SESSION" -n dashboard "$DASHBOARD_CMD"
 
-# Pane 0 — dashboard.
-tmux new-session -d -s "$SESSION" -n fuzz "$DASHBOARD_CMD"
-
-# Pane 1 — main fuzzer (deterministic + havoc, default schedule).
+# Window 1: main fuzzer (deterministic + havoc, default schedule).
 MAIN_CMD=$(build_pane_cmd "-M main" "")
-tmux split-window -t "$SESSION:fuzz" "$MAIN_CMD"
+tmux new-window -t "$SESSION" -n main "$MAIN_CMD"
 
-# Panes 2..JOBS — secondaries, each with a rotated profile.
+# Windows 2..JOBS: secondaries, each with a rotated profile.
 for ((i=1; i<JOBS; i++)); do
     profile_idx=$(( (i - 1) % ${#SECONDARY_PROFILES[@]} ))
     profile="${SECONDARY_PROFILES[$profile_idx]}"
     sched_flag=$(echo "$profile" | awk '{print $1, $2}')   # "-p fast"
     extra_env=$(echo "$profile" | awk '{$1=$2=""; print $0}' | sed 's/^[[:space:]]*//')
     SEC_CMD=$(build_pane_cmd "-S sec$i $sched_flag" "$extra_env")
-    tmux split-window -t "$SESSION:fuzz" "$SEC_CMD"
-    # Re-tile after every split so panes stay roughly equal size.
-    tmux select-layout -t "$SESSION:fuzz" tiled >/dev/null
+    tmux new-window -t "$SESSION" -n "sec$i" "$SEC_CMD"
 done
+
+# Land on the dashboard window when the user attaches.
+tmux select-window -t "$SESSION:dashboard"
 
 echo "Started AFL++ campaign in tmux session: $SESSION"
 echo "  Cores:    $JOBS (1 main + $((JOBS-1)) secondaries)"
