@@ -9,3 +9,25 @@ add_executable(const_opt_runner
     ../common/fuzzer_common.cpp
 )
 target_link_libraries(const_opt_runner PRIVATE libsolc evmasm Boost::boost Boost::program_options)
+
+# AFL harness: differential compile/deploy/execute via EVMOne, abort() on diff.
+# Mirrors the sol_proto_ossfuzz_evmone pipeline but reads .sol from a file
+# argument (AFL's @@) or stdin instead of a libFuzzer-supplied protobuf.
+add_executable(sol_afl_diff_runner
+    sol_afl_diff_runner.cpp
+    ${EVMHOST_CPP}
+    ../ossfuzz/SolidityEvmoneInterface.cpp
+    ../ossfuzz/FuzzerDiffCommon.cpp
+)
+target_link_libraries(sol_afl_diff_runner PRIVATE evmc solidity libsolc Boost::boost)
+
+# Same RPATH dance as tools/runners — find libevmone.so without LD_LIBRARY_PATH.
+if (EVMONE_LIB_DIR)
+    set_target_properties(sol_afl_diff_runner PROPERTIES
+        BUILD_RPATH "${EVMONE_LIB_DIR}"
+        INSTALL_RPATH "${EVMONE_LIB_DIR}"
+    )
+    if (TARGET evmone_external)
+        add_dependencies(sol_afl_diff_runner evmone_external)
+    endif()
+endif()

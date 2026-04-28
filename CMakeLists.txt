@@ -84,5 +84,27 @@ if (NOT EVMONE_LIB_DIR)
     endif()
 endif()
 
+# --- Build tree-sitter-solidity from submodule ---
+# Runtime input for the AFL workflow: afl-ts loads this .so to mutate inputs
+# at the AST level. Not linked by any C++ target. Upstream ships a Makefile;
+# we just delegate to it.
+if (EXISTS "${CMAKE_SOURCE_DIR}/tree-sitter-solidity/Makefile")
+    include(ExternalProject)
+    set(TS_SOLIDITY_DIR "${CMAKE_SOURCE_DIR}/tree-sitter-solidity")
+    set(TS_SOLIDITY_LIB "${TS_SOLIDITY_DIR}/libtree-sitter-solidity.so")
+    ExternalProject_Add(tree_sitter_solidity
+        SOURCE_DIR "${TS_SOLIDITY_DIR}"
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE 1
+        BUILD_COMMAND make libtree-sitter-solidity.so
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS "${TS_SOLIDITY_LIB}"
+    )
+else()
+    message(WARNING "tree-sitter-solidity submodule not found. "
+        "afl-ts integration in tools/afl/run_afl.sh will not have a grammar to load. "
+        "Run: git submodule update --init tree-sitter-solidity")
+endif()
+
 # --- All tools (runners, AFL fuzzers, OSS-Fuzz targets, stack shuffler) ---
 add_subdirectory(tools)
