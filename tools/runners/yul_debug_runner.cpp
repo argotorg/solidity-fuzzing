@@ -46,6 +46,7 @@
 #include <iomanip>
 #include <cstring>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace fs = std::filesystem;
@@ -733,8 +734,8 @@ int main(int argc, char* argv[])
 		("help,h", "Show help")
 		("input-file", po::value<std::string>(), "Yul source file")
 		("calldata", po::value<std::string>()->default_value(""), "Calldata in hex (e.g. \"a0ffba\"), passed to deployed contract")
-		("optimizer-sequence", po::value<std::string>()->default_value(""), "Custom Yul optimizer step sequence (e.g. from fuzzer protobuf)")
-		("optimizer-cleanup-sequence", po::value<std::string>()->default_value(""), "Custom Yul optimizer cleanup step sequence")
+		("optimizer-sequence", po::value<std::string>(), "Custom Yul optimizer step sequence (e.g. from fuzzer protobuf). Pass \"\" for an explicitly empty sequence; omit the flag to use the solc default.")
+		("optimizer-cleanup-sequence", po::value<std::string>(), "Custom Yul optimizer cleanup step sequence. Pass \"\" for an explicitly empty sequence; omit the flag to use the solc default.")
 		("quiet,q", "Quiet mode: only print one-line summary, for use by delta debuggers")
 		("verbose,v", "Verbose mode: print full logs and storage for all configs")
 	;
@@ -769,8 +770,12 @@ int main(int argc, char* argv[])
 
 	std::string inputFile = vm["input-file"].as<std::string>();
 	std::string calldataHex = vm["calldata"].as<std::string>();
-	std::string optimizerSequence = vm["optimizer-sequence"].as<std::string>();
-	std::string optimizerCleanupSequence = vm["optimizer-cleanup-sequence"].as<std::string>();
+	std::optional<std::string> optimizerSequence = vm.count("optimizer-sequence")
+		? std::optional<std::string>(vm["optimizer-sequence"].as<std::string>())
+		: std::nullopt;
+	std::optional<std::string> optimizerCleanupSequence = vm.count("optimizer-cleanup-sequence")
+		? std::optional<std::string>(vm["optimizer-cleanup-sequence"].as<std::string>())
+		: std::nullopt;
 	bool quiet = vm.count("quiet") > 0;
 	bool verbose = vm.count("verbose") > 0;
 
@@ -809,12 +814,8 @@ int main(int argc, char* argv[])
 	EVMVersion version = EVMVersion::current();
 
 	// Determine the actual optimizer sequences that will be used.
-	std::string usedSeq = optimizerSequence.empty()
-		? std::string(OptimiserSettings::DefaultYulOptimiserSteps)
-		: optimizerSequence;
-	std::string usedCleanupSeq = optimizerCleanupSequence.empty()
-		? std::string(OptimiserSettings::DefaultYulOptimiserCleanupSteps)
-		: optimizerCleanupSequence;
+	std::string usedSeq = optimizerSequence.value_or(std::string(OptimiserSettings::DefaultYulOptimiserSteps));
+	std::string usedCleanupSeq = optimizerCleanupSequence.value_or(std::string(OptimiserSettings::DefaultYulOptimiserCleanupSteps));
 
 	if (!quiet)
 	{
@@ -850,18 +851,18 @@ int main(int argc, char* argv[])
 	OptimiserSettings settingsOpt = OptimiserSettings::full();
 	settingsOpt.runYulOptimiser = true;
 	settingsOpt.optimizeStackAllocation = true;
-	if (!optimizerSequence.empty())
-		settingsOpt.yulOptimiserSteps = optimizerSequence;
-	if (!optimizerCleanupSequence.empty())
-		settingsOpt.yulOptimiserCleanupSteps = optimizerCleanupSequence;
+	if (optimizerSequence.has_value())
+		settingsOpt.yulOptimiserSteps = *optimizerSequence;
+	if (optimizerCleanupSequence.has_value())
+		settingsOpt.yulOptimiserCleanupSteps = *optimizerCleanupSequence;
 
 	OptimiserSettings settingsOptNoStackAlloc = OptimiserSettings::full();
 	settingsOptNoStackAlloc.runYulOptimiser = true;
 	settingsOptNoStackAlloc.optimizeStackAllocation = false;
-	if (!optimizerSequence.empty())
-		settingsOptNoStackAlloc.yulOptimiserSteps = optimizerSequence;
-	if (!optimizerCleanupSequence.empty())
-		settingsOptNoStackAlloc.yulOptimiserCleanupSteps = optimizerCleanupSequence;
+	if (optimizerSequence.has_value())
+		settingsOptNoStackAlloc.yulOptimiserSteps = *optimizerSequence;
+	if (optimizerCleanupSequence.has_value())
+		settingsOptNoStackAlloc.yulOptimiserCleanupSteps = *optimizerCleanupSequence;
 
 	std::vector<Config> configs = {
 		{"unoptimized", settingsNoOpt, false},
@@ -923,14 +924,10 @@ int main(int argc, char* argv[])
 			if (config.settings.runYulOptimiser)
 			{
 				solcFlags += " --optimize";
-				if (!optimizerSequence.empty() || !optimizerCleanupSequence.empty())
+				if (optimizerSequence.has_value() || optimizerCleanupSequence.has_value())
 				{
-					std::string seq = optimizerSequence.empty()
-						? std::string(OptimiserSettings::DefaultYulOptimiserSteps)
-						: optimizerSequence;
-					std::string cleanupSeq = optimizerCleanupSequence.empty()
-						? std::string(OptimiserSettings::DefaultYulOptimiserCleanupSteps)
-						: optimizerCleanupSequence;
+					std::string seq = optimizerSequence.value_or(std::string(OptimiserSettings::DefaultYulOptimiserSteps));
+					std::string cleanupSeq = optimizerCleanupSequence.value_or(std::string(OptimiserSettings::DefaultYulOptimiserCleanupSteps));
 					solcFlags += " --yul-optimizations \"" + seq + ":" + cleanupSeq + "\"";
 				}
 			}
