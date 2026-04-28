@@ -117,30 +117,35 @@ scale across cores, run AFL++'s standard 1-main + N-1-secondary pattern; all
 instances share the same `findings_afl/` directory and AFL++ syncs newly-
 discovered corpus entries between them automatically.
 
-```bash
-# Terminal 1 — main fuzzer (deterministic + havoc).
-afl-fuzz -M main -i corpus_afl -o findings_afl -t 2000 -m none \
-    -- build_afl/tools/afl/sol_afl_diff_runner @@
+Every `afl-fuzz` invocation needs the afl-ts env vars (they don't inherit
+between instances) and uses the vendored binary. Set the env once per
+shell so the lines below stay readable:
 
-# Terminals 2..N — secondaries (havoc-only). Vary env vars across them so
-# different mutation strategies hit different paths:
-AFL_DISABLE_TRIM=1     afl-fuzz -S sec1 -i corpus_afl -o findings_afl ...
-AFL_KEEP_TIMEOUTS=1    afl-fuzz -S sec2 -i corpus_afl -o findings_afl ...
-AFL_EXPAND_HAVOC_NOW=1 afl-fuzz -S sec3 -i corpus_afl -o findings_afl ...
-AFL_CMPLOG_ONLY_NEW=1  afl-fuzz -S sec4 -i corpus_afl -o findings_afl ...
+```bash
+export AFL_CUSTOM_MUTATOR_LIBRARY=$PWD/afl-ts/libts.so
+export TS_GRAMMAR=$PWD/tree-sitter-solidity/libtree-sitter-solidity.so
+export AFL_CUSTOM_MUTATOR_ONLY=1
 ```
 
-`afl-whatsup findings_afl` gives a live aggregate view across all instances
-(execs/sec, paths, crashes, etc.).
-
-Each secondary needs the afl-ts env vars too — they don't inherit from
-each other. Easiest:
+Then:
 
 ```bash
-AFL_CUSTOM_MUTATOR_LIBRARY=$PWD/afl-ts/libts.so \
-TS_GRAMMAR=$PWD/tree-sitter-solidity/libtree-sitter-solidity.so \
-AFL_CUSTOM_MUTATOR_ONLY=1 \
-    AFLplusplus/afl-fuzz -S sec1 -i corpus_afl -o findings_afl ...
+# Terminal 1 — main (deterministic + havoc):
+AFLplusplus/afl-fuzz -M main -i corpus_afl -o findings_afl -t 2000 -m none \
+    -- build_afl/tools/afl/sol_afl_diff_runner @@
+
+# Terminals 2..N — secondaries (havoc-only). Per-secondary env vars below
+# diversify mutation strategies so different cores explore different paths:
+AFL_DISABLE_TRIM=1     AFLplusplus/afl-fuzz -S sec1 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
+AFL_KEEP_TIMEOUTS=1    AFLplusplus/afl-fuzz -S sec2 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
+AFL_EXPAND_HAVOC_NOW=1 AFLplusplus/afl-fuzz -S sec3 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
+AFL_CMPLOG_ONLY_NEW=1  AFLplusplus/afl-fuzz -S sec4 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
+```
+
+Live aggregate status across all instances:
+
+```bash
+AFLplusplus/afl-whatsup findings_afl
 ```
 
 A `-j N` flag for `run_afl.sh` that spawns tmux panes for 1 main + N-1
