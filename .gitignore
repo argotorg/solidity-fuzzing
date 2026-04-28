@@ -24,3 +24,6 @@ fuzz-*.log
 /my_corpus_yul_ast_comparator_fuzz
 /my_corpus_yul_proto_ossfuzz_evmone_check_stack_alloc
 /my_corpus_sol_proto_ossfuzz_evmone
+/corpus_afl
+/findings_afl
+/realworld_cache

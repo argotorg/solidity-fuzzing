@@ -29,11 +29,18 @@ silent miscompiles between optimiser configurations).
 # 1. Build the harness (host build tree, not build_ossfuzz/).
 cd build && cmake .. -DCMAKE_BUILD_TYPE=Release ... && make -j$(nproc) sol_afl_diff_runner
 
-# 2. Build the seed corpus from solidity/test/.
+# 2. (Optional) Pull real-world Solidity projects into realworld_cache/
+#    — OpenZeppelin, Aave, Solady, Uniswap v3/v4, Safe, ENS, etc. Adds
+#    ~1800 contracts on top of the ~6800 from solidity/test/. Only needed
+#    once; idempotent on re-run.
+tools/afl/fetch_realworld.sh
+
+# 3. Build the seed corpus. Always reads solidity/test/; also reads
+#    realworld_cache/ if it exists.
 tools/afl/build_corpus.sh                         # writes corpus_afl/
 # or: MAX_BYTES=8192 tools/afl/build_corpus.sh    # smaller cap
 
-# 3. Launch AFL++.
+# 4. Launch AFL++.
 tools/afl/run_afl.sh                              # writes findings_afl/
 ```
 
