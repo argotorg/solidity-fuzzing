@@ -82,12 +82,12 @@ Crash inputs are raw protobuf; to inspect/debug, dump them to text first using e
 # Sol:
 PROTO_FUZZER_DUMP_PATH=bad.sol \
   ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-<hash>
-./build/sol_debug_runner bad.sol
+./build/tools/runners/sol_debug_runner bad.sol
 
 # Yul (also supports optimizer sequence dump):
 PROTO_FUZZER_DUMP_PATH=bad.yul PROTO_FUZZER_DUMP_SEQ_PATH=bad.seq \
   ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-<hash>
-./build/yul_debug_runner bad.yul \
+./build/tools/runners/yul_debug_runner bad.yul \
   --optimizer-sequence "<from bad.seq>" \
   --optimizer-cleanup-sequence "<from bad.seq>"
 
@@ -117,7 +117,7 @@ Both runners accept `--quiet` (used by delta debuggers) and `--output-dir` (writ
   ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
 ```
 
-Wraps `check_sol_proto_files.py` — dumps N random corpus entries via the given fuzzer binary, compiles each with `./build/solc/solc`, and tallies language-feature coverage. Requires both build trees.
+Wraps `check_sol_proto_files.py` — dumps N random corpus entries via the given fuzzer binary, compiles each with `./build/solidity/solc/solc`, and tallies language-feature coverage. Requires both build trees.
 
 ## Parallel fuzzing for `single_pass`
 
