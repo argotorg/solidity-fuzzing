@@ -66,37 +66,49 @@ build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
 build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
 ```
 
-### Plugging in afl-ts (AST-aware mutator)
+### Vendored toolchain — everything's a submodule
 
-[`afl-ts`](https://github.com/nowarp/afl-ts) is an AFL++ custom-mutator
-library that mutates inputs at the tree-sitter AST level (subtree splice,
-sibling swap, typed-bank insertion etc.) — strictly better than byte-level
-mutation for grammar-heavy targets like Solidity.
+The full AFL++ toolchain plus the AST-aware mutator are vendored:
 
-The Solidity tree-sitter grammar is vendored as a submodule at
-`tree-sitter-solidity/`
-([JoranHonig/tree-sitter-solidity](https://github.com/JoranHonig/tree-sitter-solidity)
-— the de-facto Solidity grammar; same one nowarp.io used). Initialise it,
-then either let cmake build it (it's part of the default `make` target) or
-invoke the upstream Makefile directly:
+| Submodule              | Source                                         | Built artefact                                         |
+| ---                    | ---                                            | ---                                                    |
+| `AFLplusplus/`         | github.com/AFLplusplus/AFLplusplus             | `afl-fuzz`, `afl-clang-fast{,++}`, `afl-cmin`          |
+| `afl-ts/`              | github.com/jubnzv/afl-ts                       | `libts.so` (AFL++ custom-mutator library, AST splice)  |
+| `tree-sitter-solidity/`| github.com/JoranHonig/tree-sitter-solidity     | `libtree-sitter-solidity.so` (parser; loaded by afl-ts) |
+
+All three build as part of the default `make` target in `build/`:
 
 ```bash
-git submodule update --init tree-sitter-solidity
-make -C build tree_sitter_solidity        # via cmake (also runs as part of plain `make`)
-# or, without cmake:
-tools/afl/build_grammar.sh                # delegates to upstream's Makefile
-# Either path produces tree-sitter-solidity/libtree-sitter-solidity.so
+git submodule update --init --recursive
+cmake -S . -B build && make -C build -j$(nproc)
 ```
 
-Then point afl-ts at the prebuilt afl-ts mutator library; `TS_GRAMMAR`
-defaults to the vendored grammar so you don't need to set it:
+Need a single one rebuilt? `make -C build aflplusplus` (or `afl_ts`,
+`tree_sitter_solidity`).
+
+`run_afl.sh` defaults to using all three: the vendored `afl-fuzz` runs the
+campaign, `libts.so` is loaded as the custom mutator, and
+`libtree-sitter-solidity.so` is the grammar. To disable afl-ts and fall
+back to byte-level mutation:
 
 ```bash
-AFL_TS_LIB=/path/to/libafl_ts.so tools/afl/run_afl.sh
+AFL_TS_LIB= tools/afl/run_afl.sh
 ```
 
-`run_afl.sh` automatically sets `AFL_CUSTOM_MUTATOR_ONLY=1` when afl-ts is
-loaded, disabling byte-level mutation per nowarp.io's guidance.
+### One-time system setup
+
+AFL++ insists on a particular kernel `core_pattern` so it can detect
+crashes reliably:
+
+```bash
+echo core | sudo tee /proc/sys/kernel/core_pattern
+```
+
+(Or `AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1` if you accept that some
+crashes will be misclassified as hangs. Not recommended for real campaigns.)
+
+`afl-fuzz` will refuse to start until the kernel setting is `core` or
+`/dev/null`.
 
 ### Parallel fuzzing
 
@@ -121,9 +133,15 @@ AFL_CMPLOG_ONLY_NEW=1  afl-fuzz -S sec4 -i corpus_afl -o findings_afl ...
 `afl-whatsup findings_afl` gives a live aggregate view across all instances
 (execs/sec, paths, crashes, etc.).
 
-When using afl-ts as a custom mutator, set `AFL_TS_LIB` and
-`AFL_CUSTOM_MUTATOR_ONLY=1` on every secondary — they don't inherit the env
-from each other.
+Each secondary needs the afl-ts env vars too — they don't inherit from
+each other. Easiest:
+
+```bash
+AFL_CUSTOM_MUTATOR_LIBRARY=$PWD/afl-ts/libts.so \
+TS_GRAMMAR=$PWD/tree-sitter-solidity/libtree-sitter-solidity.so \
+AFL_CUSTOM_MUTATOR_ONLY=1 \
+    AFLplusplus/afl-fuzz -S sec1 -i corpus_afl -o findings_afl ...
+```
 
 A `-j N` flag for `run_afl.sh` that spawns tmux panes for 1 main + N-1
 secondaries (matching `tools/ossfuzz/README.md`'s parallel pattern) is on

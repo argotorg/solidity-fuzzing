@@ -8,3 +8,9 @@
 [submodule "tree-sitter-solidity"]
 	path = tree-sitter-solidity
 	url = https://github.com/JoranHonig/tree-sitter-solidity.git
+[submodule "afl-ts"]
+	path = afl-ts
+	url = https://github.com/jubnzv/afl-ts.git
+[submodule "AFLplusplus"]
+	path = AFLplusplus
+	url = https://github.com/AFLplusplus/AFLplusplus.git

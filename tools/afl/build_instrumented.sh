@@ -21,22 +21,25 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build_afl"
 
-if ! command -v afl-clang-fast++ >/dev/null 2>&1; then
-    echo "ERROR: afl-clang-fast++ not in PATH" >&2
-    echo "  Install AFL++: https://github.com/AFLplusplus/AFLplusplus" >&2
-    echo "  (Debian/Ubuntu: apt install afl++)" >&2
+AFL_CC="$REPO_ROOT/AFLplusplus/afl-clang-fast"
+AFL_CXX="$REPO_ROOT/AFLplusplus/afl-clang-fast++"
+
+if [[ ! -x "$AFL_CC" || ! -x "$AFL_CXX" ]]; then
+    echo "ERROR: vendored AFL++ not built — $AFL_CC missing." >&2
+    echo "  Build it first: cmake --build $REPO_ROOT/build --target aflplusplus" >&2
+    echo "  (it's part of the default \`make\` target if you've configured build/)" >&2
     exit 1
 fi
 
 mkdir -p "$BUILD_DIR"
 
-# afl-clang-fast{,++} are wrappers around the system clang that add the
-# instrumentation pass. Pass them as CMAKE_{C,CXX}_COMPILER so the whole
-# tree — including the evmone ExternalProject — picks them up.
+# afl-clang-fast{,++} are wrappers around clang that add the instrumentation
+# pass. Pass them as CMAKE_{C,CXX}_COMPILER so the whole tree — including
+# the evmone ExternalProject — picks them up.
 cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER=afl-clang-fast \
-    -DCMAKE_CXX_COMPILER=afl-clang-fast++ \
+    -DCMAKE_C_COMPILER="$AFL_CC" \
+    -DCMAKE_CXX_COMPILER="$AFL_CXX" \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" \

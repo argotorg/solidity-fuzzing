@@ -85,14 +85,26 @@ Two binaries get built — same source, different toolchain:
 | `build/tools/afl/sol_afl_diff_runner`             | host gcc         | one-off check on a single `.sol`; reproducing crashes |
 | `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`    |
 
-```bash
-# One-time setup. AFL++ must be installed (apt install afl++ on Debian/Ubuntu).
-tools/afl/build_instrumented.sh         # builds build_afl/sol_afl_diff_runner (instrumented)
-tools/afl/fetch_realworld.sh            # clones ~15 real-world projects (~200 MB)
-tools/afl/build_corpus.sh               # writes corpus_afl/ (~8700 files from solidity/test + realworld)
+AFL++ itself, the `afl-ts` AST-aware custom mutator, and the
+`tree-sitter-solidity` grammar are all vendored as submodules and built as
+part of the default `make` target — no system AFL++ install needed.
 
-# Launch — coverage-guided AFL++ campaign:
-tools/afl/run_afl.sh                    # writes findings_afl/
+```bash
+# Build everything: solc, harness, AFL++, afl-ts, tree-sitter-solidity grammar.
+mkdir build && cd build && cmake .. && make -j$(nproc) && cd ..
+
+# Build the AFL-instrumented harness in build_afl/.
+tools/afl/build_instrumented.sh
+
+# (Optional) pull ~15 real-world projects + build the merged seed corpus.
+tools/afl/fetch_realworld.sh
+tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
+
+# One-time system setup: AFL++ requires this kernel setting.
+echo core | sudo tee /proc/sys/kernel/core_pattern
+
+# Launch — coverage-guided AFL++ + afl-ts AST mutation, all from submodules:
+tools/afl/run_afl.sh                      # writes findings_afl/
 
 # Sanity-check a single file (host binary, fast):
 build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
@@ -101,11 +113,6 @@ build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mism
 build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
 # Or human-readable diff:
 build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
-```
-
-Optional AST-aware mutator (`afl-ts`, see [nowarp/afl-ts](https://github.com/nowarp/afl-ts)) significantly improves throughput vs byte-level mutation:
-```bash
-AFL_TS_LIB=/path/to/libafl_ts.so tools/afl/run_afl.sh
 ```
 
 See [tools/afl/README.md](tools/afl/README.md) for details on the harness, corpus, mutator integration, and follow-up TODOs.

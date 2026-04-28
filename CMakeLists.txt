@@ -102,6 +102,49 @@ if (NOT EVMONE_LIB_DIR)
     endif()
 endif()
 
+# --- Build AFLplusplus from submodule ---
+# We vendor the full AFL++ toolchain (afl-cc, afl-fuzz, headers) so the
+# AFL workflow has no system dependency on AFL++. tools/afl/build_instrumented.sh
+# uses AFLplusplus/afl-clang-fast++ as the compiler; tools/afl/run_afl.sh uses
+# AFLplusplus/afl-fuzz at runtime; afl-ts links against AFLplusplus/include/.
+if (EXISTS "${CMAKE_SOURCE_DIR}/AFLplusplus/Makefile")
+    include(ExternalProject)
+    ExternalProject_Add(aflplusplus
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/AFLplusplus"
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE 1
+        BUILD_COMMAND make source-only
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS
+            "${CMAKE_SOURCE_DIR}/AFLplusplus/afl-fuzz"
+            "${CMAKE_SOURCE_DIR}/AFLplusplus/afl-cc"
+    )
+    set(AFLPP_DIR "${CMAKE_SOURCE_DIR}/AFLplusplus")
+else()
+    message(WARNING "AFLplusplus submodule not found. The AFL workflow at "
+        "tools/afl/run_afl.sh will not have its compiler/runtime available. "
+        "Run: git submodule update --init AFLplusplus")
+endif()
+
+# --- Build afl-ts custom mutator from submodule ---
+# Needs AFLplusplus/include/ for the custom-mutator API and a system
+# libtree-sitter (≥0.25) for the parser runtime; loads grammar .so via dlopen
+# at runtime (TS_GRAMMAR env var → tree-sitter-solidity/libtree-sitter-solidity.so
+# by default in run_afl.sh).
+if (EXISTS "${CMAKE_SOURCE_DIR}/afl-ts/Makefile" AND DEFINED AFLPP_DIR)
+    include(ExternalProject)
+    set(AFL_TS_CFLAGS "-O3 -funroll-loops -fPIC -Wall -Wextra -I${AFLPP_DIR}/include")
+    ExternalProject_Add(afl_ts
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/afl-ts"
+        CONFIGURE_COMMAND ""
+        BUILD_IN_SOURCE 1
+        BUILD_COMMAND make "CFLAGS=${AFL_TS_CFLAGS}"
+        INSTALL_COMMAND ""
+        DEPENDS aflplusplus
+        BUILD_BYPRODUCTS "${CMAKE_SOURCE_DIR}/afl-ts/libts.so"
+    )
+endif()
+
 # --- Build tree-sitter-solidity from submodule ---
 # Runtime input for the AFL workflow: afl-ts loads this .so to mutate inputs
 # at the AST level. Not linked by any C++ target. Upstream ships a Makefile;
