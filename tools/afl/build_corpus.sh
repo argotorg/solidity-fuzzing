@@ -40,6 +40,17 @@ declare -A seen_hash
 added=0
 skipped_size=0
 skipped_dup=0
+skipped_oracle=0
+
+# Pattern that catches Solidity / Yul features whose values legitimately
+# differ across optimiser levels — comparing them in the diff oracle is a
+# false positive ("the optimised code burned different gas").
+#   gasleft( | .gas: | {gas: | tx.gasprice
+#   msize / pc / codesize / gas as Yul opcodes (inside assembly blocks)
+# We filter at the file level (anywhere in the source) — slightly over-
+# inclusive (a Solidity variable named "msize" gets dropped too) but far
+# safer than letting one slip through.
+ORACLE_UNSAFE_REGEX='\bgasleft[[:space:]]*\(|\bmsize\b|\bcodesize\b|\.gas[[:space:]]*:|\{[[:space:]]*gas[[:space:]]*:|tx\.gasprice|\bgasprice\b'
 
 # Path components we never want to walk into. Catches typical JS/Foundry/
 # Hardhat build outputs and re-vendored dependency trees that would just add
@@ -76,6 +87,10 @@ ingest_tree() {
         size=$(stat -c%s "$f")
         if (( size == 0 || size > MAX_BYTES )); then
             skipped_size=$((skipped_size + 1))
+            continue
+        fi
+        if grep -qE "$ORACLE_UNSAFE_REGEX" "$f" 2>/dev/null; then
+            skipped_oracle=$((skipped_oracle + 1))
             continue
         fi
         local h
@@ -126,5 +141,6 @@ fi
 
 echo
 echo "Wrote $added files to $OUT"
-echo "  Skipped (size > $MAX_BYTES or empty): $skipped_size"
-echo "  Skipped (duplicate content):          $skipped_dup"
+echo "  Skipped (size > $MAX_BYTES or empty):   $skipped_size"
+echo "  Skipped (duplicate content):            $skipped_dup"
+echo "  Skipped (oracle-unsafe gas/msize/pc):   $skipped_oracle"
