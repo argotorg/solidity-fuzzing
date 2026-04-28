@@ -18,8 +18,6 @@
 
 #include <tools/ossfuzz/FuzzerDiffCommon.h>
 
-#include <google/protobuf/repeated_field.h>
-
 #include <algorithm>
 
 using namespace solidity::test;
