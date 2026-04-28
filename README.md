@@ -70,6 +70,46 @@ The most important are the libfuzzer-based protobuf targets to be ran standalone
 
 Corpuses are currently stored here: https://github.com/msooseth/solidity-fuzzing-corpus
 
+## Running the AFL++ differential fuzzer
+
+`sol_afl_diff_runner` reads a single `.sol` file, compiles + deploys it under
+two optimiser settings (`minimal` vs `standard`), calls each with deterministic
+calldata, and `solAssert`s that status / output / logs / storage match. On any
+mismatch the unhandled exception triggers SIGABRT and AFL++ records a crash.
+It works under `afl-fuzz` and standalone (file path or stdin).
+
+Two binaries get built — same source, different toolchain:
+
+| Path                                              | Toolchain        | When to use                                |
+| ---                                               | ---              | ---                                        |
+| `build/tools/afl/sol_afl_diff_runner`             | host gcc         | one-off check on a single `.sol`; reproducing crashes |
+| `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`    |
+
+```bash
+# One-time setup. AFL++ must be installed (apt install afl++ on Debian/Ubuntu).
+tools/afl/build_instrumented.sh         # builds build_afl/sol_afl_diff_runner (instrumented)
+tools/afl/fetch_realworld.sh            # clones ~15 real-world projects (~200 MB)
+tools/afl/build_corpus.sh               # writes corpus_afl/ (~8700 files from solidity/test + realworld)
+
+# Launch — coverage-guided AFL++ campaign:
+tools/afl/run_afl.sh                    # writes findings_afl/
+
+# Sanity-check a single file (host binary, fast):
+build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
+
+# Replay an AFL crash:
+build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
+# Or human-readable diff:
+build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
+```
+
+Optional AST-aware mutator (`afl-ts`, see [nowarp/afl-ts](https://github.com/nowarp/afl-ts)) significantly improves throughput vs byte-level mutation:
+```bash
+AFL_TS_LIB=/path/to/libafl_ts.so tools/afl/run_afl.sh
+```
+
+See [tools/afl/README.md](tools/afl/README.md) for details on the harness, corpus, mutator integration, and follow-up TODOs.
+
 ## Running Debug Systems
 
 ```bash
