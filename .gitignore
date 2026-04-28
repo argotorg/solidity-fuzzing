@@ -28,3 +28,4 @@ fuzz-*.log
 /corpus_afl
 /findings_afl
 /realworld_cache
+/my_run
