@@ -80,6 +80,26 @@ Corpuses are currently stored here: https://github.com/msooseth/solidity-fuzzing
 ./build/yul_debug_runner crash.yul
 ```
 
+### Replaying a Yul single-pass crash corpus
+
+`run_s_crash.py` walks a corpus of `crash-<hash>` protobuf inputs produced by
+one of the `yul_proto_ossfuzz_evmone_single_pass_<pass>` fuzzers, dumps each
+to Yul (`crash-<hash>.yul`) and replays it through `yul_debug_runner` with the
+matching single-step optimizer sequence, capturing the full verbose output to
+`crash-<hash>.out` next to the input.
+
+```bash
+# Process s_crash/ (the default for pass 's'):
+./run_s_crash.py -p s
+
+# Other passes (binary must exist under build_ossfuzz/tools/ossfuzz/):
+./run_s_crash.py -p c
+./run_s_crash.py -p L --crash-dir my_corpus
+```
+
+Valid pass abbreviations: `c S L M s r D` (see CLAUDE.md for the matching
+binaries). Both build trees must be present.
+
 ## More documentation
 
 Please see [here](tools/ossfuzz/README.md) for the list of all the
