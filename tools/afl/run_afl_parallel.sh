@@ -44,8 +44,9 @@ done
 (( JOBS >= 1 )) || JOBS=1
 FINDINGS="${FINDINGS:-$REPO_ROOT/findings_afl}"
 
-# Pre-flight (same checks as run_afl.sh, plus tmux).
-command -v tmux >/dev/null 2>&1 || { echo "ERROR: tmux not in PATH." >&2; exit 1; }
+# Pre-flight (same checks as run_afl.sh, plus tmux + watch for the dashboard).
+command -v tmux  >/dev/null 2>&1 || { echo "ERROR: tmux not in PATH." >&2; exit 1; }
+command -v watch >/dev/null 2>&1 || { echo "ERROR: watch not in PATH (procps-ng package)." >&2; exit 1; }
 [[ -x "$HARNESS"      ]] || { echo "ERROR: harness missing: $HARNESS"        >&2; echo "  tools/afl/build_instrumented.sh" >&2; exit 1; }
 [[ -d "$CORPUS"       ]] || { echo "ERROR: corpus dir missing: $CORPUS"      >&2; echo "  tools/afl/build_corpus.sh"        >&2; exit 1; }
 [[ -x "$AFL_FUZZ_BIN" ]] || { echo "ERROR: afl-fuzz missing: $AFL_FUZZ_BIN"  >&2; echo "  make -C build aflplusplus"        >&2; exit 1; }
@@ -101,11 +102,21 @@ build_pane_cmd() {
     echo "cd '$REPO_ROOT' && env$env_str '$AFL_FUZZ_BIN' $instance_args ${COMMON_FLAGS[*]} -- '$HARNESS' @@; echo; echo '[afl-fuzz exited — Ctrl-D to close pane]'; bash"
 }
 
-# Pane 0 — main fuzzer (deterministic + havoc, default schedule).
-MAIN_CMD=$(build_pane_cmd "-M main" "")
-tmux new-session -d -s "$SESSION" -n fuzz "$MAIN_CMD"
+# Top-of-session dashboard pane: `watch afl-whatsup` gives a live
+# aggregate view (execs/sec across all fuzzers, paths, crashes, hangs)
+# that AFL++ doesn't otherwise provide — afl-fuzz's per-process TUI only
+# shows that one process. Refreshes every 5 s.
+AFL_WHATSUP="${AFL_FUZZ_BIN%/*}/afl-whatsup"
+DASHBOARD_CMD="while [[ ! -d '$FINDINGS' ]] || [[ -z \"\$(ls -A '$FINDINGS' 2>/dev/null)\" ]]; do sleep 1; done; watch -n 5 -t '$AFL_WHATSUP' -d '$FINDINGS'"
 
-# Panes 1..JOBS-1 — secondaries, each with a rotated profile.
+# Pane 0 — dashboard.
+tmux new-session -d -s "$SESSION" -n fuzz "$DASHBOARD_CMD"
+
+# Pane 1 — main fuzzer (deterministic + havoc, default schedule).
+MAIN_CMD=$(build_pane_cmd "-M main" "")
+tmux split-window -t "$SESSION:fuzz" "$MAIN_CMD"
+
+# Panes 2..JOBS — secondaries, each with a rotated profile.
 for ((i=1; i<JOBS; i++)); do
     profile_idx=$(( (i - 1) % ${#SECONDARY_PROFILES[@]} ))
     profile="${SECONDARY_PROFILES[$profile_idx]}"
