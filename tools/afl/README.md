@@ -98,6 +98,37 @@ AFL_TS_LIB=/path/to/libafl_ts.so tools/afl/run_afl.sh
 `run_afl.sh` automatically sets `AFL_CUSTOM_MUTATOR_ONLY=1` when afl-ts is
 loaded, disabling byte-level mutation per nowarp.io's guidance.
 
+### Parallel fuzzing
+
+`run_afl.sh` currently launches **one** `afl-fuzz` instance — single core. To
+scale across cores, run AFL++'s standard 1-main + N-1-secondary pattern; all
+instances share the same `findings_afl/` directory and AFL++ syncs newly-
+discovered corpus entries between them automatically.
+
+```bash
+# Terminal 1 — main fuzzer (deterministic + havoc).
+afl-fuzz -M main -i corpus_afl -o findings_afl -t 2000 -m none \
+    -- build_afl/tools/afl/sol_afl_diff_runner @@
+
+# Terminals 2..N — secondaries (havoc-only). Vary env vars across them so
+# different mutation strategies hit different paths:
+AFL_DISABLE_TRIM=1     afl-fuzz -S sec1 -i corpus_afl -o findings_afl ...
+AFL_KEEP_TIMEOUTS=1    afl-fuzz -S sec2 -i corpus_afl -o findings_afl ...
+AFL_EXPAND_HAVOC_NOW=1 afl-fuzz -S sec3 -i corpus_afl -o findings_afl ...
+AFL_CMPLOG_ONLY_NEW=1  afl-fuzz -S sec4 -i corpus_afl -o findings_afl ...
+```
+
+`afl-whatsup findings_afl` gives a live aggregate view across all instances
+(execs/sec, paths, crashes, etc.).
+
+When using afl-ts as a custom mutator, set `AFL_TS_LIB` and
+`AFL_CUSTOM_MUTATOR_ONLY=1` on every secondary — they don't inherit the env
+from each other.
+
+A `-j N` flag for `run_afl.sh` that spawns tmux panes for 1 main + N-1
+secondaries (matching `tools/ossfuzz/README.md`'s parallel pattern) is on
+the follow-up list below.
+
 ## Follow-ups (intentionally out of scope for the first cut)
 
 - **Instrument evmone too.** Currently evmone is built with stock clang
@@ -107,6 +138,11 @@ loaded, disabling byte-level mutation per nowarp.io's guidance.
   (a) wait for AFL++ to fix the wrapper; (b) switch evmone to a static
   archive linked directly into the harness, bypassing the shared-lib link
   path entirely (also drops the dlopen + RPATH dance — cleaner long-term).
+
+- **`-j N` parallel launcher.** Extend `run_afl.sh` to spawn 1 main + N-1
+  secondaries in a `tmux` session, varying the AFL++ env vars listed
+  above across secondaries. Matches the parallel pattern documented in
+  `tools/ossfuzz/README.md` for single-pass yul fuzzing.
 
 - **Persistent mode.** Add the `__AFL_LOOP(N)` loop around the harness body
   so each forked instance handles many inputs. ~10× iteration speed-up vs
