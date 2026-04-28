@@ -97,25 +97,51 @@ AFL_TS_LIB= tools/afl/run_afl.sh
 
 ### One-time system setup
 
-AFL++ insists on a particular kernel `core_pattern` so it can detect
-crashes reliably:
+AFL++ has two pre-flight checks that fail by default on most modern Linux
+distros:
+
+**1. Kernel `core_pattern` must not pipe to a coredump handler.** Required
+(no opt-out for real campaigns):
 
 ```bash
 echo core | sudo tee /proc/sys/kernel/core_pattern
 ```
 
-(Or `AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1` if you accept that some
-crashes will be misclassified as hangs. Not recommended for real campaigns.)
+**2. CPU governor should be `performance`.** Both `run_afl.sh` and
+`run_afl_parallel.sh` set `AFL_SKIP_CPUFREQ=1` so AFL++ proceeds with
+whatever governor you have, but for ~5-10% throughput improvement on a
+real campaign:
 
-`afl-fuzz` will refuse to start until the kernel setting is `core` or
-`/dev/null`.
+```bash
+sudo cpupower frequency-set -g performance
+# Restore later with: sudo cpupower frequency-set -g schedutil   (or whatever you had)
+```
 
 ### Parallel fuzzing
 
-`run_afl.sh` currently launches **one** `afl-fuzz` instance — single core. To
-scale across cores, run AFL++'s standard 1-main + N-1-secondary pattern; all
-instances share the same `findings_afl/` directory and AFL++ syncs newly-
-discovered corpus entries between them automatically.
+AFL++ has no built-in `-j N` flag — parallelism means *N separate
+afl-fuzz processes* sharing one `-o` directory (corpus syncs
+automatically). For one-command multi-core use:
+
+```bash
+tools/afl/run_afl_parallel.sh                 # auto: nproc - 1 cores
+tools/afl/run_afl_parallel.sh -j 8            # specific core count
+tools/afl/run_afl_parallel.sh -j 8 my_run     # custom findings dir
+```
+
+This spawns 1 main + (N-1) secondaries in a tmux session named `solfuzz`.
+Each pane has its own afl-fuzz instance with afl-ts loaded; secondaries
+rotate through different power schedules + AFL++ behaviour flags so cores
+explore different paths instead of duplicating work.
+
+```bash
+tmux attach -t solfuzz                        # watch the panes
+AFLplusplus/afl-whatsup findings_afl          # aggregate status
+tmux kill-session -t solfuzz                  # stop the campaign
+```
+
+If you'd rather drive the processes by hand, the manual recipe is below
+— `run_afl_parallel.sh` does exactly this for you.
 
 Every `afl-fuzz` invocation needs the afl-ts env vars (they don't inherit
 between instances) and uses the vendored binary. Set the env once per

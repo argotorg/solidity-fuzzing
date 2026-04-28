@@ -78,6 +78,14 @@ else
     echo "afl-ts disabled (AFL_TS_LIB empty) — using AFL++'s built-in mutators."
 fi
 
+# Skip the CPU-governor check. AFL++ refuses to start unless the governor
+# is "performance"; our default is "schedutil" / "powersave" on most distros.
+# The proper fix is `sudo cpupower frequency-set -g performance` (~5% speedup);
+# absent that, skip-the-check lets fuzzing run at the cost of slightly noisier
+# timing. AFL_SKIP_CRASHES=0 (default) is fine — the core_pattern note in the
+# README is the only real prereq.
+AFL_TS_ENV+=("AFL_SKIP_CPUFREQ=1")
+
 mkdir -p "$FINDINGS"
 
 # Flags:
