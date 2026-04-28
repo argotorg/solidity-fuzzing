@@ -26,8 +26,11 @@ that work was crash-only (find ICEs), this is differential (also catches
 silent miscompiles between optimiser configurations).
 
 ```bash
-# 1. Build the harness (host build tree, not build_ossfuzz/).
-cd build && cmake .. -DCMAKE_BUILD_TYPE=Release ... && make -j$(nproc) sol_afl_diff_runner
+# 1. Build the AFL-instrumented harness in build_afl/ (separate from the
+#    regular build/ tree). Uses afl-clang-fast for libsolc + harness;
+#    evmone is built with stock clang as a workaround for an AFL++ wrapper
+#    bug — solc gets full coverage feedback, evmone does not.
+tools/afl/build_instrumented.sh
 
 # 2. (Optional) Pull real-world Solidity projects into realworld_cache/
 #    — OpenZeppelin, Aave, Solady, Uniswap v3/v4, Safe, ENS, etc. Adds
@@ -40,9 +43,19 @@ tools/afl/fetch_realworld.sh
 tools/afl/build_corpus.sh                         # writes corpus_afl/
 # or: MAX_BYTES=8192 tools/afl/build_corpus.sh    # smaller cap
 
-# 4. Launch AFL++.
+# 4. Launch AFL++ (coverage-guided — instrumented binary at build_afl/).
 tools/afl/run_afl.sh                              # writes findings_afl/
 ```
+
+The repo now has three parallel build trees, one per toolchain:
+
+| Tree              | Compiler            | Used for                                |
+| ---               | ---                 | ---                                     |
+| `build/`          | host gcc/clang      | `solc`, debug runners, reproducing      |
+| `build_afl/`      | `afl-clang-fast`    | this AFL workflow                        |
+| `build_ossfuzz/`  | clang+libc++ (Docker) | OSS-Fuzz / libFuzzer fuzzers          |
+
+They never share object files. You can rebuild any one without touching the others.
 
 When `run_afl.sh` finds a crash, the offending input lands in
 `findings_afl/default/crashes/`. Replay it directly:
@@ -85,18 +98,15 @@ AFL_TS_LIB=/path/to/libafl_ts.so tools/afl/run_afl.sh
 `run_afl.sh` automatically sets `AFL_CUSTOM_MUTATOR_ONLY=1` when afl-ts is
 loaded, disabling byte-level mutation per nowarp.io's guidance.
 
-### Mode currently shipped
-
-The harness binary is **not yet instrumented** with `afl-clang-fast`, so
-AFL++ runs in dumb mode (`-n`). That still finds bugs (afl-ts mutations are
-grammar-driven, not coverage-driven), but coverage feedback would
-substantially improve hit rates. See follow-ups below.
-
 ## Follow-ups (intentionally out of scope for the first cut)
 
-- **Instrumented build.** Recompile `libsolc` + `libevmone` + the harness
-  itself with `afl-clang-fast` so AFL++ gets edge coverage feedback. Drop
-  the `-n` flag from `run_afl.sh`. Largest expected throughput win.
+- **Instrument evmone too.** Currently evmone is built with stock clang
+  because the `afl-clang-fast++` wrapper double-wraps `-Wl,-soname,...`
+  when linking shared libs (cmake 3.27+ × AFL++ interaction). solc IS
+  instrumented, so most bugs we hunt are still findable. Two ways forward:
+  (a) wait for AFL++ to fix the wrapper; (b) switch evmone to a static
+  archive linked directly into the harness, bypassing the shared-lib link
+  path entirely (also drops the dlopen + RPATH dance — cleaner long-term).
 
 - **Persistent mode.** Add the `__AFL_LOOP(N)` loop around the harness body
   so each forked instance handles many inputs. ~10× iteration speed-up vs

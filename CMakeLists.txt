@@ -58,6 +58,24 @@ set(TESTCASEREADER_CPP ${CMAKE_SOURCE_DIR}/solidity/test/TestCaseReader.cpp)
 # Runners load libevmone.so at runtime via dlopen. We build evmone as an
 # external project and bake its lib directory into the runners' RPATH so
 # LD_LIBRARY_PATH is not needed.
+#
+# Compiler-for-evmone workaround: when the *outer* build uses afl-clang-fast,
+# we still build evmone with stock clang. The afl-clang-fast++ wrapper
+# mishandles cmake's shared-library link line (-Wl,-soname,... reaches the
+# linker un-rewritten). Stock clang links it cleanly. Trade-off is no AFL
+# instrumentation inside evmone — acceptable because most bugs we hunt live
+# in solc, and the differential oracle still catches miscompiles regardless
+# of whether evmone has coverage feedback. Revisit when AFL++ fixes the
+# wrapper.
+if (CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
+    find_program(EVMONE_C_COMPILER clang REQUIRED)
+    find_program(EVMONE_CXX_COMPILER clang++ REQUIRED)
+    message(STATUS "AFL build detected: building evmone with ${EVMONE_CXX_COMPILER} (workaround)")
+else()
+    set(EVMONE_C_COMPILER ${CMAKE_C_COMPILER})
+    set(EVMONE_CXX_COMPILER ${CMAKE_CXX_COMPILER})
+endif()
+
 if (NOT EVMONE_LIB_DIR)
     if (EXISTS "${CMAKE_SOURCE_DIR}/evmone/CMakeLists.txt")
         include(ExternalProject)
@@ -67,8 +85,8 @@ if (NOT EVMONE_LIB_DIR)
             BINARY_DIR "${EVMONE_BUILD_DIR}"
             CMAKE_ARGS
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                -DCMAKE_C_COMPILER=${EVMONE_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${EVMONE_CXX_COMPILER}
                 -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                 -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                 -DEVMONE_TESTING=OFF

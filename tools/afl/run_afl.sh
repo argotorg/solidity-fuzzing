@@ -34,7 +34,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HARNESS="$REPO_ROOT/build/tools/afl/sol_afl_diff_runner"
+HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/sol_afl_diff_runner}"
 CORPUS="${CORPUS:-$REPO_ROOT/corpus_afl}"
 FINDINGS="${1:-$REPO_ROOT/findings_afl}"
 AFL_FUZZ_BIN="${AFL_FUZZ_BIN:-afl-fuzz}"
@@ -42,7 +42,8 @@ AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-2000}"
 
 if [[ ! -x "$HARNESS" ]]; then
     echo "ERROR: harness not found at $HARNESS" >&2
-    echo "  Build first: cd build && make -j\$(nproc) sol_afl_diff_runner" >&2
+    echo "  Build first: tools/afl/build_instrumented.sh" >&2
+    echo "  (or set HARNESS=path/to/uninstrumented/binary and add -n to run dumb-mode)" >&2
     exit 1
 fi
 if [[ ! -d "$CORPUS" ]] || [[ -z "$(ls -A "$CORPUS" 2>/dev/null)" ]]; then
@@ -82,9 +83,6 @@ fi
 mkdir -p "$FINDINGS"
 
 # Flags:
-#   -n          dumb mode — required because the harness isn't instrumented
-#               with afl-clang-fast yet. Drop this once we ship an
-#               instrumented build.
 #   -t <ms>     per-input timeout. Compiler frontends are slow; default
 #               1000ms timeouts are too tight.
 #   -m none     no memory cap. solc + evmone allocate aggressively.
@@ -99,5 +97,4 @@ exec env "${AFL_TS_ENV[@]}" \
         -o "$FINDINGS" \
         -t "$AFL_TIMEOUT_MS" \
         -m none \
-        -n \
         -- "$HARNESS" @@
