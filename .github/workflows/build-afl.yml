@@ -1,0 +1,99 @@
+name: Build AFL
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-afl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ccache pkg-config libboost-all-dev \
+            clang lld llvm llvm-dev
+
+      # afl-ts needs libtree-sitter v0.25+ (ABI 15). Ubuntu's
+      # libtree-sitter-dev lags behind, so build it from source.
+      - name: Cache libtree-sitter install
+        id: cache-tree-sitter
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/libtree-sitter.*
+          key: tree-sitter-0.25.6-${{ runner.os }}
+
+      - name: Build libtree-sitter v0.25.6 from source
+        if: steps.cache-tree-sitter.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 -b v0.25.6 https://github.com/tree-sitter/tree-sitter /tmp/tree-sitter
+          make -C /tmp/tree-sitter -j$(nproc)
+          sudo make -C /tmp/tree-sitter install
+          sudo ldconfig
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-ubuntu-afl-${{ github.sha }}
+          restore-keys: ccache-ubuntu-afl-
+
+      # The host build also drives the three external projects:
+      # AFLplusplus, afl-ts, tree-sitter-solidity. So a plain `make` here
+      # produces afl-clang-fast, libts.so, libtree-sitter-solidity.so plus
+      # the (uninstrumented) harness in build/.
+      - name: Build host tree (also builds AFL++, afl-ts, grammar)
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" ..
+          make -j$(nproc) sol_afl_diff_runner aflplusplus afl_ts tree_sitter_solidity
+
+      - name: Verify external artefacts present
+        run: |
+          test -x AFLplusplus/afl-fuzz                                || { echo "afl-fuzz missing"; exit 1; }
+          test -x AFLplusplus/afl-clang-fast++                        || { echo "afl-clang-fast++ missing"; exit 1; }
+          test -f afl-ts/libts.so                                     || { echo "libts.so missing"; exit 1; }
+          test -f tree-sitter-solidity/libtree-sitter-solidity.so     || { echo "grammar .so missing"; exit 1; }
+
+      # The instrumented build uses AFLplusplus/afl-clang-fast{,++} as the
+      # compiler and writes to build_afl/. evmone is built with stock clang
+      # (workaround for an AFL++ wrapper bug — see CMakeLists.txt comment).
+      - name: Build AFL-instrumented harness
+        run: tools/afl/build_instrumented.sh
+
+      - name: Verify harness is AFL-instrumented
+        run: |
+          test -x build_afl/tools/afl/sol_afl_diff_runner || { echo "harness missing"; exit 1; }
+          # afl-clang-fast injects __afl_* symbols. If they're absent the
+          # binary will run dumb-mode under afl-fuzz — silently degraded.
+          if ! nm build_afl/tools/afl/sol_afl_diff_runner | grep -q __afl_area_ptr; then
+            echo "ERROR: harness has no __afl_ symbols — instrumentation failed"
+            exit 1
+          fi
+
+      - name: Smoke-test harness on a known-good source
+        run: |
+          cat > /tmp/smoke.sol <<'EOF'
+          // SPDX-License-Identifier: GPL-3.0
+          pragma solidity >=0.8.0;
+          contract C {
+              uint256 public x;
+              function test() public returns (uint256) {
+                  for (uint256 i = 0; i < 5; i++) x += i;
+                  return x;
+              }
+          }
+          EOF
+          # Both binaries should run cleanly: 0 = no diff, anything else = failure.
+          build/tools/afl/sol_afl_diff_runner       /tmp/smoke.sol
+          build_afl/tools/afl/sol_afl_diff_runner   /tmp/smoke.sol
