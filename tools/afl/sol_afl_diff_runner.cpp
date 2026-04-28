@@ -53,6 +53,7 @@
 #include <libsolutil/Keccak256.h>
 #include <libsolutil/CommonData.h>
 #include <libsolutil/CommonIO.h>
+#include <libsolutil/JSON.h>
 
 #include <cstring>
 #include <iostream>
@@ -127,6 +128,10 @@ static RunResult runOnce(
 	catch (evmasm::StackTooDeepException const&)       { return skip(); }
 	catch (yul::YulAssertion const&)                   { return skip(); }
 	catch (yul::YulException const&)                   { return skip(); }
+	// afl-ts ts-chaos can produce non-UTF-8 input bytes; solidity uses
+	// nlohmann::json internally and throws on malformed UTF-8. Not a solc
+	// bug — treat as a normal compile failure.
+	catch (Json::exception const&)                     { return skip(); }
 
 	if (!compOut.has_value() || compOut->byteCode.empty())
 		return skip();
