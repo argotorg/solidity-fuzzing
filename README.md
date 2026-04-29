@@ -4,6 +4,22 @@ Fuzzing infrastructure for the [Solidity
 compiler](https://github.com/argotorg/solidity). Contains OSS-Fuzz harnesses,
 fuzzers, and debug runners to debug & reproduce findings.
 
+## Three workflows, three build trees
+
+The repo supports three independent fuzzing workflows. Each uses its own
+toolchain and its own out-of-tree build directory; they never share object
+files, so you can rebuild any one without touching the others.
+
+| Tree             | Compiler                  | Workflow / artefacts                                                                |
+| ---              | ---                       | ---                                                                                 |
+| `build/`         | host gcc/clang            | `solc`, debug runners (`sol_debug_runner`, `yul_debug_runner`), host AFL harness — for reproducing crashes |
+| `build_ossfuzz/` | clang + libc++ (in Docker) | OSS-Fuzz libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
+| `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`) with edge-coverage instrumentation |
+
+The fuzz build **must** go through Docker — libFuzzer + MemorySanitizer
+require an instrumented libc++ that only the OSS-Fuzz Docker image
+ships. Sections below cover each tree in turn.
+
 ## Cloning and Setup
 
 ```bash
@@ -93,7 +109,7 @@ regular host build doesn't).
 
 ```bash
 # Build solc + host harness + grammar.
-mkdir build && cd build && cmake .. && make -j$(nproc) && cd ..
+mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd ..
 # Build the AFL toolchain (~minutes; needs clang + llvm-dev + libtree-sitter-dev v0.25+).
 make -C build -j$(nproc) aflplusplus afl_ts
 
@@ -118,6 +134,20 @@ build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
 # Or human-readable diff:
 build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
 ```
+
+If `build_instrumented.sh` fails with `clang++: error: unknown argument:
+'--dependency-file=...'` (or you otherwise see it linking `libevmone.so`
+instead of `libevmone-standalone.a`), `build_afl/` has stale state from a
+prior configure — the inner evmone ExternalProject keeps its own
+`CMakeCache.txt` and won't re-configure on a parent rerun. Nuke and rebuild:
+
+```bash
+rm -rf build_afl
+tools/afl/build_instrumented.sh
+```
+
+Minimal version if you'd rather not rebuild solidity from scratch:
+`rm -rf build_afl/evmone-build build_afl/evmone_external-prefix`.
 
 See [tools/afl/README.md](tools/afl/README.md) for details on the harness, corpus, mutator integration, and follow-up TODOs.
 

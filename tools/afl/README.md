@@ -25,48 +25,15 @@ post](https://nowarp.io/blog/compiler-testing-part-1/), with two changes:
 that work was crash-only (find ICEs), this is differential (also catches
 silent miscompiles between optimiser configurations).
 
-```bash
-# 1. Build the AFL-instrumented harness in build_afl/ (separate from the
-#    regular build/ tree). Uses afl-clang-fast for libsolc, evmone, and
-#    the harness — all three get coverage feedback. Evmone is built as a
-#    static archive (libevmone-standalone.a) and linked directly into the
-#    harness, sidestepping an afl-clang-fast++ wrapper bug that mangles
-#    -Wl,-soname when linking shared libs.
-tools/afl/build_instrumented.sh
-
-# 2. (Optional) Pull real-world Solidity projects into realworld_cache/
-#    — OpenZeppelin, Aave, Solady, Uniswap v3/v4, Safe, ENS, etc. Adds
-#    ~1800 contracts on top of the ~6800 from solidity/test/. Only needed
-#    once; idempotent on re-run.
-tools/afl/fetch_realworld.sh
-
-# 3. Build the seed corpus. Always reads solidity/test/; also reads
-#    realworld_cache/ if it exists.
-tools/afl/build_corpus.sh                         # writes corpus_afl/
-# or: MAX_BYTES=8192 tools/afl/build_corpus.sh    # smaller cap
-
-# 4. Launch AFL++ (coverage-guided — instrumented binary at build_afl/).
-tools/afl/run_afl.sh                              # writes findings_afl/
-```
-
-The repo now has three parallel build trees, one per toolchain:
-
-| Tree              | Compiler            | Used for                                |
-| ---               | ---                 | ---                                     |
-| `build/`          | host gcc/clang      | `solc`, debug runners, reproducing      |
-| `build_afl/`      | `afl-clang-fast`    | this AFL workflow                        |
-| `build_ossfuzz/`  | clang+libc++ (Docker) | OSS-Fuzz / libFuzzer fuzzers          |
-
-They never share object files. You can rebuild any one without touching the others.
-
-When `run_afl.sh` finds a crash, the offending input lands in
-`findings_afl/default/crashes/`. Replay it directly:
-
-```bash
-build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
-# Or use the existing debug runner for human-readable diff output:
-build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
-```
+See [the main README](../../README.md#running-the-afl-differential-fuzzer)
+for build / corpus / launch commands and troubleshooting. Three build
+trees coexist (`build/` host gcc, `build_afl/` afl-clang-fast,
+`build_ossfuzz/` Docker clang+libc++) and never share object files —
+rebuild any one without touching the others. The AFL build instruments
+libsolc, evmone, and the harness; evmone is built as a static archive
+(`libevmone-standalone.a`) and linked directly to sidestep an
+afl-clang-fast++ wrapper bug that mangles `-Wl,-soname` when linking
+shared libs.
 
 ### Vendored toolchain — everything's a submodule
 

@@ -92,6 +92,11 @@ if (NOT EVMONE_LIB_DIR)
                 -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                 -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                 -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                # Propagate the cmake 3.27+ × AFL++ depfile workaround: cmake passes
+                # -Wl,--dependency-file=... at link time; afl-clang-fast++ doesn't
+                # unwrap it cleanly and clang errors with "unknown argument".
+                -DCMAKE_C_LINKER_DEPFILE_SUPPORTED=${CMAKE_C_LINKER_DEPFILE_SUPPORTED}
+                -DCMAKE_CXX_LINKER_DEPFILE_SUPPORTED=${CMAKE_CXX_LINKER_DEPFILE_SUPPORTED}
                 ${EVMONE_BUILD_SHARED_ARG}
                 -DEVMONE_TESTING=OFF
             INSTALL_COMMAND ""
