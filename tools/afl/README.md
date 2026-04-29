@@ -251,6 +251,36 @@ Rule of thumb on the resulting times:
 - `2–10 s`: slow optimiser path. Worth a glance, rarely a real bug.
 - `> 30 s` (timeout cap): potential DoS. Worth filing.
 
+#### Profiling a slow input with solc directly
+
+If `perf record` on the harness shows the time is in the compiler (not in
+evmone or the diff oracle), reproduce the same compilation pipeline with
+the standalone `solc` — easier to attach a profiler to, and isolates the
+slowdown from the deploy/call/diff path. The harness compiles each input
+twice with `viaIR=false`, EVM version `current()`, once with
+`OptimiserSettings::minimal()` and once with `OptimiserSettings::standard()`:
+
+```bash
+# fast leg (minimal — usually not the culprit):
+time build/solidity/solc/solc --bin --evm-version prague <hang-file>
+
+# slow leg (standard — almost certainly where the time goes):
+time build/solidity/solc/solc --bin --optimize --evm-version prague <hang-file>
+```
+
+Caveats so the comparison is honest:
+- `EVMVersion::current()` in the harness is the newest version solc knows
+  about; solc CLI's default is usually one or two behind. Check
+  `solc --help | grep -A1 evm-version` and pass that value explicitly.
+- `viaIR=false` is the CLI default — do **not** pass `--via-ir`.
+- The harness picks only the last contract (`lastContractName()`); the CLI
+  compiles every contract. If the file has many contracts, strip all but
+  the last for an apples-to-apples comparison.
+- `--optimize-runs` defaults to 200, which matches what
+  `OptimiserSettings::standard()` uses — no need to tune it.
+- If the input is `> 16 KB` the harness exits early
+  (`s_maxSourceBytes` in `sol_afl_diff_runner.cpp`); solc has no such cap.
+
 #### Minimising a real reproducer
 
 When a crash reproduces, shrink it with `afl-tmin` before filing:
