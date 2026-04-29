@@ -194,6 +194,81 @@ A `-j N` flag for `run_afl.sh` that spawns tmux panes for 1 main + N-1
 secondaries (matching `tools/ossfuzz/README.md`'s parallel pattern) is on
 the follow-up list below.
 
+### Triaging crashes and hangs
+
+Crashes land in `findings_afl/<fuzzer>/crashes/`, hangs in
+`findings_afl/<fuzzer>/hangs/`. Both follow the AFL++ filename convention:
+
+```
+id:000003,sig:06,src:000523,time:18342,execs:128193,op:havoc,rep:8
+```
+
+`sig:06` = SIGABRT, the only signal the harness raises (one of the
+`solAssert`s in the diff oracle fired).
+
+#### Replaying a crash
+
+Use the host binary — smaller, faster, prints stderr cleanly:
+
+```bash
+build/tools/afl/sol_afl_diff_runner findings_afl/sec1/crashes/id:000003,...
+echo "exit=$?"   # 134 = SIGABRT (real diff); 0 = no longer reproduces
+```
+
+To group crashes by which assertion fired (status / output / logs /
+storage / transient / revert data) — useful because AFL syncs the same
+crash across secondaries so 9 files often = 1 unique bug:
+
+```bash
+for f in findings_afl/*/crashes/id:*; do
+    { build/tools/afl/sol_afl_diff_runner "$f"; } 2>&1 \
+        | grep "Sol AFL diff fuzzer" | head -1
+done | sort | uniq -c | sort -rn
+```
+
+#### Hangs are inputs that exceeded `-t 2000`
+
+A "hang" doesn't mean an infinite loop — it means **the harness took
+longer than the 2-second timeout**. AFL measures against a calibration
+baseline taken at fuzzer startup; under varying system load the baseline
+drifts, so many hangs don't reproduce when re-run solo. Pathological
+inputs (genuine DoS candidates) DO reproduce and are visibly slow.
+
+To time every hang and find the genuinely slow ones:
+
+```bash
+for f in findings_afl/*/hangs/id:*; do
+    elapsed=$( { /usr/bin/time -f '%e' \
+                  timeout 30 build/tools/afl/sol_afl_diff_runner "$f" \
+                    >/dev/null 2>&1; } 2>&1 )
+    sz=$(stat -c%s "$f")
+    printf "%6s s   %6d B   %s\n" "$elapsed" "$sz" "$(basename "$f")"
+done | sort -rn | head -10
+```
+
+Rule of thumb on the resulting times:
+- `< 2 s`: borderline, was timing-sensitive. Ignore unless reproducible.
+- `2–10 s`: slow optimiser path. Worth a glance, rarely a real bug.
+- `> 30 s` (timeout cap): potential DoS. Worth filing.
+
+#### Minimising a real reproducer
+
+When a crash reproduces, shrink it with `afl-tmin` before filing:
+
+```bash
+AFLplusplus/afl-tmin \
+    -i findings_afl/sec1/crashes/id:000003,... \
+    -o min.sol \
+    -- build_afl/tools/afl/sol_afl_diff_runner @@
+build/tools/runners/sol_debug_runner min.sol     # human-readable diff
+```
+
+Note `sol_debug_runner` hardcodes the contract name `C` (the proto fuzzer
+always emits `contract C { ... }`). If your crash input names its
+contract differently, rename it to `C` before passing to the debug
+runner; `sol_afl_diff_runner` itself uses `lastContractName` and works
+on any name.
+
 ## Follow-ups (intentionally out of scope for the first cut)
 
 - **Instrument evmone too.** Currently evmone is built with stock clang
