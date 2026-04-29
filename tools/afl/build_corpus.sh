@@ -144,3 +144,61 @@ echo "Wrote $added files to $OUT"
 echo "  Skipped (size > $MAX_BYTES or empty):   $skipped_size"
 echo "  Skipped (duplicate content):            $skipped_dup"
 echo "  Skipped (oracle-unsafe gas/msize/pc):   $skipped_oracle"
+
+# --- Seed a fraction of entries with the region-aware input format used
+# by the patched afl-ts. The format `[source][calldata][u16 LE source_len][0xCA 0xFE]`
+# tells the patched afl-ts to mutate only the source slice via tree-sitter,
+# leaving calldata + trailer for AFL's regular havoc / bit-flipping. Plain
+# entries (no trailer) remain valid — the harness falls back to keccak-
+# derived calldata. Set SEED_CALLDATA_COUNT=0 to skip this step.
+SEED_CALLDATA_COUNT="${SEED_CALLDATA_COUNT:-200}"
+if (( SEED_CALLDATA_COUNT > 0 )); then
+    python3 - "$OUT" "$SEED_CALLDATA_COUNT" <<'PYEOF'
+import os, random, struct, sys
+
+out_dir, n = sys.argv[1], int(sys.argv[2])
+
+# Common ERC-style function selectors. Adding a real selector to the
+# calldata seeds gives the deployed dispatcher a non-trivial chance of
+# routing into a real method on the first execution; AFL's byte-mutation
+# then explores the argument bytes from there.
+selectors = [bytes.fromhex(s) for s in [
+    "a9059cbb",  # transfer(address,uint256)
+    "70a08231",  # balanceOf(address)
+    "18160ddd",  # totalSupply()
+    "095ea7b3",  # approve(address,uint256)
+    "23b872dd",  # transferFrom(address,address,uint256)
+    "40c10f19",  # mint(address,uint256)
+    "a0712d68",  # mint(uint256)
+    "d0e30db0",  # deposit()
+    "2e1a7d4d",  # withdraw(uint256)
+    "06fdde03",  # name()
+    "313ce567",  # decimals()
+    "95d89b41",  # symbol()
+    "fb3bdb41",  # swapETHForExactTokens(...)
+    "00000000",  # fallback / receive trigger
+]]
+
+candidates = sorted(os.listdir(out_dir))
+random.seed(0xcafe)  # Deterministic — same corpus produces same seeds.
+picked = random.sample(candidates, min(n, len(candidates)))
+seeded = 0
+for name in picked:
+    path = os.path.join(out_dir, name)
+    try:
+        src = open(path, 'rb').read()
+    except OSError:
+        continue
+    if not src or len(src) >= 0xffff:
+        continue
+    sel = random.choice(selectors)
+    # Half the entries get all-zero arg bytes (cheap dispatcher cases),
+    # half get random bytes (gives havoc/bit-flipping a non-trivial start).
+    arg = bytes(32) if random.random() < 0.5 else random.randbytes(32)
+    calldata = sel + arg
+    trailer = struct.pack('<H', len(src)) + b'\xca\xfe'
+    open(path, 'wb').write(src + calldata + trailer)
+    seeded += 1
+print(f"  Seeded {seeded} entries with region-aware calldata format.")
+PYEOF
+fi

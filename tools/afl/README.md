@@ -75,8 +75,16 @@ The full AFL++ toolchain plus the AST-aware mutator are vendored:
 | Submodule              | Source                                         | Built artefact                                         |
 | ---                    | ---                                            | ---                                                    |
 | `AFLplusplus/`         | github.com/AFLplusplus/AFLplusplus             | `afl-fuzz`, `afl-clang-fast{,++}`, `afl-cmin`          |
-| `afl-ts/`              | github.com/jubnzv/afl-ts                       | `libts.so` (AFL++ custom-mutator library, AST splice)  |
+| `afl-ts/`              | github.com/msooseth/afl-ts (`region-aware`)    | `libts.so` (AFL++ custom-mutator library, AST splice)  |
 | `tree-sitter-solidity/`| github.com/JoranHonig/tree-sitter-solidity     | `libtree-sitter-solidity.so` (parser; loaded by afl-ts) |
+
+The `afl-ts` submodule is a fork of upstream `jubnzv/afl-ts` carrying one
+patch: when the input ends with the magic suffix `[u16 LE source_len][0xCA 0xFE]`,
+the mutator parses and splices only the leading source slice through
+tree-sitter, leaving the calldata bytes and trailer untouched. AFL's
+regular havoc / bit-flipping then mutates the calldata region freely.
+See [Input format and afl-ts integration](#input-format-and-afl-ts-integration)
+below.
 
 `tree_sitter_solidity` builds as part of the default `make` target (small,
 no extra deps). `aflplusplus` and `afl_ts` are **opt-in** via explicit
@@ -101,6 +109,49 @@ back to byte-level mutation:
 ```bash
 AFL_TS_LIB= tools/afl/run_afl.sh
 ```
+
+### Input format and afl-ts integration
+
+Two input shapes are accepted by `sol_afl_diff_runner`:
+
+**1. Plain Solidity source.** Whole file is treated as Solidity. Calldata
+sent to the deployed contract is `keccak256(source)[:32]` — fixed for a
+given source. This is the original format and existing pure-`.sol`
+corpus entries continue to work unchanged.
+
+**2. Region-aware format** (used together with the patched `afl-ts`):
+
+```
+[ source bytes ][ calldata bytes ][ u16 LE source_len ][ 0xCA 0xFE ]
+```
+
+The trailing `0xCA 0xFE` magic + length prefix tells both the harness
+*and* afl-ts where the source ends. The harness sends the calldata bytes
+to the deployed contract directly. The patched afl-ts (in our fork)
+parses only the leading `source_len` bytes through tree-sitter and
+preserves the trailer verbatim, so AFL's regular havoc / bit-flipping —
+which AFL runs in addition to the custom mutator — naturally mutates
+the calldata region without afl-ts splicing over it.
+
+Net effect on a queue entry that uses the format:
+
+| Mutation pass     | Source bytes      | Calldata + trailer |
+| ---               | ---               | ---                |
+| `afl-ts custom`   | AST splice        | preserved verbatim |
+| AFL deterministic | byte-level havoc  | byte-level havoc   |
+| AFL havoc/splice  | byte-level havoc  | byte-level havoc   |
+
+If AFL deterministic stages happen to flip bits inside the magic itself,
+the format check fails on that exec — the harness falls back to plain
+mode (calldata = keccak256(source)). That's a feature: those flips
+naturally explore the with-calldata / without-calldata axis. Empirically
+~90–97% of queue entries retain an intact trailer.
+
+`tools/afl/build_corpus.sh` seeds `SEED_CALLDATA_COUNT` (default 200)
+random entries with the new format using common ERC-style function
+selectors (`a9059cbb` transfer, `70a08231` balanceOf, etc.) plus 32
+argument bytes. Set `SEED_CALLDATA_COUNT=0` to skip if you want a
+purely pre-existing-shape corpus.
 
 ### One-time system setup
 

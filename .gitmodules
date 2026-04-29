@@ -10,7 +10,8 @@
 	url = https://github.com/JoranHonig/tree-sitter-solidity.git
 [submodule "afl-ts"]
 	path = afl-ts
-	url = https://github.com/jubnzv/afl-ts.git
+	url = https://github.com/msooseth/afl-ts.git
+	branch = region-aware
 [submodule "AFLplusplus"]
 	path = AFLplusplus
 	url = https://github.com/AFLplusplus/AFLplusplus.git

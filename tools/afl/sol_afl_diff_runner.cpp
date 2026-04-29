@@ -80,6 +80,11 @@ static constexpr int64_t s_gasLimit = 1000000;
 /// input, so we still need *some* ceiling — 16 KB is a reasonable trade-off.
 static constexpr size_t s_maxSourceBytes = 16 * 1024;
 
+/// Cap on the calldata region for the region-aware input format. Solidity
+/// calldata in practice is rarely larger than a few KB; 64 KB is a defensive
+/// upper bound that still lets AFL grow the buffer significantly via havoc.
+static constexpr size_t s_maxCalldataBytes = 64 * 1024;
+
 /// Indicates "skip this run" — caller compares two skips as equal so the
 /// outer differential bails cleanly.
 static RunResult skip()
@@ -178,12 +183,38 @@ static RunResult runOnce(
 	};
 }
 
-/// 32 bytes of calldata derived from the source content. Different inputs
-/// exercise different selectors / arguments without AFL having to mutate the
-/// call boundary itself.
-static bytes deriveCalldata(std::string const& _source)
+/// Region-aware input format used together with the patched afl-ts:
+///
+///   [source bytes][calldata bytes][u16 LE source_len][0xCA 0xFE]
+///
+/// When the trailing magic 0xCA 0xFE is present, afl-ts mutates only the
+/// source slice via tree-sitter splice while AFL's regular havoc /
+/// bit-flipping freely mutates the calldata bytes. Inputs without magic
+/// fall back to keccak-derived calldata so the existing pure-Solidity
+/// corpus continues to work unchanged.
+static std::pair<std::string, bytes> splitInput(std::string const& _input)
 {
-	return keccak256(_source).asBytes();
+	if (_input.size() >= 4 &&
+		static_cast<unsigned char>(_input[_input.size() - 2]) == 0xCA &&
+		static_cast<unsigned char>(_input[_input.size() - 1]) == 0xFE)
+	{
+		size_t srcLen =
+			static_cast<unsigned char>(_input[_input.size() - 4]) |
+			(static_cast<size_t>(static_cast<unsigned char>(_input[_input.size() - 3])) << 8);
+		if (srcLen <= _input.size() - 4)
+		{
+			std::string source = _input.substr(0, srcLen);
+			bytes calldata(
+				_input.begin() + static_cast<std::ptrdiff_t>(srcLen),
+				_input.begin() + static_cast<std::ptrdiff_t>(_input.size() - 4)
+			);
+			return {std::move(source), std::move(calldata)};
+		}
+	}
+	// No magic / invalid trailer: treat the whole input as source and
+	// derive 32 calldata bytes from its hash. Same behavior as before
+	// the region-aware format was introduced.
+	return {_input, keccak256(_input).asBytes()};
 }
 
 static std::string readSource(int _argc, char** _argv)
@@ -199,13 +230,17 @@ int main(int argc, char** argv)
 {
 	yul::YulStringRepository::reset();
 
-	std::string source = readSource(argc, argv);
+	std::string input = readSource(argc, argv);
+	if (input.empty() || input.size() > s_maxSourceBytes + s_maxCalldataBytes + 4)
+		return 0;
+	auto [source, calldata] = splitInput(input);
 	if (source.empty() || source.size() > s_maxSourceBytes)
+		return 0;
+	if (calldata.size() > s_maxCalldataBytes)
 		return 0;
 
 	langutil::EVMVersion version = langutil::EVMVersion::current();
 	StringMap sources({{"test.sol", source}});
-	bytes const calldata = deriveCalldata(source);
 
 	OptimiserSettings settingsA = OptimiserSettings::minimal();
 	OptimiserSettings settingsB = OptimiserSettings::standard();
