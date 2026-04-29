@@ -46,11 +46,11 @@ skipped_oracle=0
 # differ across optimiser levels — comparing them in the diff oracle is a
 # false positive ("the optimised code burned different gas").
 #   gasleft( | .gas: | {gas: | tx.gasprice
-#   msize / pc / codesize / gas as Yul opcodes (inside assembly blocks)
+#   gas() / pc() / msize / codesize as Yul opcodes (inside assembly blocks)
 # We filter at the file level (anywhere in the source) — slightly over-
 # inclusive (a Solidity variable named "msize" gets dropped too) but far
 # safer than letting one slip through.
-ORACLE_UNSAFE_REGEX='\bgasleft[[:space:]]*\(|\bmsize\b|\bcodesize\b|\.gas[[:space:]]*:|\{[[:space:]]*gas[[:space:]]*:|tx\.gasprice|\bgasprice\b'
+ORACLE_UNSAFE_REGEX='\bgasleft[[:space:]]*\(|\bgas[[:space:]]*\(|\bpc[[:space:]]*\(|\bmsize\b|\bcodesize\b|\.gas[[:space:]]*:|\{[[:space:]]*gas[[:space:]]*:|tx\.gasprice|\bgasprice\b'
 
 # Path components we never want to walk into. Catches typical JS/Foundry/
 # Hardhat build outputs and re-vendored dependency trees that would just add
