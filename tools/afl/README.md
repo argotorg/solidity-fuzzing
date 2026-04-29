@@ -27,9 +27,11 @@ silent miscompiles between optimiser configurations).
 
 ```bash
 # 1. Build the AFL-instrumented harness in build_afl/ (separate from the
-#    regular build/ tree). Uses afl-clang-fast for libsolc + harness;
-#    evmone is built with stock clang as a workaround for an AFL++ wrapper
-#    bug — solc gets full coverage feedback, evmone does not.
+#    regular build/ tree). Uses afl-clang-fast for libsolc, evmone, and
+#    the harness — all three get coverage feedback. Evmone is built as a
+#    static archive (libevmone-standalone.a) and linked directly into the
+#    harness, sidestepping an afl-clang-fast++ wrapper bug that mangles
+#    -Wl,-soname when linking shared libs.
 tools/afl/build_instrumented.sh
 
 # 2. (Optional) Pull real-world Solidity projects into realworld_cache/
@@ -300,14 +302,6 @@ runner; `sol_afl_diff_runner` itself uses `lastContractName` and works
 on any name.
 
 ## Follow-ups (intentionally out of scope for the first cut)
-
-- **Instrument evmone too.** Currently evmone is built with stock clang
-  because the `afl-clang-fast++` wrapper double-wraps `-Wl,-soname,...`
-  when linking shared libs (cmake 3.27+ × AFL++ interaction). solc IS
-  instrumented, so most bugs we hunt are still findable. Two ways forward:
-  (a) wait for AFL++ to fix the wrapper; (b) switch evmone to a static
-  archive linked directly into the harness, bypassing the shared-lib link
-  path entirely (also drops the dlopen + RPATH dance — cleaner long-term).
 
 - **`-j N` parallel launcher.** Extend `run_afl.sh` to spawn 1 main + N-1
   secondaries in a `tmux` session, varying the AFL++ env vars listed

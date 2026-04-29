@@ -37,6 +37,14 @@
 
 #include <test/evmc/loader.h>
 
+#ifdef EVMONE_STATIC
+// Statically-linked evmone — call the factory directly instead of via
+// evmc_load_and_configure(). evmone exposes this in <evmone/evmone.h> but
+// pulling the header in pollutes the include path with the submodule's
+// tree; an extern "C" declaration is enough.
+extern "C" struct evmc_vm* evmc_create_evmone(void) noexcept;
+#endif
+
 #include <libevmasm/GasMeter.h>
 
 #include <libsolutil/Exceptions.h>
@@ -55,6 +63,15 @@ evmc::VM& EVMHost::getVM(std::string const& _path)
 	static std::map<std::string, std::unique_ptr<evmc::VM>> vms;
 	if (vms.count(_path) == 0)
 	{
+#ifdef EVMONE_STATIC
+		// Statically-linked evmone: bypass the loader, call the factory
+		// directly. _path is ignored (kept so the signature is unchanged).
+		auto vm = evmc::VM{evmc_create_evmone()};
+		if (vm && (vm.get_capabilities() & EVMC_CAPABILITY_EVM1))
+			vms[_path] = std::make_unique<evmc::VM>(std::move(vm));
+		else
+			std::cerr << "Statically-linked evmone does not support EVM1" << std::endl;
+#else
 		evmc_loader_error_code errorCode = {};
 		auto vm = evmc::VM{evmc_load_and_configure(_path.c_str(), &errorCode)};
 		if (vm && errorCode == EVMC_LOADER_SUCCESS)
@@ -71,6 +88,7 @@ evmc::VM& EVMHost::getVM(std::string const& _path)
 				std::cerr << ":" << std::endl << errorMsg;
 			std::cerr << std::endl;
 		}
+#endif
 		vms[_path]->set_option("validate_eof", "1");
 	}
 

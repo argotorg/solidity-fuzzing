@@ -51,12 +51,12 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DCMAKE_C_LINKER_DEPFILE_SUPPORTED=FALSE \
     -DCMAKE_CXX_LINKER_DEPFILE_SUPPORTED=FALSE
 
-# Note: CMakeLists.txt detects afl-clang-fast as our compiler and forces
-# the evmone external project to use stock clang instead — works around a
-# separate afl-clang-fast wrapper bug that mangles -Wl,-soname when linking
-# shared libraries. Trade-off: evmone gets no AFL instrumentation. Most
-# bugs we hunt live in solc, which IS instrumented. Revisit when AFL++
-# fixes its clang wrapper.
+# Note: CMakeLists.txt detects afl-clang-fast as our compiler and switches
+# evmone to a static-archive build (BUILD_SHARED_LIBS=OFF, linked via
+# libevmone-standalone.a). This sidesteps the afl-clang-fast++ wrapper bug
+# that mangles -Wl,-soname when linking shared libraries — static archives
+# never carry -soname. Side benefit: evmone gets full AFL instrumentation
+# on par with solc, and the dlopen + RPATH dance is gone at runtime.
 
 cmake --build "$BUILD_DIR" -j$(nproc) --target sol_afl_diff_runner
 

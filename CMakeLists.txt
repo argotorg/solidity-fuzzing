@@ -55,25 +55,28 @@ set(EVMHOST_CPP ${CMAKE_SOURCE_DIR}/tools/common/EVMHost.cpp)
 set(TESTCASEREADER_CPP ${CMAKE_SOURCE_DIR}/solidity/test/TestCaseReader.cpp)
 
 # --- Build evmone from submodule (or use user-provided path) ---
-# Runners load libevmone.so at runtime via dlopen. We build evmone as an
-# external project and bake its lib directory into the runners' RPATH so
-# LD_LIBRARY_PATH is not needed.
+# Default: build evmone as a shared library; runners dlopen libevmone.so at
+# runtime via evmc_load_and_configure (the runners' RPATH bakes in the lib
+# directory so LD_LIBRARY_PATH is not needed).
 #
-# Compiler-for-evmone workaround: when the *outer* build uses afl-clang-fast,
-# we still build evmone with stock clang. The afl-clang-fast++ wrapper
-# mishandles cmake's shared-library link line (-Wl,-soname,... reaches the
-# linker un-rewritten). Stock clang links it cleanly. Trade-off is no AFL
-# instrumentation inside evmone — acceptable because most bugs we hunt live
-# in solc, and the differential oracle still catches miscompiles regardless
-# of whether evmone has coverage feedback. Revisit when AFL++ fixes the
-# wrapper.
+# AFL build (CMAKE_CXX_COMPILER is afl-clang-fast++): build evmone as a
+# static archive and link it directly into the harness. Two reasons:
+#   1. afl-clang-fast++ mishandles -Wl,-soname,... when linking a shared
+#      library (cmake 3.27+ × AFL++ wrapper bug). Static archives have no
+#      -soname, so the bug never triggers — evmone gets full AFL coverage
+#      instrumentation, on par with solc.
+#   2. Drops the dlopen + RPATH dance for the AFL harness.
+# evmone exposes evmc_create_evmone() for direct invocation; EVMHost.cpp
+# picks the static path when compiled with -DEVMONE_STATIC.
 if (CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
-    find_program(EVMONE_C_COMPILER clang REQUIRED)
-    find_program(EVMONE_CXX_COMPILER clang++ REQUIRED)
-    message(STATUS "AFL build detected: building evmone with ${EVMONE_CXX_COMPILER} (workaround)")
+    set(EVMONE_BUILD_SHARED FALSE)
+    set(EVMONE_BUILD_SHARED_ARG "-DBUILD_SHARED_LIBS=OFF")
+    set(EVMONE_LIB_NAME "libevmone-standalone.a")
+    message(STATUS "AFL build detected: building evmone as static archive (instrumented)")
 else()
-    set(EVMONE_C_COMPILER ${CMAKE_C_COMPILER})
-    set(EVMONE_CXX_COMPILER ${CMAKE_CXX_COMPILER})
+    set(EVMONE_BUILD_SHARED TRUE)
+    set(EVMONE_BUILD_SHARED_ARG "-DBUILD_SHARED_LIBS=ON")
+    set(EVMONE_LIB_NAME "libevmone.so")
 endif()
 
 if (NOT EVMONE_LIB_DIR)
@@ -85,13 +88,14 @@ if (NOT EVMONE_LIB_DIR)
             BINARY_DIR "${EVMONE_BUILD_DIR}"
             CMAKE_ARGS
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                -DCMAKE_C_COMPILER=${EVMONE_C_COMPILER}
-                -DCMAKE_CXX_COMPILER=${EVMONE_CXX_COMPILER}
+                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                 -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                 -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                ${EVMONE_BUILD_SHARED_ARG}
                 -DEVMONE_TESTING=OFF
             INSTALL_COMMAND ""
-            BUILD_BYPRODUCTS "${EVMONE_BUILD_DIR}/lib/libevmone.so"
+            BUILD_BYPRODUCTS "${EVMONE_BUILD_DIR}/lib/${EVMONE_LIB_NAME}"
         )
         set(EVMONE_LIB_DIR "${EVMONE_BUILD_DIR}/lib")
         set(EVMONE_TARGET evmone_external)

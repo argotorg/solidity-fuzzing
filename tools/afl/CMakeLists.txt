@@ -21,8 +21,19 @@ add_executable(sol_afl_diff_runner
 )
 target_link_libraries(sol_afl_diff_runner PRIVATE evmc solidity libsolc Boost::boost)
 
-# Same RPATH dance as tools/runners — find libevmone.so without LD_LIBRARY_PATH.
-if (EVMONE_LIB_DIR)
+if (NOT EVMONE_BUILD_SHARED)
+    # Static evmone (AFL build): link the standalone archive directly so
+    # AFL coverage instrumentation reaches inside the EVM. EVMHost picks up
+    # the static factory via -DEVMONE_STATIC.
+    target_compile_definitions(sol_afl_diff_runner PRIVATE EVMONE_STATIC)
+    target_link_libraries(sol_afl_diff_runner PRIVATE
+        ${EVMONE_LIB_DIR}/libevmone-standalone.a)
+    if (TARGET evmone_external)
+        add_dependencies(sol_afl_diff_runner evmone_external)
+    endif()
+elseif (EVMONE_LIB_DIR)
+    # Shared evmone path (would only matter if this harness were ever built
+    # outside an AFL tree). Same RPATH dance as tools/runners.
     set_target_properties(sol_afl_diff_runner PROPERTIES
         BUILD_RPATH "${EVMONE_LIB_DIR}"
         INSTALL_RPATH "${EVMONE_LIB_DIR}"
