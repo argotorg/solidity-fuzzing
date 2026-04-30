@@ -58,6 +58,7 @@ cd ..
 
 This builds the following debug tools:
 - `sol_debug_runner` — reproduces `sol_proto_ossfuzz_evmone*` findings
+  (and, with `--afl`, AFL crashes from `sol_afl_diff_runner`)
 - `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
 
 ## Building OSS-Fuzz Docker Image
@@ -126,13 +127,15 @@ echo core | sudo tee /proc/sys/kernel/core_pattern
 # Launch — coverage-guided AFL++ + afl-ts AST mutation, all from submodules:
 tools/afl/run_afl.sh                      # writes findings_afl/
 
-# Sanity-check a single file (host binary, fast):
+# Sanity-check / quick ground-truth that a crash still reproduces with the
+# exact harness AFL ran (silent on success, SIGABRT on diff):
 build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
 
-# Replay an AFL crash:
-build/tools/afl/sol_afl_diff_runner findings_afl/default/crashes/id:000000,...
-# Or human-readable diff:
-build/tools/runners/sol_debug_runner findings_afl/default/crashes/id:000000,... --output-dir crash_dump
+# Replay an AFL crash with full per-config diagnostics — bytecode, Yul IR,
+# logs, storage diff across all 4 (opt × viaIR) configurations. Pass --afl
+# so the same input format the AFL harness uses (region-aware trailer or
+# keccak fallback) is parsed and the last contract is deployed:
+build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:000000,...
 ```
 
 If `build_instrumented.sh` fails with `clang++: error: unknown argument:

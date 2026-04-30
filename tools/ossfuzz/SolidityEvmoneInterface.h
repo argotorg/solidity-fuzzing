@@ -91,6 +91,12 @@ public:
 	{
 		return m_compiler.interfaceSymbols(_contractName)["methods"];
 	}
+	/// @returns the name of the last contract compiled (the convention solc
+	/// uses when no explicit contract is requested).
+	std::string lastContractName() const
+	{
+		return m_compiler.lastContractName();
+	}
 	/// @returns Compilation output comprising EVM bytecode and list of
 	/// method identifiers in contract if compilation is successful,
 	/// null value otherwise.

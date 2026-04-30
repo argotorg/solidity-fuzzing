@@ -228,7 +228,23 @@ id:000003,sig:06,src:000523,time:18342,execs:128193,op:havoc,rep:8
 
 #### Replaying a crash
 
-Use the host binary — smaller, faster, prints stderr cleanly:
+For real debugging use `sol_debug_runner --afl` — it understands the same
+input format `sol_afl_diff_runner` does (region-aware trailer + keccak
+fallback) and runs all four optimiser × viaIR configurations with
+human-readable per-config diffs of status / output / logs / storage /
+transient storage, plus written-out bytecodes and Yul IR:
+
+```bash
+build/tools/runners/sol_debug_runner --afl findings_afl/sec1/crashes/id:000003,...
+# Exit codes: 0 = all match, 1 = mismatch found, 2 = compile failure, 3 = ICE.
+# Per-config bytecode/IR/log files land in sol_debug_output-N/.
+```
+
+`sol_afl_diff_runner` is still useful as a one-line ground-truth check
+that the crash *still* reproduces with the exact harness AFL ran. It's
+silent on success and aborts on diff (no diagnostic output beyond the
+`solAssert` message), so prefer the debug runner once you've confirmed
+the crash is real:
 
 ```bash
 build/tools/afl/sol_afl_diff_runner findings_afl/sec1/crashes/id:000003,...
@@ -310,14 +326,14 @@ AFLplusplus/afl-tmin \
     -i findings_afl/sec1/crashes/id:000003,... \
     -o min.sol \
     -- build_afl/tools/afl/sol_afl_diff_runner @@
-build/tools/runners/sol_debug_runner min.sol     # human-readable diff
+build/tools/runners/sol_debug_runner --afl min.sol   # human-readable diff
 ```
 
-Note `sol_debug_runner` hardcodes the contract name `C` (the proto fuzzer
-always emits `contract C { ... }`). If your crash input names its
-contract differently, rename it to `C` before passing to the debug
-runner; `sol_afl_diff_runner` itself uses `lastContractName` and works
-on any name.
+Without `--afl`, `sol_debug_runner` looks up `test()` on a contract called
+`C` (matching the proto fuzzer). With `--afl` it deploys the *last*
+contract in the source and sends the AFL calldata raw, matching what
+`sol_afl_diff_runner` does — so any AFL crash file (corpus contracts named
+arbitrarily, with or without the `0xCA 0xFE` trailer) reproduces directly.
 
 ## Follow-ups (intentionally out of scope for the first cut)
 

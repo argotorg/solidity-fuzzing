@@ -20,6 +20,13 @@
  * compile-deploy-execute flow on a .sol file. Runs all 4 configurations
  * ({noOpt, opt} x {viaIR=true, viaIR=false}) and dumps bytecodes, logs,
  * storage, and output for debugging differential testing failures.
+ *
+ * Also accepts AFL-format inputs produced by sol_afl_diff_runner. Such files
+ * carry a trailing magic — [src][calldata][u16 LE src_len][0xCA 0xFE] — that
+ * splits the source from the raw calldata bytes. When the magic is detected,
+ * we deploy the *last* contract in the source (matching AFL's behaviour) and
+ * send the raw calldata directly, instead of looking up a `test()` selector
+ * on a contract called `C`.
  */
 
 #include <tools/ossfuzz/SolidityEvmoneInterface.h>
@@ -27,6 +34,7 @@
 
 #include <libevmasm/Exceptions.h>
 #include <liblangutil/Exceptions.h>
+#include <libsolutil/Keccak256.h>
 #include <libyul/optimiser/Suite.h>
 
 #include <boost/program_options.hpp>
@@ -37,6 +45,7 @@
 #include <iomanip>
 #include <cstring>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace fs = std::filesystem;
@@ -209,6 +218,7 @@ static RunResult runOnce(
 	OptimiserSettings _optimiserSettings,
 	bool _viaIR,
 	std::string const& _extraCalldataHex = {},
+	std::optional<bytes> const& _aflRawCalldata = std::nullopt,
 	bool _quiet = false
 )
 {
@@ -216,8 +226,13 @@ static RunResult runOnce(
 	EVMHost hostContext(_version, _vm);
 	// Give the sender initial balance (matching fuzzer)
 	hostContext.accounts[hostContext.tx_context.tx_origin].set_balance(0xffffffff);
-	std::string contractName = "C";
-	std::string methodName = "test()";
+
+	bool const aflMode = _aflRawCalldata.has_value();
+	// In AFL mode the contract name is unknown — let solc use the *last*
+	// contract in the source (matching sol_afl_diff_runner). Otherwise we
+	// stick with "C" and look up a test() selector via EvmoneUtility.
+	std::string const contractName = aflMode ? "" : "C";
+	std::string const methodName = "test()";
 
 	CompilerInput cInput(
 		_version,
@@ -230,20 +245,25 @@ static RunResult runOnce(
 	);
 
 	// First, compile separately to extract bytecode and IR for dumping.
-	// Scoped so the CompilerStack is destroyed before EvmoneUtility creates its own.
+	// In AFL mode we also reuse this bytecode to deploy directly below
+	// (no second compile via EvmoneUtility).
+	std::string actualContractName;
 	{
 		SolidityCompilationFramework compiler(cInput);
 		auto compOutput = compiler.compileContract();
 		if (compOutput.has_value() && !compOutput->byteCode.empty())
 		{
 			result.bytecode = compOutput->byteCode;
+			actualContractName = contractName.empty()
+				? compiler.lastContractName()
+				: contractName;
 			// Extract Yul IR (only available when viaIR is enabled)
 			try
 			{
-				auto const& ir = compiler.yulIR("test.sol:" + contractName);
+				auto const& ir = compiler.yulIR("test.sol:" + actualContractName);
 				if (ir.has_value())
 					result.yulIR = *ir;
-				auto const& irOpt = compiler.yulIROptimized("test.sol:" + contractName);
+				auto const& irOpt = compiler.yulIROptimized("test.sol:" + actualContractName);
 				if (irOpt.has_value())
 					result.yulIROptimized = *irOpt;
 			}
@@ -256,16 +276,40 @@ static RunResult runOnce(
 		}
 	}
 
-	EvmoneUtility evmoneUtil(
-		hostContext,
-		cInput,
-		contractName,
-		/*libraryName=*/"",
-		methodName,
-		s_gasLimit
-	);
+	evmc::Result evmResult{EVMC_INTERNAL_ERROR};
+	if (aflMode)
+	{
+		// Manual deploy + raw-calldata call. Mirrors sol_afl_diff_runner so
+		// the observable state matches what AFL saw when it found the crash.
+		evmc_message createMsg = EvmoneUtility::initializeMessage(result.bytecode, s_gasLimit);
+		createMsg.kind = EVMC_CREATE;
+		evmc::Result createResult = hostContext.call(createMsg);
+		if (createResult.status_code != EVMC_SUCCESS)
+		{
+			evmResult = std::move(createResult);
+		}
+		else
+		{
+			evmc_message callMsg = EvmoneUtility::initializeMessage(*_aflRawCalldata, s_gasLimit);
+			callMsg.kind = EVMC_CALL;
+			callMsg.recipient = createResult.create_address;
+			callMsg.code_address = createResult.create_address;
+			evmResult = hostContext.call(callMsg);
+		}
+	}
+	else
+	{
+		EvmoneUtility evmoneUtil(
+			hostContext,
+			cInput,
+			contractName,
+			/*libraryName=*/"",
+			methodName,
+			s_gasLimit
+		);
+		evmResult = evmoneUtil.compileDeployAndExecute({}, _extraCalldataHex);
+	}
 
-	evmc::Result evmResult = evmoneUtil.compileDeployAndExecute({}, _extraCalldataHex);
 	result.statusCode = evmResult.status_code;
 	result.subCallOutOfGas = hostContext.m_subCallOutOfGas;
 	if (evmResult.output_data && evmResult.output_size > 0)
@@ -601,6 +645,7 @@ int main(int argc, char* argv[])
 		("input-file", po::value<std::string>(), "Solidity source file")
 		("via-ir", po::value<bool>()->default_value(true), "Initial viaIR setting (default: true)")
 		("calldata", po::value<std::string>()->default_value(""), "Extra calldata in hex (e.g. \"a0ffba\"), appended after method selector")
+		("afl", "Treat input as AFL fuzzer file: deploy the last contract and send raw calldata (split via 0xCA 0xFE trailer, or keccak256(source) fallback)")
 		("quiet,q", "Quiet mode: only print one-line summary, for use by delta debuggers")
 		("verbose,v", "Verbose mode: print full logs and storage for all configs")
 	;
@@ -622,7 +667,10 @@ int main(int argc, char* argv[])
 
 	if (vm.count("help") || !vm.count("input-file"))
 	{
-		std::cout << "Usage: sol_debug_runner <file.sol> [--via-ir true|false] [--calldata <hex>] [--quiet]" << std::endl;
+		std::cout << "Usage: sol_debug_runner <file.sol> [--via-ir true|false] [--calldata <hex>] [--afl] [--quiet]" << std::endl;
+		std::cout << "Pass --afl to reproduce sol_afl_diff_runner inputs: the last contract" << std::endl;
+		std::cout << "is deployed and the raw calldata (from 0xCA 0xFE trailer or keccak256" << std::endl;
+		std::cout << "fallback) is sent without any test() selector lookup." << std::endl;
 		std::cout << desc << std::endl;
 		std::cout << std::endl;
 		std::cout << "Exit codes:" << std::endl;
@@ -636,17 +684,51 @@ int main(int argc, char* argv[])
 	std::string inputFile = vm["input-file"].as<std::string>();
 	bool viaIR = vm["via-ir"].as<bool>();
 	std::string extraCalldataHex = vm["calldata"].as<std::string>();
+	bool aflInput = vm.count("afl") > 0;
 	bool quiet = vm.count("quiet") > 0;
 	bool verbose = vm.count("verbose") > 0;
 
-	// Read source file
-	std::ifstream ifs(inputFile);
+	// Read source file. Open in binary mode because AFL inputs may contain
+	// non-text bytes in the calldata region trailing the magic suffix.
+	std::ifstream ifs(inputFile, std::ios::binary);
 	if (!ifs.is_open())
 	{
 		std::cerr << "Error: Cannot open " << inputFile << std::endl;
 		return 2;
 	}
 	std::string solSource{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
+
+	// AFL mode: mirror sol_afl_diff_runner's splitInput().
+	//   [src bytes][calldata bytes][u16 LE src_len][0xCA 0xFE]  (region-aware)
+	// or, when no magic trailer is present, fall back to keccak256(source) as
+	// the 32-byte calldata. Either way the source we feed to solc may be a
+	// strict prefix of the file; the calldata is sent raw to the deployed
+	// (last) contract. Without --afl we treat the file as a plain .sol source.
+	std::optional<bytes> aflRawCalldata;
+	bool aflMagicSeen = false;
+	if (aflInput)
+	{
+		if (solSource.size() >= 4 &&
+			static_cast<unsigned char>(solSource[solSource.size() - 2]) == 0xCA &&
+			static_cast<unsigned char>(solSource[solSource.size() - 1]) == 0xFE)
+		{
+			size_t srcLen =
+				static_cast<unsigned char>(solSource[solSource.size() - 4]) |
+				(static_cast<size_t>(static_cast<unsigned char>(solSource[solSource.size() - 3])) << 8);
+			if (srcLen <= solSource.size() - 4)
+			{
+				bytes calldata(
+					solSource.begin() + static_cast<std::ptrdiff_t>(srcLen),
+					solSource.begin() + static_cast<std::ptrdiff_t>(solSource.size() - 4)
+				);
+				solSource.resize(srcLen);
+				aflRawCalldata = std::move(calldata);
+				aflMagicSeen = true;
+			}
+		}
+		if (!aflMagicSeen)
+			aflRawCalldata = keccak256(solSource).asBytes();
+	}
 
 	// Auto-create output directory and copy input file into it
 	std::string outputDir;
@@ -660,10 +742,23 @@ int main(int argc, char* argv[])
 
 	if (!quiet)
 	{
-		std::cout << "Source file: " << inputFile << " (" << solSource.size() << " bytes)" << std::endl;
+		std::cout << "Source file: " << inputFile;
+		if (aflInput)
+			std::cout << " [AFL " << (aflMagicSeen ? "magic-trailer" : "keccak-fallback")
+				<< "] (source=" << solSource.size()
+				<< " bytes, calldata=" << aflRawCalldata->size() << " bytes)";
+		else
+			std::cout << " (" << solSource.size() << " bytes)";
+		std::cout << std::endl;
 		std::cout << "viaIR: " << (viaIR ? "true" : "false") << std::endl;
 		std::cout << "Gas limit: " << s_gasLimit << std::endl;
-		if (!extraCalldataHex.empty())
+		if (aflRawCalldata.has_value())
+		{
+			std::cout << "AFL raw calldata: " << toHexString(*aflRawCalldata) << std::endl;
+			if (!extraCalldataHex.empty())
+				std::cout << "(ignoring --calldata in AFL mode; raw calldata from input is used)" << std::endl;
+		}
+		else if (!extraCalldataHex.empty())
 			std::cout << "Extra calldata: " << extraCalldataHex << std::endl;
 		std::cout << std::endl;
 		// Sol debug runner always uses default optimizer sequences
@@ -708,7 +803,7 @@ int main(int argc, char* argv[])
 			std::cout << "Running: " << config.label << "..." << std::endl;
 		try
 		{
-			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, extraCalldataHex, quiet));
+			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, extraCalldataHex, aflRawCalldata, quiet));
 		}
 		catch (evmasm::StackTooDeepException const&)
 		{
