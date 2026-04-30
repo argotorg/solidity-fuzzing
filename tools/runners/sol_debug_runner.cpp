@@ -39,6 +39,9 @@
 
 #include <boost/program_options.hpp>
 
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -830,6 +833,18 @@ int main(int argc, char* argv[])
 
 	std::string irDir = outputDir.empty() ? "." : outputDir;
 	std::string const srcArg = sourcePath.empty() ? "<source.sol>" : sourcePath;
+
+	// Derive solc binary path from argv[0] (mirrors yul_debug_runner).
+	// argv[0] is like ".../build/tools/runners/sol_debug_runner"; solc lives at
+	// ".../build/solidity/solc/solc".
+	std::string solcBinary;
+	{
+		std::string self = argv[0];
+		auto pos = self.rfind('/');
+		if (pos != std::string::npos)
+			solcBinary = self.substr(0, pos) + "/../../solidity/solc/solc";
+	}
+
 	std::vector<RunResult> results;
 	for (auto const& config : configs)
 	{
@@ -838,6 +853,7 @@ int main(int argc, char* argv[])
 			std::cout << "Running: " << config.label << "..." << std::endl;
 			std::cout << "  solc equivalent: " << solcInvocation(config, srcArg) << std::endl;
 		}
+		auto startTime = std::chrono::steady_clock::now();
 		try
 		{
 			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, extraCalldataHex, aflRawCalldata, quiet));
@@ -880,10 +896,14 @@ int main(int argc, char* argv[])
 			r.internalErrorMsg = e.what();
 			results.push_back(std::move(r));
 		}
+		auto endTime = std::chrono::steady_clock::now();
 
 		// Write Yul IR files immediately so they're available even if a later config hangs/OOMs
 		if (!quiet)
 		{
+			auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+			std::cout << "  Time: " << elapsedMs << " ms" << std::endl;
+
 			auto const& result = results.back();
 			std::string irFile = irDir + "/" + config.label + ".yul";
 			std::string irOptFile = irDir + "/" + config.label + ".optimized.yul";
@@ -902,6 +922,85 @@ int main(int argc, char* argv[])
 				{
 					writeToFile(irOptFile, result.yulIROptimized);
 					std::cout << "    ^ Yul IR (post-optimization, pre-codegen) for " << config.label << std::endl;
+				}
+			}
+
+			// Run perf record + flame graph on the equivalent solc invocation,
+			// using the clean source.sol path (works in both AFL and non-AFL mode).
+			// Mirrors yul_debug_runner.cpp.
+			if (!solcBinary.empty() && !sourcePath.empty())
+			{
+				std::string solcFlags = " --bin --evm-version " + evmVersionName;
+				if (config.optimize)
+					solcFlags += " --optimize";
+				if (config.viaIR)
+					solcFlags += " --via-ir";
+
+				std::string perfDataFile = irDir + "/" + config.label + ".perf.data";
+				std::string perfReportFile = irDir + "/" + config.label + ".perf_top50.txt";
+				std::string perfErrFile = irDir + "/" + config.label + ".perf.err";
+				std::string perfRecordCmd = "/usr/bin/time --verbose perf record --call-graph fp -o " + perfDataFile
+					+ " -- " + solcBinary + solcFlags + " " + sourcePath + " > /dev/null 2>" + perfErrFile;
+				int perfRet = std::system(perfRecordCmd.c_str());
+				if (perfRet == 0)
+				{
+					// Parse max RSS from /usr/bin/time output
+					std::ifstream timeStream(perfErrFile);
+					if (timeStream.is_open())
+					{
+						std::string line;
+						while (std::getline(timeStream, line))
+						{
+							if (line.find("Maximum resident set size") != std::string::npos)
+							{
+								auto colonPos = line.rfind(':');
+								if (colonPos != std::string::npos)
+								{
+									std::string val = line.substr(colonPos + 1);
+									val.erase(0, val.find_first_not_of(" \t"));
+									val.erase(val.find_last_not_of(" \t") + 1);
+									try {
+										long kb = std::stol(val);
+										std::cout << "  Peak memory: " << kb / 1024 << " MB (" << kb << " KB)" << std::endl;
+									} catch (...) {}
+								}
+								break;
+							}
+						}
+					}
+					std::remove(perfErrFile.c_str());
+
+					std::string perfReportCmd = "perf report -i " + perfDataFile
+						+ " --stdio -g none"
+						+ " 2>/dev/null | grep -v '^#' | sed 's/ \\[.\\] / /' | head -50 | cut -c1-200 > " + perfReportFile;
+					std::system(perfReportCmd.c_str());
+					std::cout << "  Perf top 50 written to: " << perfReportFile << std::endl;
+
+					// Generate flame graph SVG via inferno
+					std::string flameFile = irDir + "/" + config.label + ".flamegraph.svg";
+					std::string flameCmd = "perf script -i " + perfDataFile
+						+ " 2>/dev/null | inferno-collapse-perf 2>/dev/null | inferno-flamegraph > " + flameFile + " 2>/dev/null";
+					int flameRet = std::system(flameCmd.c_str());
+					if (flameRet == 0)
+						std::cout << "  Flame graph written to: " << flameFile << std::endl;
+					else
+						std::cout << "  Flame graph: skipped (inferno not found?)" << std::endl;
+
+					std::remove(perfDataFile.c_str());
+				}
+				else
+				{
+					std::cout << "  Perf failed. Command was:" << std::endl;
+					std::cout << "    " << perfRecordCmd << std::endl;
+					std::ifstream errStream(perfErrFile);
+					if (errStream.is_open())
+					{
+						std::string errContents{std::istreambuf_iterator<char>(errStream), std::istreambuf_iterator<char>()};
+						if (!errContents.empty())
+							std::cout << "  Perf stderr: " << errContents;
+					}
+					std::remove(perfDataFile.c_str());
+					std::remove(perfErrFile.c_str());
 				}
 			}
 		}
