@@ -220,6 +220,7 @@ static RunResult runOnce(
 	StringMap const& _source,
 	OptimiserSettings _optimiserSettings,
 	bool _viaIR,
+	bool _viaSSACFG = false,
 	std::string const& _extraCalldataHex = {},
 	std::optional<bytes> const& _aflRawCalldata = std::nullopt,
 	bool _quiet = false
@@ -244,7 +245,8 @@ static RunResult runOnce(
 		_optimiserSettings,
 		{},
 		/*debugFailure=*/!_quiet,
-		_viaIR
+		_viaIR,
+		_viaSSACFG
 	);
 
 	// First, compile separately to extract bytecode and IR for dumping.
@@ -799,20 +801,23 @@ int main(int argc, char* argv[])
 	EVMVersion version = EVMVersion::current();
 	StringMap source({{"test.sol", solSource}});
 
-	// Run 4 configurations
+	// Run 5 configurations: 4 baseline {noOpt,opt} × {viaIR,!viaIR} plus one
+	// experimental SSA-CFG run (which forces viaIR=true per solc requirement).
 	struct Config
 	{
 		std::string label;
 		OptimiserSettings optimiser;
 		bool viaIR;
 		bool optimize;
+		bool viaSSACFG;
 	};
 
 	std::vector<Config> configs = {
-		{"noOpt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::minimal(), viaIR, false},
-		{"opt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::standard(), viaIR, true},
-		{"noOpt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::minimal(), !viaIR, false},
-		{"opt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::standard(), !viaIR, true},
+		{"noOpt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::minimal(), viaIR, false, false},
+		{"opt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::standard(), viaIR, true, false},
+		{"noOpt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::minimal(), !viaIR, false, false},
+		{"opt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::standard(), !viaIR, true, false},
+		{"opt_ssaCFG", OptimiserSettings::standard(), /*viaIR=*/true, /*optimize=*/true, /*viaSSACFG=*/true},
 	};
 
 	// Build the equivalent solc command line for a config.
@@ -827,6 +832,8 @@ int main(int argc, char* argv[])
 			s << " --optimize";
 		if (_cfg.viaIR)
 			s << " --via-ir";
+		if (_cfg.viaSSACFG)
+			s << " --experimental --via-ssa-cfg";
 		s << " " << _srcArg;
 		return s.str();
 	};
@@ -856,7 +863,7 @@ int main(int argc, char* argv[])
 		auto startTime = std::chrono::steady_clock::now();
 		try
 		{
-			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, extraCalldataHex, aflRawCalldata, quiet));
+			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, config.viaSSACFG, extraCalldataHex, aflRawCalldata, quiet));
 		}
 		catch (evmasm::StackTooDeepException const&)
 		{
@@ -935,6 +942,8 @@ int main(int argc, char* argv[])
 					solcFlags += " --optimize";
 				if (config.viaIR)
 					solcFlags += " --via-ir";
+				if (config.viaSSACFG)
+					solcFlags += " --experimental --via-ssa-cfg";
 
 				std::string perfDataFile = irDir + "/" + config.label + ".perf.data";
 				std::string perfReportFile = irDir + "/" + config.label + ".perf_top50.txt";

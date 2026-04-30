@@ -36,6 +36,11 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 	m_compiler.setEVMVersion(m_compilerInput.evmVersion);
 	m_compiler.setOptimiserSettings(m_compilerInput.optimiserSettings);
 	m_compiler.setViaIR(m_compilerInput.viaIR);
+	if (m_compilerInput.viaSSACFG)
+	{
+		m_compiler.setExperimental(true);
+		m_compiler.setViaSSACFG(true);
+	}
 	if (!m_compiler.compile())
 	{
 		if (m_compilerInput.debugFailure)

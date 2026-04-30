@@ -45,7 +45,8 @@ struct CompilerInput
 		frontend::OptimiserSettings _optimiserSettings,
 		std::map<std::string, solidity::util::h160> _libraryAddresses,
 		bool _debugFailure = false,
-		bool _viaIR = false
+		bool _viaIR = false,
+		bool _viaSSACFG = false
 	):
 		evmVersion(_evmVersion),
 		sourceCode(_sourceCode),
@@ -53,7 +54,8 @@ struct CompilerInput
 		optimiserSettings(_optimiserSettings),
 		libraryAddresses(_libraryAddresses),
 		debugFailure(_debugFailure),
-		viaIR(_viaIR)
+		viaIR(_viaIR),
+		viaSSACFG(_viaSSACFG)
 	{}
 	/// EVM target version
 	langutil::EVMVersion evmVersion;
@@ -69,6 +71,8 @@ struct CompilerInput
 	bool debugFailure;
 	/// Flag to enable new code generator.
 	bool viaIR;
+	/// Flag to enable experimental SSA-CFG code generation (requires viaIR).
+	bool viaSSACFG;
 };
 
 class SolidityCompilationFramework
