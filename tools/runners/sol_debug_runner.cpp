@@ -732,12 +732,28 @@ int main(int argc, char* argv[])
 
 	// Auto-create output directory and copy input file into it
 	std::string outputDir;
+	std::string sourcePath;  // path to clean source.sol inside outputDir (for --afl reuse)
 	if (!quiet)
 	{
 		outputDir = createOutputDir();
 		fs::copy_file(inputFile, outputDir + "/" + fs::path(inputFile).filename().string(),
 			fs::copy_options::overwrite_existing);
+		// Always write the (possibly AFL-trimmed) Solidity source as a standalone
+		// file so the user can feed it directly to solc for bytecode reproduction.
+		sourcePath = outputDir + "/source.sol";
+		{
+			std::ofstream srcFile(sourcePath);
+			srcFile << solSource;
+		}
 		std::cout << "Output directory: " << outputDir << std::endl;
+		std::cout << "  Wrote clean source: " << sourcePath << std::endl;
+		if (aflRawCalldata.has_value())
+		{
+			std::string calldataPath = outputDir + "/calldata.hex";
+			std::ofstream cdFile(calldataPath);
+			cdFile << toHexString(*aflRawCalldata) << std::endl;
+			std::cout << "  Wrote raw calldata: " << calldataPath << std::endl;
+		}
 	}
 
 	if (!quiet)
@@ -786,21 +802,42 @@ int main(int argc, char* argv[])
 		std::string label;
 		OptimiserSettings optimiser;
 		bool viaIR;
+		bool optimize;
 	};
 
 	std::vector<Config> configs = {
-		{"noOpt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::minimal(), viaIR},
-		{"opt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::standard(), viaIR},
-		{"noOpt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::minimal(), !viaIR},
-		{"opt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::standard(), !viaIR},
+		{"noOpt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::minimal(), viaIR, false},
+		{"opt_viaIR=" + std::string(viaIR ? "true" : "false"), OptimiserSettings::standard(), viaIR, true},
+		{"noOpt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::minimal(), !viaIR, false},
+		{"opt_viaIR=" + std::string(!viaIR ? "true" : "false"), OptimiserSettings::standard(), !viaIR, true},
+	};
+
+	// Build the equivalent solc command line for a config.
+	// solc's CLI without --optimize uses OptimiserSettings::minimal() and with
+	// --optimize uses ::standard() (see solc/CommandLineParser.cpp), so the
+	// mapping is exact for default optimizer sequences.
+	std::string const evmVersionName = version.name();
+	auto solcInvocation = [&](Config const& _cfg, std::string const& _srcArg) {
+		std::ostringstream s;
+		s << "solc --bin --evm-version " << evmVersionName;
+		if (_cfg.optimize)
+			s << " --optimize";
+		if (_cfg.viaIR)
+			s << " --via-ir";
+		s << " " << _srcArg;
+		return s.str();
 	};
 
 	std::string irDir = outputDir.empty() ? "." : outputDir;
+	std::string const srcArg = sourcePath.empty() ? "<source.sol>" : sourcePath;
 	std::vector<RunResult> results;
 	for (auto const& config : configs)
 	{
 		if (!quiet)
+		{
 			std::cout << "Running: " << config.label << "..." << std::endl;
+			std::cout << "  solc equivalent: " << solcInvocation(config, srcArg) << std::endl;
+		}
 		try
 		{
 			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, extraCalldataHex, aflRawCalldata, quiet));
