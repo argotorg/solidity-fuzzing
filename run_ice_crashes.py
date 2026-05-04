@@ -11,10 +11,37 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 DUMPER = Path("./build_ossfuzz/tools/ossfuzz/sol_ice_ossfuzz").resolve()
 SOLC = Path("./build/solidity/solc/solc").resolve()
+
+
+def process_one(crash: Path, crash_dir: Path, extra_args: list, work_root: Path):
+    sol_out = (crash_dir / f"{crash.name}.sol").resolve()
+    run_out = (crash_dir / f"{crash.name}.out").resolve()
+
+    # 1. Dump. Harness writes the .sol then attempts the compile,
+    # which may crash; either way the .sol should be on disk.
+    env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(sol_out)}
+    subprocess.run([str(DUMPER), str(crash)],
+                   env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   check=False)
+
+    if not sol_out.is_file() or sol_out.stat().st_size == 0:
+        return crash.name, None, "dump-failed"
+
+    # Per-task cwd to keep any solc-side artifacts isolated between threads.
+    with tempfile.TemporaryDirectory(dir=str(work_root)) as work:
+        with run_out.open("wb") as out:
+            rc = subprocess.run(
+                [str(SOLC), *extra_args, str(sol_out)],
+                cwd=work, stdout=out, stderr=subprocess.STDOUT,
+                check=False,
+            ).returncode
+    return crash.name, rc, None
 
 
 def main() -> int:
@@ -24,6 +51,8 @@ def main() -> int:
                         help="crash directory (default: ice_crash)")
     parser.add_argument("--solc-args", default="--via-ir --optimize",
                         help="extra args passed to solc (default: %(default)r)")
+    parser.add_argument("--threads", "-j", type=int, default=os.cpu_count() or 1,
+                        help="number of parallel workers (default: %(default)d)")
     args = parser.parse_args()
 
     crash_dir = Path(args.crash_dir)
@@ -41,37 +70,27 @@ def main() -> int:
                      if f.is_file() and f.name.startswith("crash-") and "." not in f.name)
     total = len(crashes)
     done = 0
+    threads = max(1, args.threads)
 
-    print(f"crash_dir={crash_dir} total={total} solc_args={extra_args}")
+    print(f"crash_dir={crash_dir} total={total} solc_args={extra_args} threads={threads}")
 
-    with tempfile.TemporaryDirectory() as work:
-        for i, crash in enumerate(crashes, 1):
-            sol_out = (crash_dir / f"{crash.name}.sol").resolve()
-            run_out = (crash_dir / f"{crash.name}.out").resolve()
+    print_lock = threading.Lock()
+    completed = 0
 
-            print(f"[{i}/{total}] {crash.name} ... ", end="", flush=True)
-
-            # 1. Dump. Harness writes the .sol then attempts the compile,
-            # which may crash; either way the .sol should be on disk.
-            env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(sol_out)}
-            subprocess.run([str(DUMPER), str(crash)],
-                           env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           check=False)
-
-            if not sol_out.is_file() or sol_out.stat().st_size == 0:
-                print("dump-failed")
-                continue
-
-            # 2. Re-run solc on the dumped source.
-            with run_out.open("wb") as out:
-                rc = subprocess.run(
-                    [str(SOLC), *extra_args, str(sol_out)],
-                    cwd=work, stdout=out, stderr=subprocess.STDOUT,
-                    check=False,
-                ).returncode
-
-            done += 1
-            print(f"rc={rc}")
+    with tempfile.TemporaryDirectory() as work_root:
+        work_root_path = Path(work_root)
+        with ThreadPoolExecutor(max_workers=threads) as ex:
+            futures = [ex.submit(process_one, c, crash_dir, extra_args, work_root_path)
+                       for c in crashes]
+            for fut in as_completed(futures):
+                name, rc, err = fut.result()
+                with print_lock:
+                    completed += 1
+                    if err is not None:
+                        print(f"[{completed}/{total}] {name} ... {err}")
+                    else:
+                        done += 1
+                        print(f"[{completed}/{total}] {name} ... rc={rc}")
 
     print()
     print(f"done: {done} / {total} processed")
