@@ -28,7 +28,7 @@ function build_fuzzers
     -DCMAKE_TOOLCHAIN_FILE="${ROOTDIR}"/cmake/toolchains/libfuzzer.cmake \
     $CMAKE_OPTIONS
   ccache -z
-  make ossfuzz ossfuzz_proto ossfuzz_abiv2 -j 4
+  make ossfuzz ossfuzz_proto ossfuzz_abiv2 -j 8
   ccache -s
 }
 
