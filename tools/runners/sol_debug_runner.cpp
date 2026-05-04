@@ -39,6 +39,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <sys/wait.h>
+
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -653,6 +655,11 @@ int main(int argc, char* argv[])
 		("afl", "Treat input as AFL fuzzer file: deploy the last contract and send raw calldata (split via 0xCA 0xFE trailer, or keccak256(source) fallback)")
 		("quiet,q", "Quiet mode: only print one-line summary, for use by delta debuggers")
 		("verbose,v", "Verbose mode: print full logs and storage for all configs")
+		("timeout", po::value<int>()->default_value(0),
+			"Per-solc-invocation timeout in seconds (0 = disabled). When set, the "
+			"in-process compile is replaced with an external `timeout N solc ...` "
+			"subprocess, and the verbose-mode perf record solc is also wrapped with "
+			"`timeout N`. Useful for hang triage; differential comparison is skipped.")
 	;
 
 	po::positional_options_description positional;
@@ -692,6 +699,12 @@ int main(int argc, char* argv[])
 	bool aflInput = vm.count("afl") > 0;
 	bool quiet = vm.count("quiet") > 0;
 	bool verbose = vm.count("verbose") > 0;
+	int timeoutSecs = vm["timeout"].as<int>();
+	if (timeoutSecs < 0)
+	{
+		std::cerr << "Error: --timeout must be >= 0" << std::endl;
+		return 2;
+	}
 
 	// Read source file. Open in binary mode because AFL inputs may contain
 	// non-text bytes in the calldata region trailing the magic suffix.
@@ -861,47 +874,78 @@ int main(int argc, char* argv[])
 			std::cout << "  solc equivalent: " << solcInvocation(config, srcArg) << std::endl;
 		}
 		auto startTime = std::chrono::steady_clock::now();
-		try
+		if (timeoutSecs > 0)
 		{
-			results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, config.viaSSACFG, extraCalldataHex, aflRawCalldata, quiet));
-		}
-		catch (evmasm::StackTooDeepException const&)
-		{
-			if (!quiet)
-				std::cout << "  StackTooDeep exception" << std::endl;
+			// Hang-triage mode: skip the in-process compile (which has no way
+			// to be interrupted) and run an external `timeout N solc ...`
+			// subprocess instead. We don't get bytecode / EVM execution out of
+			// this, so the differential block further down is skipped.
+			std::string solcFlags = " --bin --evm-version " + evmVersionName;
+			if (config.optimize)
+				solcFlags += " --optimize";
+			if (config.viaIR)
+				solcFlags += " --via-ir";
+			if (config.viaSSACFG)
+				solcFlags += " --experimental --via-ssa-cfg";
+			std::string srcPathArg = sourcePath.empty() ? inputFile : sourcePath;
+			std::string cmd = "timeout " + std::to_string(timeoutSecs) + " "
+				+ solcBinary + solcFlags + " " + srcPathArg + " > /dev/null 2>&1";
+			int rc = std::system(cmd.c_str());
 			RunResult r;
 			r.compilationFailed = true;
+			if (WIFEXITED(rc) && WEXITSTATUS(rc) == 124)
+			{
+				r.internalError = true;
+				r.internalErrorMsg = "timed out >" + std::to_string(timeoutSecs) + "s";
+				if (!quiet)
+					std::cout << "  TIMED OUT (>" << timeoutSecs << "s)" << std::endl;
+			}
 			results.push_back(std::move(r));
 		}
-		catch (langutil::InternalCompilerError const& e)
+		else
 		{
-			if (!quiet)
-				std::cout << "  InternalCompilerError: " << e.what() << std::endl;
-			RunResult r;
-			r.compilationFailed = true;
-			r.internalError = true;
-			r.internalErrorMsg = e.what();
-			results.push_back(std::move(r));
-		}
-		catch (langutil::UnimplementedFeatureError const& e)
-		{
-			if (!quiet)
-				std::cout << "  UnimplementedFeatureError: " << e.what() << std::endl;
-			RunResult r;
-			r.compilationFailed = true;
-			r.internalError = true;
-			r.internalErrorMsg = e.what();
-			results.push_back(std::move(r));
-		}
-		catch (std::exception const& e)
-		{
-			if (!quiet)
-				std::cout << "  Exception: " << e.what() << std::endl;
-			RunResult r;
-			r.compilationFailed = true;
-			r.internalError = true;
-			r.internalErrorMsg = e.what();
-			results.push_back(std::move(r));
+			try
+			{
+				results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, config.viaSSACFG, extraCalldataHex, aflRawCalldata, quiet));
+			}
+			catch (evmasm::StackTooDeepException const&)
+			{
+				if (!quiet)
+					std::cout << "  StackTooDeep exception" << std::endl;
+				RunResult r;
+				r.compilationFailed = true;
+				results.push_back(std::move(r));
+			}
+			catch (langutil::InternalCompilerError const& e)
+			{
+				if (!quiet)
+					std::cout << "  InternalCompilerError: " << e.what() << std::endl;
+				RunResult r;
+				r.compilationFailed = true;
+				r.internalError = true;
+				r.internalErrorMsg = e.what();
+				results.push_back(std::move(r));
+			}
+			catch (langutil::UnimplementedFeatureError const& e)
+			{
+				if (!quiet)
+					std::cout << "  UnimplementedFeatureError: " << e.what() << std::endl;
+				RunResult r;
+				r.compilationFailed = true;
+				r.internalError = true;
+				r.internalErrorMsg = e.what();
+				results.push_back(std::move(r));
+			}
+			catch (std::exception const& e)
+			{
+				if (!quiet)
+					std::cout << "  Exception: " << e.what() << std::endl;
+				RunResult r;
+				r.compilationFailed = true;
+				r.internalError = true;
+				r.internalErrorMsg = e.what();
+				results.push_back(std::move(r));
+			}
 		}
 		auto endTime = std::chrono::steady_clock::now();
 
@@ -948,10 +992,17 @@ int main(int argc, char* argv[])
 				std::string perfDataFile = irDir + "/" + config.label + ".perf.data";
 				std::string perfReportFile = irDir + "/" + config.label + ".perf_top50.txt";
 				std::string perfErrFile = irDir + "/" + config.label + ".perf.err";
+				std::string timeoutPrefix = timeoutSecs > 0
+					? ("timeout " + std::to_string(timeoutSecs) + " ")
+					: std::string();
 				std::string perfRecordCmd = "/usr/bin/time --verbose perf record --call-graph fp -o " + perfDataFile
-					+ " -- " + solcBinary + solcFlags + " " + sourcePath + " > /dev/null 2>" + perfErrFile;
+					+ " -- " + timeoutPrefix + solcBinary + solcFlags + " " + sourcePath + " > /dev/null 2>" + perfErrFile;
 				int perfRet = std::system(perfRecordCmd.c_str());
-				if (perfRet == 0)
+				// Accept inner-solc timeout (exit 124) as success: perf.data is
+				// still valid up to the timeout, so the top-50 report is useful.
+				bool perfOk = perfRet == 0
+					|| (timeoutSecs > 0 && WIFEXITED(perfRet) && WEXITSTATUS(perfRet) == 124);
+				if (perfOk)
 				{
 					// Parse max RSS from /usr/bin/time output
 					std::ifstream timeStream(perfErrFile);
