@@ -109,20 +109,16 @@ AFL++ + afl-ts are opt-in (they need `clang` + `llvm-dev` that the
 regular host build doesn't).
 
 ```bash
-# Build solc + host harness + grammar.
-mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd ..
-# Build the AFL toolchain (~minutes; needs clang + llvm-dev + libtree-sitter-dev v0.25+).
-make -C build -j$(nproc) aflplusplus afl_ts
+mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.
+make -C build -j$(nproc) aflplusplus afl_ts                        # Build the AFL toolchain (needs clang + llvm-dev + libtree-sitter-dev v0.25+).
 
 # Build the AFL-instrumented harness in build_afl/.
 tools/afl/build_instrumented.sh
 
-# (Optional) pull ~15 real-world projects + build the merged seed corpus.
-tools/afl/fetch_realworld.sh
+# (Optional) pull ~15 real-world projects + build the merged seed corpus + expand corpus
+tools/afl/fetch_realworld.sh              # pull real-world projects
 tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
-# (Optional) grammar-driven extras via tsgen — fills surface real contracts skip.
-# Needs cargo. Outputs corpus_tsgen/; merge with: cp corpus_tsgen/* corpus_afl/
-tools/afl/build_corpus_tsgen.sh
+tools/afl/build_corpus_tsgen.sh           # grammar-driven extra surface via tsgen
 
 # One-time system setup: AFL++ requires this kernel setting.
 echo core | sudo tee /proc/sys/kernel/core_pattern
