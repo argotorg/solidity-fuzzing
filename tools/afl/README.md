@@ -337,11 +337,6 @@ arbitrarily, with or without the `0xCA 0xFE` trailer) reproduces directly.
 
 ## Follow-ups (intentionally out of scope for the first cut)
 
-- **`-j N` parallel launcher.** Extend `run_afl.sh` to spawn 1 main + N-1
-  secondaries in a `tmux` session, varying the AFL++ env vars listed
-  above across secondaries. Matches the parallel pattern documented in
-  `tools/ossfuzz/README.md` for single-pass yul fuzzing.
-
 - **Persistent mode.** Add the `__AFL_LOOP(N)` loop around the harness body
   so each forked instance handles many inputs. ~10× iteration speed-up vs
   fork-mode but requires care: every `runOnce` must leave no global state
