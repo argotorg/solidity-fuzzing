@@ -124,34 +124,19 @@ tools/afl/build_corpus_tsgen.sh           # grammar-driven extra surface via tsg
 echo core | sudo tee /proc/sys/kernel/core_pattern
 
 # Launch — coverage-guided AFL++ + afl-ts AST mutation, all from submodules:
-tools/afl/run_afl.sh                      # writes findings_afl/
+tools/afl/run_afl_parallel.sh -j 8        # multi-threaded
+tools/afl/run_afl.sh                      # single-threaded
 
 # Sanity-check / quick ground-truth that a crash still reproduces with the
 # exact harness AFL ran (silent on success, SIGABRT on diff):
 build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
 
-# Replay an AFL crash with full per-config diagnostics — bytecode, Yul IR,
-# logs, storage diff across all 4 (opt × viaIR) configurations. Pass --afl
-# so the same input format the AFL harness uses (region-aware trailer or
-# keccak fallback) is parsed and the last contract is deployed:
+# Replay an AFL crash with full per-config diagnostics, must use --afl
 build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:000000,...
 ```
 
-If `build_instrumented.sh` fails with `clang++: error: unknown argument:
-'--dependency-file=...'` (or you otherwise see it linking `libevmone.so`
-instead of `libevmone-standalone.a`), `build_afl/` has stale state from a
-prior configure — the inner evmone ExternalProject keeps its own
-`CMakeCache.txt` and won't re-configure on a parent rerun. Nuke and rebuild:
-
-```bash
-rm -rf build_afl
-tools/afl/build_instrumented.sh
-```
-
-Minimal version if you'd rather not rebuild solidity from scratch:
-`rm -rf build_afl/evmone-build build_afl/evmone_external-prefix`.
-
-See [tools/afl/README.md](tools/afl/README.md) for details on the harness, corpus, mutator integration, and follow-up TODOs.
+See [tools/afl/README.md](tools/afl/README.md) for details on the harness,
+corpus, mutator integration, and follow-up TODOs.
 
 ## Running Debug Systems
 
