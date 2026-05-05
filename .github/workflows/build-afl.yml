@@ -9,40 +9,20 @@ on:
 jobs:
   build-afl:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}-afl:latest
+      env:
+        CCACHE_DIR: /ccache
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ccache pkg-config libboost-all-dev \
-            clang lld llvm llvm-dev
-
-      # afl-ts needs libtree-sitter v0.25+ (ABI 15). Ubuntu's
-      # libtree-sitter-dev lags behind, so build it from source.
-      - name: Cache libtree-sitter install
-        id: cache-tree-sitter
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/lib/libtree-sitter.*
-          key: tree-sitter-0.25.6-${{ runner.os }}
-
-      - name: Build libtree-sitter v0.25.6 from source
-        if: steps.cache-tree-sitter.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 -b v0.25.6 https://github.com/tree-sitter/tree-sitter /tmp/tree-sitter
-          make -C /tmp/tree-sitter -j$(nproc)
-          sudo make -C /tmp/tree-sitter install
-          sudo ldconfig
-
       - name: Cache ccache
-        uses: actions/cache@v4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ~/.ccache
+          path: /ccache
           key: ccache-ubuntu-afl-${{ github.sha }}
           restore-keys: ccache-ubuntu-afl-
 

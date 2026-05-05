@@ -2,7 +2,6 @@
 #------------------------------------------------------------------------------
 # Dockerfile for building and testing Solidity Compiler on CI
 # Target: Ubuntu ossfuzz Clang variant
-# URL: https://hub.docker.com/r/ethereum/solidity-buildpack-deps
 #
 # This file is part of solidity.
 #
