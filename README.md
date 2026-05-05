@@ -114,7 +114,7 @@ make -C build -j$(nproc) aflplusplus afl_ts                        # Build the A
 # Build the AFL-instrumented harness in build_afl/.
 tools/afl/build_instrumented.sh
 
-# (Optional) pull ~15 real-world projects + build the merged seed corpus + expand corpus
+# Setup: pull ~15 real-world projects + build the merged seed corpus + expand corpus
 tools/afl/fetch_realworld.sh              # pull real-world projects
 tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
 tools/afl/build_corpus_tsgen.sh           # grammar-driven extra surface via tsgen
