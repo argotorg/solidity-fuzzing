@@ -66,8 +66,9 @@ make -C build -j$(nproc)                      # solc, host harness, grammar
 make -C build -j$(nproc) aflplusplus afl_ts   # the AFL toolchain (when ready to fuzz)
 ```
 
-`tools/afl/build_instrumented.sh` checks that both binaries exist and
-prints the exact command above if not.
+`tools/afl/build_afl.sh` wraps the cmake + make steps above as a single
+invocation. `tools/afl/build_instrumented.sh` checks that both binaries
+exist and prints the exact command above if not.
 
 `run_afl.sh` defaults to using all three: the vendored `afl-fuzz` runs the
 campaign, `libts.so` is loaded as the custom mutator, and

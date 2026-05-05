@@ -31,12 +31,7 @@ jobs:
       # produces afl-clang-fast, libts.so, libtree-sitter-solidity.so plus
       # the (uninstrumented) harness in build/.
       - name: Build host tree (also builds AFL++, afl-ts, grammar)
-        run: |
-          mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" ..
-          make -j$(nproc) sol_afl_diff_runner aflplusplus afl_ts tree_sitter_solidity
+        run: tools/afl/build_afl.sh
 
       - name: Verify external artefacts present
         run: |
