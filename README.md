@@ -127,8 +127,7 @@ echo core | sudo tee /proc/sys/kernel/core_pattern
 tools/afl/run_afl_parallel.sh -j 8        # multi-threaded
 tools/afl/run_afl.sh                      # single-threaded
 
-# Sanity-check / quick ground-truth that a crash still reproduces with the
-# exact harness AFL ran (silent on success, SIGABRT on diff):
+# Repro a crash still with the exact harness AFL ran
 build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
 
 # Replay an AFL crash with full per-config diagnostics, must use --afl
@@ -143,6 +142,10 @@ corpus, mutator integration, and follow-up TODOs.
 ```bash
 # Reproduce a sol ProtoBuf EVMOne finding:
 ./build/sol_debug_runner crash.sol
+
+
+# Reproduce an AFL finding (".sol" file contains also calldata):
+./build/sol_debug_runner --afl crash.sol
 
 # Reproduce a Yul Protobuf EVMOne finding:
 ./build/yul_debug_runner crash.yul
