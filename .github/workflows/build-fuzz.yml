@@ -9,21 +9,13 @@ on:
 jobs:
   build-fuzz:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}-ossfuzz:latest
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
-      - name: Pull or build image
-        run: |
-          IMAGE="ghcr.io/${{ github.repository }}:latest"
-          if ! docker pull "$IMAGE"; then
-            echo "Image not found in registry, building locally..."
-            docker build -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz -t "$IMAGE" .
-          fi
-
       - name: Build fuzzers
-        run: |
-          docker run --rm -v "$(pwd)":/src/solidity-fuzzing ghcr.io/${{ github.repository }}:latest \
-            /src/solidity-fuzzing/scripts/build_ossfuzz.sh
+        run: scripts/build_ossfuzz.sh
