@@ -160,11 +160,6 @@ optimizer, writing output to `.out`. Valid passes: `c S L M s r D`.
 `sol_ice_ossfuzz` and recompiles with `solc` (default args: `--via-ir
 --optimize`, override with `--solc-args`), writing output to `.out`.
 
-## More documentation
-
-Please see [here](tools/ossfuzz/README.md) for the list of all the
-fuzzers and the documentation on how to use the debug tools.
-
 ## FAQ
 
 ### Why the elaborate docker image to build fuzzers?
