@@ -44,6 +44,7 @@ The full AFL++ toolchain plus the AST-aware mutator are vendored:
 | `AFLplusplus/`         | github.com/AFLplusplus/AFLplusplus             | `afl-fuzz`, `afl-clang-fast{,++}`, `afl-cmin`          |
 | `afl-ts/`              | github.com/msooseth/afl-ts (`region-aware`)    | `libts.so` (AFL++ custom-mutator library, AST splice)  |
 | `tree-sitter-solidity/`| github.com/JoranHonig/tree-sitter-solidity     | `libtree-sitter-solidity.so` (parser; loaded by afl-ts) |
+| `tsgen/`               | github.com/jubnzv/tsgen                        | `tsgen` (Rust; grammar-based corpus generator, on demand) |
 
 The `afl-ts` submodule is a fork of upstream `jubnzv/afl-ts` carrying one
 patch: when the input ends with the magic suffix `[u16 LE source_len][0xCA 0xFE]`,
@@ -119,6 +120,53 @@ random entries with the new format using common ERC-style function
 selectors (`a9059cbb` transfer, `70a08231` balanceOf, etc.) plus 32
 argument bytes. Set `SEED_CALLDATA_COUNT=0` to skip if you want a
 purely pre-existing-shape corpus.
+
+### Grammar-driven corpus expansion via tsgen
+
+Real-world contracts cluster around a narrow grammar surface — common
+ERC patterns, a handful of statement shapes, a usual small set of type
+literals. Whole regions of the Solidity grammar (rare modifiers, exotic
+tuple/type-expression shapes, deeply-nested ternaries, …) are entirely
+absent from the test-suite + real-world corpus produced by
+`build_corpus.sh`. [tsgen](https://github.com/jubnzv/tsgen) (vendored as
+a submodule) walks a tree-sitter grammar and emits syntactically-valid
+programs to fill that gap. Reference run from
+[nowarp.io](https://nowarp.io/blog/compiler-testing-part-1/): ~150 k
+generated Solidity files, minimised to ~1300 unique <1 KB seeds.
+
+```bash
+# Default: ~thousands of files, all <= 1 KB, optionally cmin-minimised
+# against the AFL-instrumented harness if build_afl/ exists.
+tools/afl/build_corpus_tsgen.sh                  # writes to corpus_tsgen/
+
+# Match nowarp.io's run (hard count, no early stop on coverage):
+COUNT=150000 COVERAGE_TARGET=0.0 tools/afl/build_corpus_tsgen.sh
+
+# Merge into the main corpus once you're happy:
+cp corpus_tsgen/* corpus_afl/
+```
+
+The script: builds tsgen (`cargo build --release` — needs `cargo`),
+runs it against `tree-sitter-solidity/src/grammar.json` with the
+compiled parser for validation, drops entries over `MAX_BYTES`
+(default 1024), then runs `afl-cmin` against
+`build_afl/tools/afl/sol_afl_diff_runner` to keep only coverage-
+unique entries. If the AFL build isn't present, minimisation is
+skipped and the size-filtered set is emitted as-is. Set `SKIP_CMIN=1`
+to skip minimisation explicitly.
+
+`COUNT` is a *floor* — tsgen keeps generating until both that count and
+`COVERAGE_TARGET` (default 0.95) are satisfied. Even `COUNT=10` produces
+several thousand files because grammar coverage rises slowly. Set
+`COVERAGE_TARGET=0.0` to make `COUNT` a hard stop.
+
+Caveat: tsgen only enforces *parse* validity, not semantic validity —
+many emitted programs reference undeclared identifiers, mismatched
+types, or non-existent imports and fail at compile time. That's fine for
+afl-ts splice material (we want diverse AST fragments, not standalone
+deployable contracts) but means tsgen outputs help less when used as
+literal seeds without further mutation. The "Identifier renaming"
+follow-up below targets the same problem from the other direction.
 
 ### One-time system setup
 
@@ -346,12 +394,6 @@ arbitrarily, with or without the `0xCA 0xFE` trailer) reproduces directly.
 - **`afl-cmin` corpus minimization.** Once the harness is instrumented,
   minimize `corpus_afl/` to drop redundant entries:
   `afl-cmin -i corpus_afl -o corpus_min -- ./sol_afl_diff_runner @@`.
-
-- **`tsgen` corpus expansion.** Pull
-  [`tsgen`](https://github.com/jubnzv/tsgen) and run it against a Solidity
-  tree-sitter grammar to fill grammar surface that real-world contracts
-  skip. nowarp.io got ~1300 unique <1 KB seeds for Solidity from 150k
-  generated files post-minimization.
 
 - **Identifier renaming.** Rewrite identifiers in corpus entries to
   deterministic names (`v0`, `v1`, ...) so afl-ts splices don't reliably

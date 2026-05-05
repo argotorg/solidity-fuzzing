@@ -15,3 +15,6 @@
 [submodule "AFLplusplus"]
 	path = AFLplusplus
 	url = https://github.com/AFLplusplus/AFLplusplus.git
+[submodule "tsgen"]
+	path = tsgen
+	url = https://github.com/jubnzv/tsgen.git

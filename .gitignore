@@ -29,3 +29,9 @@ fuzz-*.log
 /findings_afl
 /realworld_cache
 /my_run
+/hang_triage
+/ice_crash
+/perf.data
+/perf.data.old
+/corpus_tsgen
+/corpus_tsgen_raw
