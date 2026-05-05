@@ -12,9 +12,9 @@ files, so you can rebuild any one without touching the others.
 
 | Tree             | Compiler                  | Workflow / artefacts                                                                |
 | ---              | ---                       | ---                                                                                 |
-| `build/`         | host gcc/clang            | `solc`, debug runners (`sol_debug_runner`, `yul_debug_runner`), host AFL harness — for reproducing crashes |
-| `build_ossfuzz/` | clang + libc++ (in Docker) | OSS-Fuzz libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
-| `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`) with edge-coverage instrumentation |
+| `build/`         | host gcc/clang            | `solc`, debug runners (`sol_debug_runner`, `yul_debug_runner`), for reproducing crashes |
+| `build_ossfuzz/` | clang + libc++ (in Docker) | libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
+| `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`)  |
 
 The fuzz build **must** go through Docker — libFuzzer + MemorySanitizer
 require an instrumented libc++ that only the OSS-Fuzz Docker image
@@ -61,13 +61,13 @@ This builds the following debug tools:
   (and, with `--afl`, AFL crashes from `sol_afl_diff_runner`)
 - `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
 
-## Building OSS-Fuzz Docker Image
+## Building libfuzzer Docker Image
 
 ```bash
 docker build -t solidity-ossfuzz -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz .
 ```
 
-## Building Fuzzers using the Docker Image, i.e. "fuzz build"
+## Building libfuzzer-based fuzzers using the Docker Image
 
 ```bash
 docker run --rm -v "$(pwd)":/src/solidity-fuzzing -ti solidity-ossfuzz \
@@ -79,13 +79,12 @@ The most important are the libfuzzer-based protobuf targets to be ran standalone
 - `sol_proto_ossfuzz_*` — Solidity differential fuzzers
 - `yul_proto_ossfuzz_*` — Yul differential fuzzers
 
-## Running a libfuzzer-based Fuzzer
+## Running a libfuzzer-based fuzzers
 
 ```bash
-./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone corpus_dir
+./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone corpus_dir_sol
+./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone corpus_dir_yul
 ```
-
-Corpuses are currently stored here: https://github.com/msooseth/solidity-fuzzing-corpus
 
 ## Running the AFL++ differential fuzzer
 
