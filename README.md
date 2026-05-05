@@ -120,6 +120,9 @@ tools/afl/build_instrumented.sh
 # (Optional) pull ~15 real-world projects + build the merged seed corpus.
 tools/afl/fetch_realworld.sh
 tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
+# (Optional) grammar-driven extras via tsgen — fills surface real contracts skip.
+# Needs cargo. Outputs corpus_tsgen/; merge with: cp corpus_tsgen/* corpus_afl/
+tools/afl/build_corpus_tsgen.sh
 
 # One-time system setup: AFL++ requires this kernel setting.
 echo core | sudo tee /proc/sys/kernel/core_pattern
