@@ -122,6 +122,7 @@ tools/afl/build_instrumented.sh
 tools/afl/fetch_realworld.sh              # pull real-world projects
 tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
 tools/afl/build_corpus_tsgen.sh           # grammar-driven extra surface via tsgen
+cp corpus_tsgen/*.sol corpus_afl/
 
 # One-time system setup: AFL++ requires this kernel setting.
 echo core | sudo tee /proc/sys/kernel/core_pattern
