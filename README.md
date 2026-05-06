@@ -109,6 +109,10 @@ regular host build doesn't).
 
 ```bash
 # Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev).
+# Apply local patches against vendored submodules (idempotent — skip if already applied).
+for p in patches/*.patch; do
+    git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
+done
 sudo apt-get install libprotobuf-dev rustup
 rustup toolchain install nightly
 mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.

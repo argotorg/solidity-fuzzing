@@ -263,6 +263,11 @@ bool EVMHost::selfdestruct(const evmc::address& _addr, const evmc::address& _ben
 
 	// NOTE: EIP-6780: The transfer of the entire account balance to the beneficiary should still happen
 	// after cancun.
+	// Pre-insert both keys so the three `accounts[]` evaluations in the call below
+	// (whose order is unspecified) cannot insert and thus cannot rehash; otherwise
+	// the references bound to `transfer`'s parameters could dangle.
+	accounts.try_emplace(_addr);
+	accounts.try_emplace(_beneficiary);
 	transfer(accounts[_addr], accounts[_beneficiary], convertFromEVMC(accounts[_addr].balance));
 
 	// Record self destructs. Clearing will be done in newTransactionFrame().
@@ -326,7 +331,12 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 	auto const logsBackup = recorded_logs;
 
 	u256 value{convertFromEVMC(_message.value)};
-	auto& sender = accounts[_message.sender];
+	// Do NOT cache references into `accounts` across operations that may mutate it.
+	// `accounts` is an `unordered_map`; insertions can rehash, and the recursive
+	// `m_vm.execute(*this, ...)` below re-enters `EVMHost::call`, which inserts
+	// into and possibly reassigns the same map. Any cached reference may dangle.
+	// Re-look-up via `accounts[<addr>]` at each use site instead.
+	accounts.try_emplace(_message.sender);
 
 	evmc::bytes code;
 
@@ -350,7 +360,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 		// TODO is the nonce incremented on failure, too?
 		// NOTE: nonce for creation from contracts starts at 1
 		// TODO: check if sender is an EOA and do not pre-increment
-		sender.nonce++;
+		accounts[_message.sender].nonce++;
 
 		auto encodeRlpInteger = [](int value) -> bytes {
 			if (value == 0) {
@@ -366,7 +376,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 			}
 		};
 
-		bytes encodedNonce = encodeRlpInteger(sender.nonce);
+		bytes encodedNonce = encodeRlpInteger(accounts[_message.sender].nonce);
 
 		h160 createAddress(keccak256(
 			bytes{static_cast<uint8_t>(0xc0 + 21 + encodedNonce.size())} +
@@ -413,7 +423,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 	else
 		code = accounts[message.code_address].code;
 
-	auto& destination = accounts[message.recipient];
+	accounts.try_emplace(message.recipient);
 	if (message.kind == EVMC_CREATE || message.kind == EVMC_CREATE2 || message.kind == EVMC_EOFCREATE)
 	{
 		// Mark account as created if it is a CREATE or CREATE2 call
@@ -424,14 +434,16 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 
 	if (value != 0 && message.kind != EVMC_DELEGATECALL && message.kind != EVMC_CALLCODE)
 	{
-		if (value > convertFromEVMC(sender.balance))
+		if (value > convertFromEVMC(accounts[_message.sender].balance))
 		{
 			evmc::Result result;
 			result.status_code = EVMC_INSUFFICIENT_BALANCE;
 			accounts = stateBackup;
 			return result;
 		}
-		transfer(sender, destination, value);
+		// Both keys are present in `accounts` (try_emplace'd above), so the two
+		// `[]` lookups in the call expression do not insert and cannot rehash.
+		transfer(accounts[_message.sender], accounts[message.recipient], value);
 	}
 
 	// Populate the access list (enabled since Berlin).
@@ -470,6 +482,10 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 			// TODO: Add proper codehash calculation for EOF.
 			m_totalCodeDepositGas += codeDepositGas;
 			result.create_address = message.recipient;
+			// Re-look-up: `m_vm.execute(*this, ...)` above may have rehashed
+			// or reassigned `accounts`, so a reference taken before the call
+			// would dangle here.
+			auto& destination = accounts[message.recipient];
 			destination.code = evmc::bytes(result.output_data, result.output_data + result.output_size);
 			destination.codehash = convertToEVMC(keccak256({result.output_data, result.output_size}));
 		}

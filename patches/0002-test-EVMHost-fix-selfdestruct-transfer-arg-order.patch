@@ -1,0 +1,16 @@
+diff --git a/solidity/test/EVMHost.cpp b/solidity/test/EVMHost.cpp
+index c4045965d..49bed77be 100644
+--- a/solidity/test/EVMHost.cpp
++++ b/solidity/test/EVMHost.cpp
+@@ -242,6 +242,11 @@ bool EVMHost::selfdestruct(const evmc::address& _addr, const evmc::address& _ben
+ 
+ 	// NOTE: EIP-6780: The transfer of the entire account balance to the beneficiary should still happen
+ 	// after cancun.
++	// Pre-insert both keys so the three `accounts[]` evaluations in the call below
++	// (whose order is unspecified) cannot insert and thus cannot rehash; otherwise
++	// the references bound to `transfer`'s parameters could dangle.
++	accounts.try_emplace(_addr);
++	accounts.try_emplace(_beneficiary);
+ 	transfer(accounts[_addr], accounts[_beneficiary], convertFromEVMC(accounts[_addr].balance));
+ 
+ 	// Record self destructs. Clearing will be done in newTransactionFrame().
