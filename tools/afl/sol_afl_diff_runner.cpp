@@ -127,6 +127,7 @@ static RunResult runOnce(
 		SolidityCompilationFramework compiler(cInput);
 		compOut = compiler.compileContract();
 	}
+	// ICEs are not interesting bugs, skipped here.
 	catch (langutil::InternalCompilerError const&)     { return skip(); }
 	catch (langutil::UnimplementedFeatureError const&) { return skip(); }
 	catch (langutil::StackTooDeepError const&)         { return skip(); }
@@ -254,6 +255,7 @@ int main(int argc, char** argv)
 	auto runB = runOnce(version, sources, settingsB, viaIR, calldata);
 
 	// Skip on deployment failure (matches proto fuzzer behavior).
+	// Also catches the bug-16642 invalid-opcode-codegen signature — covered, don't surface.
 	if (runA.result.status_code != EVMC_SUCCESS && runA.result.status_code != EVMC_REVERT) return 0;
 	if (runB.result.status_code != EVMC_SUCCESS && runB.result.status_code != EVMC_REVERT) return 0;
 

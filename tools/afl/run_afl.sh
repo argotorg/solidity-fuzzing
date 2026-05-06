@@ -21,7 +21,9 @@
 #                                 to AFL++'s built-in byte-level mutation.
 #   TS_GRAMMAR=path/to/parser.so  Default: tree-sitter-solidity/libtree-sitter-solidity.so.
 #                                 Override to point at a different grammar.
-#   AFL_TIMEOUT_MS=2000           Per-input timeout (compiler runs slow).
+#   AFL_TIMEOUT_MS=1000           Per-input timeout. Slow inputs are recorded
+#                                 as hangs in findings_afl/<fuzzer>/hangs/ and
+#                                 the campaign continues — they are not crashes.
 
 set -euo pipefail
 
@@ -32,7 +34,7 @@ FINDINGS="${1:-$REPO_ROOT/findings_afl}"
 AFL_FUZZ_BIN="${AFL_FUZZ_BIN:-$REPO_ROOT/AFLplusplus/afl-fuzz}"
 AFL_TS_LIB="${AFL_TS_LIB-$REPO_ROOT/afl-ts/libts.so}"
 TS_GRAMMAR="${TS_GRAMMAR-$REPO_ROOT/tree-sitter-solidity/libtree-sitter-solidity.so}"
-AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-2000}"
+AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-1000}"
 
 if [[ ! -x "$HARNESS" ]]; then
     echo "ERROR: harness not found at $HARNESS" >&2
@@ -89,8 +91,11 @@ AFL_TS_ENV+=("AFL_SKIP_CPUFREQ=1")
 mkdir -p "$FINDINGS"
 
 # Flags:
-#   -t <ms>     per-input timeout. Compiler frontends are slow; default
-#               1000ms timeouts are too tight.
+#   -t <ms>     per-input timeout. Inputs taking longer are recorded as hangs
+#               (findings_afl/<fuzzer>/hangs/) and the campaign continues —
+#               they are NOT escalated to crashes. Slow optimiser paths are
+#               legion at the high end and aren't bugs we care about, so 1s
+#               is a deliberate "skip the slow stuff" threshold.
 #   -m none     no memory cap. solc + evmone allocate aggressively.
 #   @@          AFL substitutes the input file path here.
 echo "Launching afl-fuzz against $HARNESS"

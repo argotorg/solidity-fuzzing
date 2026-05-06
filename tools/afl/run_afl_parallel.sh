@@ -26,7 +26,7 @@ CORPUS="${CORPUS:-$REPO_ROOT/corpus_afl}"
 AFL_FUZZ_BIN="${AFL_FUZZ_BIN:-$REPO_ROOT/AFLplusplus/afl-fuzz}"
 AFL_TS_LIB="${AFL_TS_LIB-$REPO_ROOT/afl-ts/libts.so}"
 TS_GRAMMAR="${TS_GRAMMAR-$REPO_ROOT/tree-sitter-solidity/libtree-sitter-solidity.so}"
-AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-2000}"
+AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-1000}"
 SESSION="${SESSION:-solfuzz}"
 
 JOBS=""
