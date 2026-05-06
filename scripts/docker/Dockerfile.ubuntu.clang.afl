@@ -25,7 +25,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
-        cargo \
         ccache \
         clang \
         cmake \
@@ -35,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         llvm \
         llvm-dev \
         pkg-config \
-        rustc \
+        rustup \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth 1 -b v0.26.8 https://github.com/tree-sitter/tree-sitter /tmp/tree-sitter \
@@ -43,3 +42,9 @@ RUN git clone --depth 1 -b v0.26.8 https://github.com/tree-sitter/tree-sitter /t
     && make -C /tmp/tree-sitter -j"$(nproc)" install \
     && ldconfig \
     && rm -rf /tmp/tree-sitter
+
+# tsgen's Cargo.toml declares edition = "2024" (rustc >= 1.85). Ubuntu's
+# apt rustc is currently 1.75; rustup tracks current stable.
+# See: https://github.com/jubnzv/tsgen/blob/d8a4d419bdf4c6e668f18c8b72743f33018e9d9a/Cargo.toml#L4
+RUN rustup set profile minimal && rustup default stable
+ENV PATH="/root/.cargo/bin:${PATH}"
