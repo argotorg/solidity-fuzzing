@@ -102,27 +102,27 @@ static RunResult runOnce(
 	}
 	catch (langutil::InternalCompilerError const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	catch (langutil::UnimplementedFeatureError const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	catch (langutil::StackTooDeepError const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	catch (evmasm::StackTooDeepException const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	catch (yul::YulAssertion const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	catch (yul::YulException const&)
 	{
-		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 	}
 	bool subCallOOG = hostContext.m_subCallOutOfGas;
 
@@ -146,7 +146,15 @@ static RunResult runOnce(
 
 	std::vector<evmc::address> contractCreationOrder = hostContext.m_contractCreationOrder;
 
-	return RunResult{std::move(result), subCallOOG, std::move(logs), std::move(storage), std::move(transientStorage), std::move(contractCreationOrder)};
+	// Storage layout for the main contract — used by the diff check below to
+	// mask internal-function-pointer bytes (legacy stores PCs, IR stores IDs;
+	// see TODO.md → "differential storage compare must mask internal-function-
+	// pointer slots").
+	Json storageLayout;
+	if (auto const& mainOut = evmoneUtil.mainContractOutput(); mainOut.has_value())
+		storageLayout = mainOut->storageLayout;
+
+	return RunResult{std::move(result), subCallOOG, std::move(logs), std::move(storage), std::move(transientStorage), std::move(contractCreationOrder), std::move(storageLayout)};
 }
 
 DEFINE_PROTO_FUZZER(Program const& _input)
@@ -268,6 +276,18 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 				logsEqual(runA.logs, runB.logs),
 				modeLabel + ": logs differ"
 			);
+			// Internal function pointers don't have a portable storage encoding
+			// (legacy: (creationPC<<32)|runtimePC, IR: function ID). Use the
+			// shared layout from runA — both runs compile the same source so
+			// the layout is identical regardless of optimiser/codegen mode.
+			auto fpMasks = internalFunctionPointerMasks(runA.mainContractStorageLayout);
+			if (!fpMasks.empty())
+			{
+				if (!runA.contractCreationOrder.empty())
+					applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasks);
+				if (!runB.contractCreationOrder.empty())
+					applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasks);
+			}
 			solAssert(
 				storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
 				modeLabel + ": storage differs"

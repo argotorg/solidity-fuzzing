@@ -89,7 +89,7 @@ static constexpr size_t s_maxCalldataBytes = 64 * 1024;
 /// outer differential bails cleanly.
 static RunResult skip()
 {
-	return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
 }
 
 /// Compile the source, deploy the resulting bytecode, send `_calldata` to
@@ -180,7 +180,10 @@ static RunResult runOnce(
 		std::move(logs),
 		std::move(storage),
 		std::move(transientStorage),
-		host.m_contractCreationOrder
+		host.m_contractCreationOrder,
+		// Carry the storage layout so the differential check below can mask
+		// internal-function-pointer bytes (non-portable across optimiser modes).
+		compOut->storageLayout
 	};
 }
 
@@ -278,6 +281,18 @@ int main(int argc, char** argv)
 			label + ": output differs"
 		);
 		solAssert(logsEqual(runA.logs, runB.logs), label + ": logs differ");
+		// Internal function pointers are encoded differently across legacy
+		// (PCs) and IR (function IDs) and across optimiser levels (PCs shift
+		// with bytecode size). Mask their storage bytes before the strict
+		// equality check — see TODO.md for the full rationale.
+		auto fpMasks = internalFunctionPointerMasks(runA.mainContractStorageLayout);
+		if (!fpMasks.empty())
+		{
+			if (!runA.contractCreationOrder.empty())
+				applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasks);
+			if (!runB.contractCreationOrder.empty())
+				applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasks);
+		}
 		solAssert(
 			storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
 			label + ": storage differs"

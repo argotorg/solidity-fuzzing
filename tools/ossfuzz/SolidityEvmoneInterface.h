@@ -34,6 +34,12 @@ struct CompilerOutput
 	solidity::bytes byteCode;
 	/// Method identifiers in a contract
 	Json methodIdentifiersInContract;
+	/// solc storage-layout JSON for the compiled contract (the
+	/// "storage" + "types" object documented at
+	/// https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#json-output).
+	/// Used by the differential harnesses to mask internal-function-pointer
+	/// bytes that legitimately differ across optimiser/codegen configs.
+	Json storageLayout;
 };
 
 struct CompilerInput
@@ -148,6 +154,10 @@ public:
 		std::string _isabelleData = {},
 		std::string _extraCalldataHex = {}
 	);
+	/// @returns the CompilerOutput captured for the *main* contract on the
+	/// most recent compileDeployAndExecute() call (the one whose bytecode
+	/// is deployed and called). Empty until that completes successfully.
+	std::optional<CompilerOutput> const& mainContractOutput() const { return m_mainContractOutput; }
 	/// Compares the contents of the memory address pointed to
 	/// by `_result` of `_length` bytes to u256 zero.
 	/// @returns true if `_result` is zero, false
@@ -187,6 +197,9 @@ private:
 	solidity::test::EVMHost& m_evmHost;
 	/// Solidity compilation framework
 	SolidityCompilationFramework m_compilationFramework;
+	/// Cached output from compiling the main contract on the most recent
+	/// compileDeployAndExecute() call, so callers can access its storageLayout.
+	std::optional<CompilerOutput> m_mainContractOutput;
 	/// Contract name
 	std::string m_contractName;
 	/// Library name

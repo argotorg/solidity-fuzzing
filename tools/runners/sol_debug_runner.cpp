@@ -34,6 +34,7 @@
 
 #include <libevmasm/Exceptions.h>
 #include <liblangutil/Exceptions.h>
+#include <libsolutil/JSON.h>
 #include <libsolutil/Keccak256.h>
 #include <libyul/optimiser/Suite.h>
 
@@ -92,6 +93,9 @@ struct RunResult
 	/// Contract creation order: addresses in the order they were deployed (CREATE/CREATE2).
 	/// Index 0 is the main "C" contract, index 1+ are sub-contracts deployed during execution.
 	std::vector<evmc::address> contractCreationOrder;
+	/// Storage layout for the main contract — used to mask internal-function-
+	/// pointer fields in the differential check (see TODO.md).
+	Json mainContractStorageLayout;
 };
 
 static std::string statusCodeToString(evmc_status_code _code)
@@ -261,6 +265,7 @@ static RunResult runOnce(
 		if (compOutput.has_value() && !compOutput->byteCode.empty())
 		{
 			result.bytecode = compOutput->byteCode;
+			result.mainContractStorageLayout = compOutput->storageLayout;
 			actualContractName = contractName.empty()
 				? compiler.lastContractName()
 				: contractName;
@@ -434,6 +439,115 @@ static bool storageEqual(
 	return true;
 }
 
+/// Byte range within a single slot to ignore when comparing storage. Used
+/// for internal-function-pointer fields whose encoding is not portable
+/// across optimiser/codegen configs. Duplicated locally to keep this runner
+/// self-contained — see equivalent helpers in tools/ossfuzz/FuzzerDiffCommon
+/// (the runner avoids including that header to keep its own RunResult and
+/// duplicated storageEqual independent).
+struct StorageSlotMask
+{
+	u256 slot;
+	unsigned offset;  ///< 0..31, byte offset within the slot
+	unsigned length;  ///< number of bytes to mask
+};
+
+namespace
+{
+constexpr char const kInternalFunctionPrefix[] = "t_function_internal_";
+
+void walkLayoutType(
+	Json const& _types,
+	std::string const& _typeKey,
+	u256 const& _slot,
+	unsigned _offset,
+	std::vector<StorageSlotMask>& _out
+)
+{
+	if (_typeKey.compare(0, sizeof(kInternalFunctionPrefix) - 1, kInternalFunctionPrefix) == 0)
+	{
+		unsigned length = 8;
+		if (auto it = _types.find(_typeKey); it != _types.end())
+			if (auto nb = it->find("numberOfBytes"); nb != it->end() && nb->is_string())
+				length = static_cast<unsigned>(std::stoul(nb->get<std::string>()));
+		_out.push_back({_slot, _offset, length});
+		return;
+	}
+	auto typeIt = _types.find(_typeKey);
+	if (typeIt == _types.end())
+		return;
+	Json const& typeInfo = *typeIt;
+	auto encIt = typeInfo.find("encoding");
+	if (encIt == typeInfo.end() || !encIt->is_string() || encIt->get<std::string>() != "inplace")
+		return;  // mapping / dynamic_array / bytes — TODO: indirect-keyed storage
+	if (auto membersIt = typeInfo.find("members"); membersIt != typeInfo.end() && membersIt->is_array())
+	{
+		for (auto const& member: *membersIt)
+		{
+			std::string mTypeKey = member.at("type").get<std::string>();
+			u256 mSlotRel(member.at("slot").get<std::string>());
+			unsigned mOffset = member.at("offset").get<unsigned>();
+			walkLayoutType(_types, mTypeKey, _slot + mSlotRel, mOffset, _out);
+		}
+	}
+	// Inplace static array (`base` key) intentionally not walked — see the
+	// equivalent comment in FuzzerDiffCommon.cpp; no current finding needs it.
+}
+}
+
+static std::vector<StorageSlotMask> internalFunctionPointerMasks(Json const& _layout)
+{
+	std::vector<StorageSlotMask> out;
+	if (!_layout.is_object())
+		return out;
+	auto storageIt = _layout.find("storage");
+	auto typesIt = _layout.find("types");
+	if (storageIt == _layout.end() || !storageIt->is_array() ||
+		typesIt == _layout.end() || !typesIt->is_object())
+		return out;
+	for (auto const& var: *storageIt)
+	{
+		std::string typeKey = var.at("type").get<std::string>();
+		u256 slot(var.at("slot").get<std::string>());
+		unsigned offset = var.at("offset").get<unsigned>();
+		walkLayoutType(*typesIt, typeKey, slot, offset, out);
+	}
+	return out;
+}
+
+static void applyStorageMasks(
+	std::map<evmc::address, StorageMap>& _storage,
+	evmc::address const& _address,
+	std::vector<StorageSlotMask> const& _masks
+)
+{
+	if (_masks.empty())
+		return;
+	auto accIt = _storage.find(_address);
+	if (accIt == _storage.end())
+		return;
+	StorageMap& slots = accIt->second;
+	static constexpr evmc::bytes32 zero{};
+	for (auto const& mask: _masks)
+	{
+		if (mask.length == 0 || mask.length > 32 || mask.offset >= 32 || mask.offset + mask.length > 32)
+			continue;
+		// First item in a slot is stored lower-order aligned; in big-endian
+		// bytes32 layout the byte at offset O is at index 31-O.
+		evmc::bytes32 key = EVMHost::convertToEVMC(h256(mask.slot));
+		auto slotIt = slots.find(key);
+		if (slotIt == slots.end())
+			continue;
+		evmc::bytes32& current = slotIt->second.current;
+		unsigned const hi = 32 - mask.offset;
+		unsigned const lo = hi - mask.length;
+		for (unsigned i = lo; i < hi; ++i)
+			current.bytes[i] = 0;
+		if (current == zero)
+			slots.erase(slotIt);
+	}
+}
+
 /// Filter out transient storage entries where value is zero.
 static std::map<evmc::address, TransientStorageMap> filterZeroTransientStorage(
 	std::map<evmc::address, TransientStorageMap> const& _storage
@@ -585,8 +699,20 @@ static bool compareRuns(
 		bool logsMatch = logsEqual(_a.logs, _b.logs);
 		if (!gasRelated && !logsMatch) mismatch = true;
 
-		// Storage (compare by creation order to handle differing CREATE2 addresses)
-		bool storageMatch = storageEqual(_a.storage, _a.contractCreationOrder, _b.storage, _b.contractCreationOrder);
+		// Storage (compare by creation order to handle differing CREATE2 addresses).
+		// Mask internal-function-pointer bytes first — their encoding is not
+		// portable across optimiser/codegen modes (see TODO.md).
+		auto storageA = _a.storage;
+		auto storageB = _b.storage;
+		auto fpMasks = internalFunctionPointerMasks(_a.mainContractStorageLayout);
+		if (!fpMasks.empty())
+		{
+			if (!_a.contractCreationOrder.empty())
+				applyStorageMasks(storageA, _a.contractCreationOrder.front(), fpMasks);
+			if (!_b.contractCreationOrder.empty())
+				applyStorageMasks(storageB, _b.contractCreationOrder.front(), fpMasks);
+		}
+		bool storageMatch = storageEqual(storageA, _a.contractCreationOrder, storageB, _b.contractCreationOrder);
 		if (!gasRelated && !storageMatch) mismatch = true;
 
 		// Transient storage

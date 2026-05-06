@@ -62,7 +62,8 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 			contractName = m_compilerInput.contractName;
 		evmasm::LinkerObject obj = m_compiler.object(contractName);
 		Json methodIdentifiers = m_compiler.interfaceSymbols(contractName)["methods"];
-		return CompilerOutput{obj.bytecode, methodIdentifiers};
+		Json storageLayout = m_compiler.storageLayout(contractName);
+		return CompilerOutput{obj.bytecode, methodIdentifiers, storageLayout};
 	}
 }
 
@@ -143,12 +144,16 @@ evmc::Result EvmoneUtility::compileDeployAndExecute(std::string _fuzzIsabelle, s
 	// Stage 2: Compile, deploy, and execute contract, optionally using library
 	// address map.
 	m_compilationFramework.contractName(m_contractName);
+	m_mainContractOutput.reset();
 	auto cOutput = m_compilationFramework.compileContract();
 	// Compilation can fail for generated inputs; return a failure result.
 	if (!cOutput.has_value() ||
 		cOutput->byteCode.empty() ||
 		cOutput->methodIdentifiersInContract.empty())
 		return evmc::Result{EVMC_INTERNAL_ERROR};
+	// Cache for callers that need post-compile metadata (storage layout for
+	// internal-function-pointer masking — see FuzzerDiffCommon).
+	m_mainContractOutput = cOutput;
 
 	std::string methodName;
 	if (!_fuzzIsabelle.empty())

@@ -28,6 +28,7 @@
 #include <tools/common/EVMHost.h>
 
 #include <libsolidity/interface/OptimiserSettings.h>
+#include <libsolutil/JSON.h>
 
 #include <test/evmc/mocked_host.hpp>
 
@@ -55,6 +56,11 @@ struct RunResult
 	std::map<evmc::address, TransientStorageMap> transientStorage;
 	/// Contract creation order: addresses in the order they were deployed (CREATE/CREATE2).
 	std::vector<evmc::address> contractCreationOrder;
+	/// solc storage-layout JSON for the *main* compiled contract (the one
+	/// at contractCreationOrder[0]). Used to mask internal-function-pointer
+	/// fields whose encoding is not portable across optimiser/codegen modes.
+	/// Empty if compilation didn't run or the layout was unavailable.
+	solidity::Json mainContractStorageLayout;
 };
 
 /// Compare two log records for equality (ignoring creator address,
@@ -117,6 +123,41 @@ bool transientStorageEqual(
 /// Currently disabled (returns the default sequence) — see TODO in implementation.
 std::string buildOptimizerSequence(
 	google::protobuf::RepeatedField<uint32_t> const& _steps
+);
+
+/// Byte range within a single storage slot that should be ignored when
+/// comparing storage across optimiser/codegen configurations. Used to zero
+/// out internal-function-pointer fields, whose encoding is not portable
+/// (legacy stores `(creationPC<<32)|runtimePC` while IR stores a sequential
+/// function ID — see TODO.md for context).
+struct StorageSlotMask
+{
+	solidity::u256 slot;
+	unsigned offset;  ///< 0..31, byte offset within the slot
+	unsigned length;  ///< number of bytes to mask
+};
+
+/// Walk a solc storage-layout JSON (see
+/// https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#json-output)
+/// and emit a mask range for every internal-function-pointer field reachable
+/// via inplace storage (top-level state vars, struct members, struct-of-struct,
+/// inplace static arrays). Indirect-keyed storage (mappings, dynamic arrays,
+/// bytes/string) is intentionally skipped — covering it would require knowing
+/// the runtime keys, and so far no fuzzer corpus has exercised that path. Add
+/// it if/when a finding actually needs it.
+std::vector<StorageSlotMask> internalFunctionPointerMasks(
+	solidity::Json const& _storageLayout
+);
+
+/// Apply @p _masks to the storage at @p _address in @p _storage: zero out the
+/// listed byte ranges in each slot's `current` value. If a slot becomes
+/// all-zero after masking, it is dropped from the map (matches the unwritten-
+/// equals-zero convention used by storageEqual / filterZeroStorage). No-op if
+/// @p _address has no entry in @p _storage or @p _masks is empty.
+void applyStorageMasks(
+	std::map<evmc::address, StorageMap>& _storage,
+	evmc::address const& _address,
+	std::vector<StorageSlotMask> const& _masks
 );
 
 }

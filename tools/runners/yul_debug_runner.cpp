@@ -695,7 +695,10 @@ static bool compareRuns(
 		bool logsMatch = logsEqual(_a.logs, _b.logs);
 		if (!gasRelated && !logsMatch) mismatch = true;
 
-		// Storage (compare by creation order to handle differing CREATE2 addresses)
+		// Storage (compare by creation order to handle differing CREATE2 addresses).
+		// No internal-function-pointer mask here: Yul has no Solidity-style
+		// internal function pointer type, so the non-portable PC vs ID encoding
+		// the Sol runners mask around can't arise.
 		bool storageMatch = storageEqual(_a.storage, _a.contractCreationOrder, _b.storage, _b.contractCreationOrder);
 		if (!gasRelated && !storageMatch) mismatch = true;
 

@@ -401,6 +401,9 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 			logsEqual(runA.logs, runB.logs),
 			modeLabel + " logs differ"
 		);
+		// No internal-function-pointer mask here: Yul has no Solidity-style
+		// internal function pointer type, so the non-portable PC vs function-ID
+		// encoding that the Sol fuzzers mask around can't arise.
 		solAssert(
 			storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
 			modeLabel + " storage differs"
