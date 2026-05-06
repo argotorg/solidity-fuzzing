@@ -18,3 +18,7 @@
 [submodule "tsgen"]
 	path = tsgen
 	url = https://github.com/jubnzv/tsgen.git
+[submodule "tree-sitter"]
+	path = tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter.git
+	branch = master

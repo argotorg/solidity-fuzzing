@@ -141,16 +141,15 @@ else()
 endif()
 
 # --- Build afl-ts custom mutator from submodule ---
-# Needs AFLplusplus/include/ for the custom-mutator API and a system
-# libtree-sitter (≥0.25) for the parser runtime; loads grammar .so via dlopen
-# at runtime (TS_GRAMMAR env var → tree-sitter-solidity/libtree-sitter-solidity.so
-# by default in run_afl.sh).
+# Needs AFLplusplus/include/ for the custom-mutator API. Tree-sitter itself
+# is amalgamated in from the in-tree tree-sitter/ submodule by afl-ts's
+# Makefile, so no system libtree-sitter is required. Loads the grammar .so
+# via dlopen at runtime (TS_GRAMMAR env var →
+# tree-sitter-solidity/libtree-sitter-solidity.so by default in run_afl.sh).
 if (EXISTS "${CMAKE_SOURCE_DIR}/afl-ts/Makefile" AND DEFINED AFLPP_DIR)
     include(ExternalProject)
     set(AFL_TS_CFLAGS "-O3 -funroll-loops -fPIC -Wall -Wextra -I${AFLPP_DIR}/include")
-    # Same EXCLUDE_FROM_ALL rationale as aflplusplus: needs libtree-sitter
-    # v0.25+ headers/lib that non-AFL users may not have. Build with
-    # `make afl_ts`.
+    # EXCLUDE_FROM_ALL: AFL workflow is opt-in. Build with `make afl_ts`.
     ExternalProject_Add(afl_ts
         EXCLUDE_FROM_ALL 1
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/afl-ts"

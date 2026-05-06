@@ -108,11 +108,11 @@ AFL++ + afl-ts are opt-in (they need `clang` + `llvm-dev` that the
 regular host build doesn't).
 
 ```bash
-# Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev + libtree-sitter-dev v0.25+).
-sudo apt-get install libtree-sitter-dev libprotobuf-dev rustup
+# Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev).
+sudo apt-get install libprotobuf-dev rustup
 rustup toolchain install nightly
 mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.
-make -C build -j$(nproc) aflplusplus afl_ts                        # Build the AFL toolchain (needs clang + llvm-dev + libtree-sitter-dev v0.25+).
+make -C build -j$(nproc) aflplusplus afl_ts                        # Build the AFL toolchain (needs clang + llvm-dev).
 tools/afl/build_afl.sh
 
 # Build the AFL-instrumented harness in build_afl/.
