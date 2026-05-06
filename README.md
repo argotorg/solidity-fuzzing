@@ -109,6 +109,9 @@ regular host build doesn't).
 
 ```bash
 # Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev + libtree-sitter-dev v0.25+).
+sudo apt-get install libtree-sitter-dev libprotobuf-dev
+mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.
+make -C build -j$(nproc) aflplusplus afl_ts                        # Build the AFL toolchain (needs clang + llvm-dev + libtree-sitter-dev v0.25+).
 tools/afl/build_afl.sh
 
 # Build the AFL-instrumented harness in build_afl/.
