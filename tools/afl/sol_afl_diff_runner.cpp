@@ -94,12 +94,18 @@ static RunResult skip()
 
 /// Compile the source, deploy the resulting bytecode, send `_calldata` to
 /// the deployment. Capture state for the differential check.
+///
+/// `_readsDeployedCode` is set to true if the contract performed
+/// EXTCODESIZE/EXTCODECOPY/EXTCODEHASH on any address it deployed. The
+/// caller uses this to skip the differential — those values depend on the
+/// (config-dependent) deployed bytecode and are not real bugs.
 static RunResult runOnce(
 	langutil::EVMVersion _version,
 	StringMap const& _source,
 	OptimiserSettings _optimiserSettings,
 	bool _viaIR,
-	bytes const& _calldata
+	bytes const& _calldata,
+	bool& _readsDeployedCode
 )
 {
 	// Empty contractName lets SolidityCompilationFramework fall back to
@@ -161,6 +167,8 @@ static RunResult runOnce(
 	callMsg.recipient = createResult.create_address;
 	callMsg.code_address = createResult.create_address;
 	evmc::Result execResult = host.call(callMsg);
+
+	_readsDeployedCode = host.m_readsDeployedCode;
 
 	std::vector<evmc::MockedHost::log_record> logs(host.recorded_logs.begin(), host.recorded_logs.end());
 
@@ -254,8 +262,10 @@ int main(int argc, char** argv)
 	// including the one solAssert throws on a diff — must propagate so AFL
 	// records a SIGABRT crash via terminate().
 	bool const viaIR = false;
-	auto runA = runOnce(version, sources, settingsA, viaIR, calldata);
-	auto runB = runOnce(version, sources, settingsB, viaIR, calldata);
+	bool readsDeployedCodeA = false;
+	bool readsDeployedCodeB = false;
+	auto runA = runOnce(version, sources, settingsA, viaIR, calldata, readsDeployedCodeA);
+	auto runB = runOnce(version, sources, settingsB, viaIR, calldata, readsDeployedCodeB);
 
 	// Skip on deployment failure (matches proto fuzzer behavior).
 	// Also catches the bug-16642 invalid-opcode-codegen signature — covered, don't surface.
@@ -264,6 +274,12 @@ int main(int argc, char** argv)
 
 	// Skip on sub-call OOG — legitimate cross-optimisation difference.
 	if (runA.subCallOutOfGas || runB.subCallOutOfGas) return 0;
+
+	// Skip when the contract introspected its own (or any deployed contract's)
+	// bytecode via EXTCODESIZE/EXTCODECOPY/EXTCODEHASH. The bytecode itself
+	// differs across optimiser/codegen modes by design, so any output or
+	// storage derived from those reads is a harness false positive.
+	if (readsDeployedCodeA || readsDeployedCodeB) return 0;
 
 	std::string const label = "Sol AFL diff fuzzer";
 

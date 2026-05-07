@@ -52,6 +52,8 @@ extern "C" struct evmc_vm* evmc_create_evmone(void) noexcept;
 #include <libsolutil/Keccak256.h>
 #include <libsolutil/picosha2.h>
 
+#include <algorithm>
+
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::test;
@@ -203,6 +205,7 @@ void EVMHost::reset()
 	m_contractCreationOrder.clear();
 	m_totalCodeDepositGas = 0;
 	m_subCallOutOfGas = false;
+	m_readsDeployedCode = false;
 
 	// Mark all precompiled contracts as existing. Existing here means to have a balance (as per EIP-161).
 	// NOTE: keep this in sync with `EVMHost::call` below.
@@ -505,6 +508,48 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 evmc::bytes32 EVMHost::get_block_hash(int64_t _number) const noexcept
 {
 	return convertToEVMC(u256("0x3737373737373737373737373737373737373737373737373737373737373737") + _number);
+}
+
+// EXTCODESIZE / EXTCODECOPY / EXTCODEHASH on any contract WE deployed are
+// inherently config-dependent: the deployed bytecode varies across optimiser
+// and codegen settings, so its size, hash and contents differ legitimately.
+// We taint `m_readsDeployedCode` so differential fuzzers can skip such inputs
+// instead of flagging a false positive.
+namespace
+{
+bool isDeployedContract(
+	std::vector<evmc::address> const& _creationOrder,
+	evmc::address const& _addr
+)
+{
+	return std::find(_creationOrder.begin(), _creationOrder.end(), _addr) != _creationOrder.end();
+}
+}
+
+size_t EVMHost::get_code_size(evmc::address const& _addr) const noexcept
+{
+	if (isDeployedContract(m_contractCreationOrder, _addr))
+		m_readsDeployedCode = true;
+	return MockedHost::get_code_size(_addr);
+}
+
+evmc::bytes32 EVMHost::get_code_hash(evmc::address const& _addr) const noexcept
+{
+	if (isDeployedContract(m_contractCreationOrder, _addr))
+		m_readsDeployedCode = true;
+	return MockedHost::get_code_hash(_addr);
+}
+
+size_t EVMHost::copy_code(
+	evmc::address const& _addr,
+	size_t _code_offset,
+	uint8_t* _buffer_data,
+	size_t _buffer_size
+) const noexcept
+{
+	if (isDeployedContract(m_contractCreationOrder, _addr))
+		m_readsDeployedCode = true;
+	return MockedHost::copy_code(_addr, _code_offset, _buffer_data, _buffer_size);
 }
 
 h160 EVMHost::convertFromEVMC(evmc::address const& _addr)

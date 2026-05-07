@@ -65,6 +65,14 @@ public:
 	bool selfdestruct(evmc::address const& _addr, evmc::address const& _beneficiary) noexcept final;
 	evmc::Result call(evmc_message const& _message) noexcept final;
 	evmc::bytes32 get_block_hash(int64_t number) const noexcept final;
+	size_t get_code_size(evmc::address const& _addr) const noexcept final;
+	evmc::bytes32 get_code_hash(evmc::address const& _addr) const noexcept final;
+	size_t copy_code(
+		evmc::address const& _addr,
+		size_t _code_offset,
+		uint8_t* _buffer_data,
+		size_t _buffer_size
+	) const noexcept final;
 
 	// Solidity testing specific features.
 
@@ -90,6 +98,7 @@ public:
 		tx_context.block_timestamp += 15;
 		recorded_logs.clear();
 		m_subCallOutOfGas = false;
+		m_readsDeployedCode = false;
 		newTransactionFrame();
 	}
 
@@ -112,6 +121,16 @@ public:
 	/// Used for semantic storage comparison: different bytecodes produce different CREATE2 addresses,
 	/// so we compare storage by creation index rather than by sorted address.
 	std::vector<evmc::address> m_contractCreationOrder;
+
+	/// True if the running contract performed code introspection
+	/// (EXTCODESIZE / EXTCODECOPY / EXTCODEHASH) on any address that we
+	/// deployed in this run. The deployed bytecode (and thus its size, hash,
+	/// and contents) legitimately differs across optimiser/codegen settings,
+	/// so any output or storage-key derived from these reads is a harness
+	/// false positive — not a real differential bug. Differential fuzzers
+	/// can check this flag to skip such inputs.
+	/// `mutable` because the EVMC code-access methods are `const`.
+	mutable bool m_readsDeployedCode = false;
 
 private:
 	/// Transfer value between accounts. Checks for sufficient balance.
