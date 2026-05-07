@@ -145,6 +145,23 @@ build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:00000
 See [tools/afl/README.md](tools/afl/README.md) for details on the harness,
 corpus, mutator integration, and follow-up TODOs.
 
+### Regression tests for the AFL diff runner
+
+`tools/afl/tests/` holds a small suite of `.sol` inputs that pin past
+harness false-positive fixes (e.g. self-bytecode introspection via
+`extcodecopy(address(),...)` / `extcodesize(address())`). Each input is
+expected to complete with exit code 0 — either passes the differential
+or is legitimately skipped. A non-zero exit means the runner crashed
+via `solAssert` / SIGABRT, i.e. a regression in the skip logic.
+
+```bash
+make -C build -j$(nproc) sol_afl_diff_runner   # ensure host runner is built
+tools/afl/tests/run.sh                         # runs every inputs/*.sol
+```
+
+To add a regression input, drop a `.sol` under `tools/afl/tests/inputs/`
+with a short header comment explaining what it exercises and why.
+
 ## Running Debug Systems
 
 ```bash
