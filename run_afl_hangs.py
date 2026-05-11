@@ -361,8 +361,8 @@ def main() -> int:
                          "Default: %(default)d.")
     ap.add_argument("--limit", type=int, default=0,
                     help="process at most this many hangs (0 = all)")
-    ap.add_argument("--top-n", type=int, default=20,
-                    help="rows to print in the ranked summary tables (default 20)")
+    ap.add_argument("--top-n", type=int, default=100,
+                    help="rows to print in the ranked summary tables (default 100)")
     args = ap.parse_args()
 
     findings_root = Path(args.findings_root)
