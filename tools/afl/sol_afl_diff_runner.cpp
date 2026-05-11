@@ -251,6 +251,16 @@ int main(int argc, char** argv)
 	if (calldata.size() > s_maxCalldataBytes)
 		return 0;
 
+	// Skip any source containing inline assembly. Inline-asm blocks can
+	// violate solc's documented invariants in ways that look like
+	// optimiser-induced output/storage mismatches but aren't real solc
+	// bugs, so the differential oracle treats anything mentioning
+	// `assembly` as not interesting. Plain substring match is intentional
+	// — false positives (e.g. the word inside a string literal) only cost
+	// us one skipped corpus entry.
+	if (source.find("assembly") != std::string::npos)
+		return 0;
+
 	langutil::EVMVersion version = langutil::EVMVersion::current();
 	StringMap sources({{"test.sol", source}});
 
