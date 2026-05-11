@@ -17,9 +17,11 @@
   that status / output / logs / storage / transient storage match. On any
   mismatch the unhandled exception triggers `terminate()` → SIGABRT, which
   AFL++ records as a crash. Built by the normal (host) cmake build.
-  Sources containing the substring `assembly` are skipped wholesale —
-  inline-asm blocks regularly violate solc's documented invariants in
-  ways the differential oracle mistakes for optimiser mismatches.
+  Sources containing the substring `assembly` or `gas()` are skipped
+  wholesale — inline-asm blocks regularly violate solc's documented
+  invariants in ways the differential oracle mistakes for optimiser
+  mismatches, and gas() observations legitimately differ between
+  optimiser configurations.
 
 ## sol_afl_diff_runner workflow
 
