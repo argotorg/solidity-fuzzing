@@ -35,3 +35,4 @@ fuzz-*.log
 /perf.data.old
 /corpus_tsgen
 /corpus_tsgen_raw
+/corpus_afl_minimized
