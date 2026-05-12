@@ -109,15 +109,21 @@ echo "Size filter (<= $MAX_BYTES bytes): kept $kept, dropped $removed."
 HARNESS="$REPO_ROOT/build_afl/tools/afl/sol_afl_diff_runner"
 AFL_CMIN="$REPO_ROOT/AFLplusplus/afl-cmin"
 mkdir -p "$OUT"
-rm -rf "$OUT"/*
+# Wipe contents (including dotfiles like a leftover `.traces/` from an
+# interrupted prior cmin run) without removing the directory itself —
+# afl-cmin.py errors out if its `-o` is non-empty, and the directory may
+# be a bind-mount we must not unlink.
+find "$OUT" -mindepth 1 -delete
 
 if [[ -z "${SKIP_CMIN:-}" && -x "$HARNESS" && -x "$AFL_CMIN" ]]; then
     echo "Minimizing with afl-cmin (this can take a while)..."
+    # No `@@`: sol_afl_diff_runner runs in AFL++ persistent + shared-memory
+    # mode, so afl-cmin (via afl-showmap) feeds inputs over shared memory.
     AFL_SKIP_CPUFREQ=1 "$AFL_CMIN" \
         -i "$RAW_OUT" \
         -o "$OUT" \
         -t 2000 -m none \
-        -- "$HARNESS" @@
+        -- "$HARNESS"
     final=$(find "$OUT" -type f | wc -l)
     echo
     echo "Wrote $final unique-coverage seeds to $OUT/"
