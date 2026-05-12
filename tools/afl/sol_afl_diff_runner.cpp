@@ -18,8 +18,11 @@
 /**
  * AFL++ harness for differential Solidity fuzzing against EVMOne.
  *
- * Reads a Solidity source from argv[1] (file path) or stdin, then for each
- * of two optimiser settings ({minimal, standard}):
+ * Runs in AFL++ persistent + shared-memory mode (see
+ * AFLplusplus/instrumentation/README.persistent_mode.md): one process handles
+ * up to 1000 inputs before AFL re-forks, amortising libsolc / libevmone
+ * startup. Each iteration, for each of two optimiser settings ({minimal,
+ * standard}):
  *   1. compiles the last contract in the source
  *   2. deploys it
  *   3. calls it with calldata bytes derived deterministically from the source
@@ -28,7 +31,11 @@
  *   4. captures status / output / logs / storage / transient storage
  * On any cross-config mismatch, solAssert throws InternalCompilerError; we
  * deliberately let it propagate so std::terminate raises SIGABRT and AFL++
- * records a crash.
+ * records a crash, restarting the persistent child for the next input.
+ *
+ * Repro path: `./sol_afl_diff_runner path/to/crash-xxxx` bypasses AFL
+ * entirely, runs one input, and exits — works on a host (non-afl-clang-fast)
+ * build for debugging.
  *
  * Designed to be driven by afl-fuzz with a corpus of real-world Solidity
  * contracts plus the solidity submodule's test suite. Works with afl-ts
@@ -56,9 +63,26 @@
 #include <libsolutil/JSON.h>
 
 #include <cstring>
-#include <iostream>
-#include <sstream>
 #include <string>
+#include <string_view>
+#include <unistd.h>
+
+// AFL++ persistent-mode + shared-memory fuzzing macros. With afl-clang-fast
+// these expand to hooks into the AFL shared-memory ring; with any other
+// compiler (e.g. a host repro build) the shim stubs them out so the binary
+// still compiles and runs one input from stdin per process — matching the
+// pre-persistent-mode behaviour.
+#ifndef __AFL_FUZZ_TESTCASE_LEN
+static ssize_t fuzz_len;
+static unsigned char fuzz_buf[1024 * 1024];
+  #define __AFL_FUZZ_TESTCASE_LEN fuzz_len
+  #define __AFL_FUZZ_TESTCASE_BUF fuzz_buf
+  #define __AFL_FUZZ_INIT()
+  #define __AFL_LOOP(x) ((fuzz_len = read(0, fuzz_buf, sizeof(fuzz_buf))) > 0 ? 1 : 0)
+  #define __AFL_INIT() do {} while (0)
+#endif
+
+__AFL_FUZZ_INIT();
 
 using namespace solidity;
 using namespace solidity::frontend;
@@ -229,27 +253,24 @@ static std::pair<std::string, bytes> splitInput(std::string const& _input)
 	return {_input, keccak256(_input).asBytes()};
 }
 
-static std::string readSource(int _argc, char** _argv)
+/// One full fuzz iteration: parse the AFL input bytes, run the two-config
+/// differential, and let any `solAssert` mismatch escape so the persistent
+/// child terminates and AFL records the crash. Returns to its caller for
+/// every non-bug skip path (oversize input, deploy failure, sub-call OOG,
+/// etc.) so the persistent loop can hand us the next input.
+static void runOneInput(std::string_view _input)
 {
-	if (_argc >= 2)
-		return readFileAsString(_argv[1]);
-	std::ostringstream ss;
-	ss << std::cin.rdbuf();
-	return ss.str();
-}
-
-int main(int argc, char** argv)
-{
+	// Reset solc's only known process-wide cache. Mirrors what the proto
+	// fuzzers do at the top of every LLVMFuzzerTestOneInput call.
 	yul::YulStringRepository::reset();
 
-	std::string input = readSource(argc, argv);
-	if (input.empty() || input.size() > s_maxSourceBytes + s_maxCalldataBytes + 4)
-		return 0;
-	auto [source, calldata] = splitInput(input);
+	if (_input.empty() || _input.size() > s_maxSourceBytes + s_maxCalldataBytes + 4)
+		return;
+	auto [source, calldata] = splitInput(std::string(_input));
 	if (source.empty() || source.size() > s_maxSourceBytes)
-		return 0;
+		return;
 	if (calldata.size() > s_maxCalldataBytes)
-		return 0;
+		return;
 
 	// Skip any source containing inline assembly or a Yul gas() call.
 	// Inline-asm blocks can violate solc's documented invariants in ways
@@ -259,9 +280,9 @@ int main(int argc, char** argv)
 	// intentional — false positives (e.g. the word inside a string
 	// literal or comment) only cost us one skipped corpus entry.
 	if (source.find("assembly") != std::string::npos)
-		return 0;
+		return;
 	if (source.find("gas()") != std::string::npos)
-		return 0;
+		return;
 
 	langutil::EVMVersion version = langutil::EVMVersion::current();
 	StringMap sources({{"test.sol", source}});
@@ -281,17 +302,17 @@ int main(int argc, char** argv)
 
 	// Skip on deployment failure (matches proto fuzzer behavior).
 	// Also catches the bug-16642 invalid-opcode-codegen signature — covered, don't surface.
-	if (runA.result.status_code != EVMC_SUCCESS && runA.result.status_code != EVMC_REVERT) return 0;
-	if (runB.result.status_code != EVMC_SUCCESS && runB.result.status_code != EVMC_REVERT) return 0;
+	if (runA.result.status_code != EVMC_SUCCESS && runA.result.status_code != EVMC_REVERT) return;
+	if (runB.result.status_code != EVMC_SUCCESS && runB.result.status_code != EVMC_REVERT) return;
 
 	// Skip on sub-call OOG — legitimate cross-optimisation difference.
-	if (runA.subCallOutOfGas || runB.subCallOutOfGas) return 0;
+	if (runA.subCallOutOfGas || runB.subCallOutOfGas) return;
 
 	// Skip when the contract introspected its own (or any deployed contract's)
 	// bytecode via EXTCODESIZE/EXTCODECOPY/EXTCODEHASH. The bytecode itself
 	// differs across optimiser/codegen modes by design, so any output or
 	// storage derived from those reads is a harness false positive.
-	if (readsDeployedCodeA || readsDeployedCodeB) return 0;
+	if (readsDeployedCodeA || readsDeployedCodeB) return;
 
 	std::string const label = "Sol AFL diff fuzzer";
 
@@ -338,6 +359,36 @@ int main(int argc, char** argv)
 			std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
 			label + ": revert data differs"
 		);
+	}
+}
+
+int main(int argc, char** argv)
+{
+	// Repro / one-shot path: explicit filename bypasses AFL entirely so
+	// `./sol_afl_diff_runner crash-xxxx` keeps working for triage on host
+	// builds without an AFL runtime present.
+	if (argc >= 2)
+	{
+		std::string input = readFileAsString(argv[1]);
+		runOneInput(input);
+		return 0;
+	}
+
+	// Deferred forkserver: dlopen(libevmone) and static ctors of libsolc /
+	// evmone run once per fork-server lifetime, not once per iteration.
+	// Must come before the first AFL macro that touches the input buffer.
+	__AFL_INIT();
+
+	// Must be assigned before __AFL_LOOP — see persistent_demo_new.c.
+	unsigned char const* buf = __AFL_FUZZ_TESTCASE_BUF;
+
+	// 1000 iterations between fork restarts amortises startup ~1000x; AFL
+	// then re-forks to flush any slow leaks in solc/evmone. Recommended
+	// starting point per AFL++ docs section 4.
+	while (__AFL_LOOP(1000))
+	{
+		int len = __AFL_FUZZ_TESTCASE_LEN;  // do not inline into the call
+		runOneInput(std::string_view(reinterpret_cast<char const*>(buf), static_cast<size_t>(len)));
 	}
 
 	return 0;

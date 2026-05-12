@@ -10,18 +10,27 @@
 
 - `sol_afl_diff_runner` (from `sol_afl_diff_runner.cpp`). AFL++ harness for
   *differential* Solidity fuzzing against EVMOne, modelled on
-  `sol_proto_ossfuzz_evmone`. Reads a `.sol` file from `argv[1]` or stdin,
-  compiles the last contract under two optimiser settings (`minimal` vs
-  `standard`), deploys both, calls each with calldata bytes derived
-  deterministically from the source (`keccak256(source)`), and `solAssert`s
-  that status / output / logs / storage / transient storage match. On any
-  mismatch the unhandled exception triggers `terminate()` → SIGABRT, which
-  AFL++ records as a crash. Built by the normal (host) cmake build.
+  `sol_proto_ossfuzz_evmone`. Runs in AFL++ **persistent + shared-memory
+  mode** ([README.persistent_mode.md](../../AFLplusplus/instrumentation/README.persistent_mode.md)):
+  one process handles up to 1000 inputs before AFL re-forks, amortising
+  libsolc / libevmone startup for a ~10–20× speed-up over fork-per-input.
+  For each input, the harness compiles the last contract under two
+  optimiser settings (`minimal` vs `standard`), deploys both, calls each
+  with calldata bytes derived deterministically from the source
+  (`keccak256(source)`), and `solAssert`s that status / output / logs /
+  storage / transient storage match. On any mismatch the unhandled
+  exception triggers `terminate()` → SIGABRT, which AFL++ records as a
+  crash and then re-forks the persistent child for the next input.
   Sources containing the substring `assembly` or `gas()` are skipped
   wholesale — inline-asm blocks regularly violate solc's documented
   invariants in ways the differential oracle mistakes for optimiser
   mismatches, and gas() observations legitimately differ between
   optimiser configurations.
+
+  **Repro / triage** still works: `./sol_afl_diff_runner path/to/crash`
+  bypasses the persistent loop entirely (the filename arg short-circuits
+  before `__AFL_INIT()`), so a host build without an AFL runtime can
+  still replay a single input for debugging.
 
 ## sol_afl_diff_runner workflow
 

@@ -99,7 +99,8 @@ build_pane_cmd() {
     local env_str=""
     for kv in "${TS_ENV[@]}"; do env_str+=" $kv"; done
     [[ -n "$extra_env" ]] && env_str+=" $extra_env"
-    echo "cd '$REPO_ROOT' && env$env_str '$AFL_FUZZ_BIN' $instance_args ${COMMON_FLAGS[*]} -- '$HARNESS' @@; echo; echo '[afl-fuzz exited — Ctrl-D to close pane]'; bash"
+    # No `@@`: harness uses AFL++ persistent + shared-memory mode.
+    echo "cd '$REPO_ROOT' && env$env_str '$AFL_FUZZ_BIN' $instance_args ${COMMON_FLAGS[*]} -- '$HARNESS'; echo; echo '[afl-fuzz exited — Ctrl-D to close pane]'; bash"
 }
 
 # Each afl-fuzz instance and the dashboard get their own tmux *window*

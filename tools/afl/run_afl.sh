@@ -97,7 +97,10 @@ mkdir -p "$FINDINGS"
 #               legion at the high end and aren't bugs we care about, so 1s
 #               is a deliberate "skip the slow stuff" threshold.
 #   -m none     no memory cap. solc + evmone allocate aggressively.
-#   @@          AFL substitutes the input file path here.
+#
+# No `@@` filename: the harness runs in AFL++ persistent + shared-memory mode
+# (see sol_afl_diff_runner.cpp's main()), so AFL hands inputs over via the
+# shared-memory ring rather than via a per-iteration file.
 echo "Launching afl-fuzz against $HARNESS"
 echo "  Corpus:    $CORPUS"
 echo "  Findings:  $FINDINGS"
@@ -108,4 +111,4 @@ exec env "${AFL_TS_ENV[@]}" \
         -o "$FINDINGS" \
         -t "$AFL_TIMEOUT_MS" \
         -m none \
-        -- "$HARNESS" @@
+        -- "$HARNESS"
