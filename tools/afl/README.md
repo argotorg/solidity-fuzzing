@@ -255,16 +255,18 @@ export AFL_CUSTOM_MUTATOR_ONLY=1
 Then:
 
 ```bash
-# Terminal 1 — main (deterministic + havoc):
+# Terminal 1 — main (deterministic + havoc). No `@@`: the harness runs in
+# AFL++ persistent + shared-memory mode, so AFL hands inputs over via the
+# shared-memory ring rather than via a per-iteration file path.
 AFLplusplus/afl-fuzz -M main -i corpus_afl -o findings_afl -t 2000 -m none \
-    -- build_afl/tools/afl/sol_afl_diff_runner @@
+    -- build_afl/tools/afl/sol_afl_diff_runner
 
 # Terminals 2..N — secondaries (havoc-only). Per-secondary env vars below
 # diversify mutation strategies so different cores explore different paths:
-AFL_DISABLE_TRIM=1     AFLplusplus/afl-fuzz -S sec1 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
-AFL_KEEP_TIMEOUTS=1    AFLplusplus/afl-fuzz -S sec2 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
-AFL_EXPAND_HAVOC_NOW=1 AFLplusplus/afl-fuzz -S sec3 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
-AFL_CMPLOG_ONLY_NEW=1  AFLplusplus/afl-fuzz -S sec4 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner @@
+AFL_DISABLE_TRIM=1     AFLplusplus/afl-fuzz -S sec1 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner
+AFL_KEEP_TIMEOUTS=1    AFLplusplus/afl-fuzz -S sec2 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner
+AFL_EXPAND_HAVOC_NOW=1 AFLplusplus/afl-fuzz -S sec3 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner
+AFL_CMPLOG_ONLY_NEW=1  AFLplusplus/afl-fuzz -S sec4 -i corpus_afl -o findings_afl -t 2000 -m none -- build_afl/tools/afl/sol_afl_diff_runner
 ```
 
 Live aggregate status across all instances:
@@ -388,7 +390,7 @@ When a crash reproduces, shrink it with `afl-tmin` before filing:
 AFLplusplus/afl-tmin \
     -i findings_afl/sec1/crashes/id:000003,... \
     -o min.sol \
-    -- build_afl/tools/afl/sol_afl_diff_runner @@
+    -- build_afl/tools/afl/sol_afl_diff_runner
 build/tools/runners/sol_debug_runner --afl min.sol   # human-readable diff
 ```
 
@@ -400,15 +402,9 @@ arbitrarily, with or without the `0xCA 0xFE` trailer) reproduces directly.
 
 ## Follow-ups (intentionally out of scope for the first cut)
 
-- **Persistent mode.** Add the `__AFL_LOOP(N)` loop around the harness body
-  so each forked instance handles many inputs. ~10× iteration speed-up vs
-  fork-mode but requires care: every `runOnce` must leave no global state
-  behind (currently `yul::YulStringRepository::reset()` is called once at
-  startup; it would need to move inside the loop).
-
 - **`afl-cmin` corpus minimization.** Once the harness is instrumented,
   minimize `corpus_afl/` to drop redundant entries:
-  `afl-cmin -i corpus_afl -o corpus_min -- ./sol_afl_diff_runner @@`.
+  `afl-cmin -i corpus_afl -o corpus_min -- ./sol_afl_diff_runner`.
 
 - **Identifier renaming.** Rewrite identifiers in corpus entries to
   deterministic names (`v0`, `v1`, ...) so afl-ts splices don't reliably

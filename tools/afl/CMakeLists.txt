@@ -11,8 +11,9 @@ add_executable(const_opt_runner
 target_link_libraries(const_opt_runner PRIVATE libsolc evmasm Boost::boost Boost::program_options)
 
 # AFL harness: differential compile/deploy/execute via EVMOne, abort() on diff.
-# Mirrors the sol_proto_ossfuzz_evmone pipeline but reads .sol from a file
-# argument (AFL's @@) or stdin instead of a libFuzzer-supplied protobuf.
+# Mirrors the sol_proto_ossfuzz_evmone pipeline. Runs in AFL++ persistent +
+# shared-memory mode under afl-fuzz; also accepts a filename arg as a
+# one-shot repro path for triage.
 add_executable(sol_afl_diff_runner
     sol_afl_diff_runner.cpp
     ${EVMHOST_CPP}

@@ -12,7 +12,7 @@
 #   MAX_BYTES=8192 tools/afl/build_corpus.sh  # smaller cap
 #
 # Follow-ups (deliberately out of scope for the early implementation):
-#   * afl-cmin -i corpus_afl -o corpus_min -- ./sol_afl_diff_runner @@
+#   * afl-cmin -i corpus_afl -o corpus_min -- ./sol_afl_diff_runner
 #     to drop entries that don't add coverage. Requires the harness built
 #     with afl-clang-fast for instrumentation feedback.
 #   * tsgen invocation against tree-sitter-solidity to fill grammar surface
