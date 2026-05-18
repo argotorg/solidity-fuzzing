@@ -334,18 +334,25 @@ static void runOneInput(std::string_view _input)
 		// (PCs) and IR (function IDs) and across optimiser levels (PCs shift
 		// with bytecode size). Mask their storage bytes before the strict
 		// equality check — see TODO.md for the full rationale.
-		auto fpMasks = internalFunctionPointerMasks(runA.mainContractStorageLayout);
-		if (!fpMasks.empty())
+		// Masks are computed per run because dynamic-array masks depend on the
+		// array length read from that run's storage. If an internal fp is
+		// reachable only through a mapping (unenumerable keys), skip the
+		// storage comparison to avoid a false positive.
+		auto fpMasksA = internalFunctionPointerMasks(
+			runA.mainContractStorageLayout, runA.storage, runA.contractCreationOrder);
+		auto fpMasksB = internalFunctionPointerMasks(
+			runB.mainContractStorageLayout, runB.storage, runB.contractCreationOrder);
+		if (!fpMasksA.unmaskable && !fpMasksB.unmaskable)
 		{
 			if (!runA.contractCreationOrder.empty())
-				applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasks);
+				applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasksA.masks);
 			if (!runB.contractCreationOrder.empty())
-				applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasks);
+				applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasksB.masks);
+			solAssert(
+				storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
+				label + ": storage differs"
+			);
 		}
-		solAssert(
-			storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
-			label + ": storage differs"
-		);
 		solAssert(
 			transientStorageEqual(runA.transientStorage, runA.contractCreationOrder, runB.transientStorage, runB.contractCreationOrder),
 			label + ": transient storage differs"

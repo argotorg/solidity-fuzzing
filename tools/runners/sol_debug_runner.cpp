@@ -444,7 +444,7 @@ static bool storageEqual(
 /// across optimiser/codegen configs. Duplicated locally to keep this runner
 /// self-contained — see equivalent helpers in tools/ossfuzz/FuzzerDiffCommon
 /// (the runner avoids including that header to keep its own RunResult and
-/// duplicated storageEqual independent).
+/// duplicated storageEqual independent). Keep the two copies in sync.
 struct StorageSlotMask
 {
 	u256 slot;
@@ -452,34 +452,160 @@ struct StorageSlotMask
 	unsigned length;  ///< number of bytes to mask
 };
 
+/// Result of analysing a storage layout: byte ranges to zero before comparison,
+/// plus a flag set when an internal fp is reachable only through storage we
+/// cannot address (a mapping value, or an implausibly long dynamic array).
+struct StorageMaskResult
+{
+	std::vector<StorageSlotMask> masks;
+	bool unmaskable = false;
+};
+
 namespace
 {
 constexpr char const kInternalFunctionPrefix[] = "t_function_internal_";
+constexpr uint64_t kMaxMaskedArrayElements = 4096;
+constexpr unsigned kMaxWalkDepth = 64;
 
-void walkLayoutType(
-	Json const& _types,
-	std::string const& _typeKey,
-	u256 const& _slot,
-	unsigned _offset,
-	std::vector<StorageSlotMask>& _out
+bool isInternalFunctionType(std::string const& _typeKey)
+{
+	return _typeKey.compare(0, sizeof(kInternalFunctionPrefix) - 1, kInternalFunctionPrefix) == 0;
+}
+
+unsigned typeNumberOfBytes(Json const& _types, std::string const& _typeKey)
+{
+	if (auto it = _types.find(_typeKey); it != _types.end())
+		if (auto nb = it->find("numberOfBytes"); nb != it->end() && nb->is_string())
+			return static_cast<unsigned>(std::stoul(nb->get<std::string>()));
+	return 0;
+}
+
+/// Does @p _typeKey contain an internal-function-pointer anywhere in its tree?
+bool typeContainsInternalFunction(Json const& _types, std::string const& _typeKey, unsigned _depth = 0)
+{
+	if (isInternalFunctionType(_typeKey))
+		return true;
+	if (_depth > kMaxWalkDepth)
+		return false;
+	auto it = _types.find(_typeKey);
+	if (it == _types.end())
+		return false;
+	if (auto base = it->find("base"); base != it->end() && base->is_string())
+		if (typeContainsInternalFunction(_types, base->get<std::string>(), _depth + 1))
+			return true;
+	if (auto value = it->find("value"); value != it->end() && value->is_string())
+		if (typeContainsInternalFunction(_types, value->get<std::string>(), _depth + 1))
+			return true;
+	if (auto members = it->find("members"); members != it->end() && members->is_array())
+		for (auto const& m: *members)
+			if (typeContainsInternalFunction(_types, m.at("type").get<std::string>(), _depth + 1))
+				return true;
+	return false;
+}
+
+struct WalkContext
+{
+	Json const& types;
+	StorageMap const& storage;
+	std::vector<StorageSlotMask>& out;
+	bool& unmaskable;
+};
+
+u256 readArrayLength(StorageMap const& _storage, u256 const& _slot)
+{
+	evmc::bytes32 key = EVMHost::convertToEVMC(h256(_slot));
+	auto it = _storage.find(key);
+	if (it == _storage.end())
+		return 0;
+	return u256(EVMHost::convertFromEVMC(it->second.current));
+}
+
+void walkLayoutType(WalkContext& _ctx, std::string const& _typeKey, u256 const& _slot, unsigned _offset, unsigned _depth);
+
+void walkArrayElements(
+	WalkContext& _ctx,
+	std::string const& _elemTypeKey,
+	u256 const& _dataSlot,
+	uint64_t _count,
+	unsigned _depth
 )
 {
-	if (_typeKey.compare(0, sizeof(kInternalFunctionPrefix) - 1, kInternalFunctionPrefix) == 0)
+	unsigned elemBytes = typeNumberOfBytes(_ctx.types, _elemTypeKey);
+	if (elemBytes == 0 || elemBytes > 32)
+		return;
+	if (elemBytes <= 16)
 	{
-		unsigned length = 8;
-		if (auto it = _types.find(_typeKey); it != _types.end())
-			if (auto nb = it->find("numberOfBytes"); nb != it->end() && nb->is_string())
-				length = static_cast<unsigned>(std::stoul(nb->get<std::string>()));
-		_out.push_back({_slot, _offset, length});
+		unsigned perSlot = 32u / elemBytes;
+		for (uint64_t i = 0; i < _count; ++i)
+			walkLayoutType(
+				_ctx,
+				_elemTypeKey,
+				_dataSlot + (i / perSlot),
+				static_cast<unsigned>((i % perSlot) * elemBytes),
+				_depth + 1
+			);
+	}
+	else
+		for (uint64_t i = 0; i < _count; ++i)
+			walkLayoutType(_ctx, _elemTypeKey, _dataSlot + i, 0, _depth + 1);
+}
+
+void walkLayoutType(WalkContext& _ctx, std::string const& _typeKey, u256 const& _slot, unsigned _offset, unsigned _depth)
+{
+	if (_depth > kMaxWalkDepth)
+		return;
+
+	if (isInternalFunctionType(_typeKey))
+	{
+		unsigned length = typeNumberOfBytes(_ctx.types, _typeKey);
+		if (length == 0)
+			length = 8;
+		_ctx.out.push_back({_slot, _offset, length});
 		return;
 	}
-	auto typeIt = _types.find(_typeKey);
-	if (typeIt == _types.end())
+
+	auto typeIt = _ctx.types.find(_typeKey);
+	if (typeIt == _ctx.types.end())
 		return;
 	Json const& typeInfo = *typeIt;
+
 	auto encIt = typeInfo.find("encoding");
-	if (encIt == typeInfo.end() || !encIt->is_string() || encIt->get<std::string>() != "inplace")
-		return;  // mapping / dynamic_array / bytes — TODO: indirect-keyed storage
+	std::string encoding =
+		(encIt != typeInfo.end() && encIt->is_string()) ? encIt->get<std::string>() : std::string{};
+
+	if (encoding == "mapping")
+	{
+		// Mapping values live at keccak(key . slot) — runtime keys unknown.
+		if (auto v = typeInfo.find("value"); v != typeInfo.end() && v->is_string())
+			if (typeContainsInternalFunction(_ctx.types, v->get<std::string>()))
+				_ctx.unmaskable = true;
+		return;
+	}
+
+	if (encoding == "bytes")
+		return;
+
+	if (encoding == "dynamic_array")
+	{
+		auto baseIt = typeInfo.find("base");
+		if (baseIt == typeInfo.end() || !baseIt->is_string())
+			return;
+		std::string baseKey = baseIt->get<std::string>();
+		if (!typeContainsInternalFunction(_ctx.types, baseKey))
+			return;
+		u256 len = readArrayLength(_ctx.storage, _slot);
+		if (len > kMaxMaskedArrayElements)
+		{
+			_ctx.unmaskable = true;
+			return;
+		}
+		// Element data lives at keccak256 of the big-endian 32-byte slot number.
+		u256 dataSlot(keccak256(h256(_slot)));
+		walkArrayElements(_ctx, baseKey, dataSlot, static_cast<uint64_t>(len), _depth);
+		return;
+	}
+
+	// encoding == "inplace" (or unspecified): struct, static array, or value.
 	if (auto membersIt = typeInfo.find("members"); membersIt != typeInfo.end() && membersIt->is_array())
 	{
 		for (auto const& member: *membersIt)
@@ -487,32 +613,58 @@ void walkLayoutType(
 			std::string mTypeKey = member.at("type").get<std::string>();
 			u256 mSlotRel(member.at("slot").get<std::string>());
 			unsigned mOffset = member.at("offset").get<unsigned>();
-			walkLayoutType(_types, mTypeKey, _slot + mSlotRel, mOffset, _out);
+			walkLayoutType(_ctx, mTypeKey, _slot + mSlotRel, mOffset, _depth + 1);
 		}
+		return;
 	}
-	// Inplace static array (`base` key) intentionally not walked — see the
-	// equivalent comment in FuzzerDiffCommon.cpp; no current finding needs it.
+
+	if (auto baseIt = typeInfo.find("base"); baseIt != typeInfo.end() && baseIt->is_string())
+	{
+		// Inplace static array; begins at offset 0 of its own slot. Over-count
+		// from arrayBytes/elemBytes only masks guaranteed-zero trailing padding.
+		std::string baseKey = baseIt->get<std::string>();
+		if (!typeContainsInternalFunction(_ctx.types, baseKey))
+			return;
+		unsigned arrayBytes = typeNumberOfBytes(_ctx.types, _typeKey);
+		unsigned elemBytes = typeNumberOfBytes(_ctx.types, baseKey);
+		if (arrayBytes == 0 || elemBytes == 0)
+			return;
+		walkArrayElements(_ctx, baseKey, _slot, arrayBytes / elemBytes, _depth);
+		return;
+	}
 }
 }
 
-static std::vector<StorageSlotMask> internalFunctionPointerMasks(Json const& _layout)
+static StorageMaskResult internalFunctionPointerMasks(
+	Json const& _layout,
+	std::map<evmc::address, StorageMap> const& _storage,
+	std::vector<evmc::address> const& _creationOrder
+)
 {
-	std::vector<StorageSlotMask> out;
+	StorageMaskResult result;
 	if (!_layout.is_object())
-		return out;
+		return result;
 	auto storageIt = _layout.find("storage");
 	auto typesIt = _layout.find("types");
 	if (storageIt == _layout.end() || !storageIt->is_array() ||
 		typesIt == _layout.end() || !typesIt->is_object())
-		return out;
+		return result;
+
+	static StorageMap const emptyStorage;
+	StorageMap const* mainStorage = &emptyStorage;
+	if (!_creationOrder.empty())
+		if (auto it = _storage.find(_creationOrder.front()); it != _storage.end())
+			mainStorage = &it->second;
+
+	WalkContext ctx{*typesIt, *mainStorage, result.masks, result.unmaskable};
 	for (auto const& var: *storageIt)
 	{
 		std::string typeKey = var.at("type").get<std::string>();
 		u256 slot(var.at("slot").get<std::string>());
 		unsigned offset = var.at("offset").get<unsigned>();
-		walkLayoutType(*typesIt, typeKey, slot, offset, out);
+		walkLayoutType(ctx, typeKey, slot, offset, 0);
 	}
-	return out;
+	return result;
 }
 
 static void applyStorageMasks(
@@ -701,18 +853,25 @@ static bool compareRuns(
 
 		// Storage (compare by creation order to handle differing CREATE2 addresses).
 		// Mask internal-function-pointer bytes first — their encoding is not
-		// portable across optimiser/codegen modes (see TODO.md).
+		// portable across optimiser/codegen modes (see TODO.md). Masks are
+		// computed per run because dynamic-array masks depend on the array
+		// length read from that run's storage.
 		auto storageA = _a.storage;
 		auto storageB = _b.storage;
-		auto fpMasks = internalFunctionPointerMasks(_a.mainContractStorageLayout);
-		if (!fpMasks.empty())
+		auto fpMasksA = internalFunctionPointerMasks(_a.mainContractStorageLayout, _a.storage, _a.contractCreationOrder);
+		auto fpMasksB = internalFunctionPointerMasks(_b.mainContractStorageLayout, _b.storage, _b.contractCreationOrder);
+		// If an internal fp is reachable only through a mapping (unenumerable
+		// keys), the storage comparison is unreliable — skip it (treat as match).
+		bool storageUnmaskable = fpMasksA.unmaskable || fpMasksB.unmaskable;
+		bool storageMatch = true;
+		if (!storageUnmaskable)
 		{
 			if (!_a.contractCreationOrder.empty())
-				applyStorageMasks(storageA, _a.contractCreationOrder.front(), fpMasks);
+				applyStorageMasks(storageA, _a.contractCreationOrder.front(), fpMasksA.masks);
 			if (!_b.contractCreationOrder.empty())
-				applyStorageMasks(storageB, _b.contractCreationOrder.front(), fpMasks);
+				applyStorageMasks(storageB, _b.contractCreationOrder.front(), fpMasksB.masks);
+			storageMatch = storageEqual(storageA, _a.contractCreationOrder, storageB, _b.contractCreationOrder);
 		}
-		bool storageMatch = storageEqual(storageA, _a.contractCreationOrder, storageB, _b.contractCreationOrder);
 		if (!gasRelated && !storageMatch) mismatch = true;
 
 		// Transient storage
@@ -723,7 +882,10 @@ static bool compareRuns(
 		{
 			std::cout << "  Output:    " << (gasRelated ? OOG_STR : matchStr(outputMatch)) << std::endl;
 			std::cout << "  Logs:      " << (gasRelated ? OOG_STR : matchStr(logsMatch)) << std::endl;
-			std::cout << "  Storage:   " << (gasRelated ? OOG_STR : matchStr(storageMatch)) << std::endl;
+			std::cout << "  Storage:   "
+				<< (gasRelated ? OOG_STR
+					: storageUnmaskable ? "SKIPPED (internal fp via mapping)"
+					: matchStr(storageMatch)) << std::endl;
 			std::cout << "  Transient: " << (gasRelated ? OOG_STR : matchStr(transientMatch)) << std::endl;
 		}
 	}

@@ -277,21 +277,27 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 				modeLabel + ": logs differ"
 			);
 			// Internal function pointers don't have a portable storage encoding
-			// (legacy: (creationPC<<32)|runtimePC, IR: function ID). Use the
-			// shared layout from runA — both runs compile the same source so
-			// the layout is identical regardless of optimiser/codegen mode.
-			auto fpMasks = internalFunctionPointerMasks(runA.mainContractStorageLayout);
-			if (!fpMasks.empty())
+			// (legacy: code offsets, IR: function IDs; offsets also shift with
+			// the optimiser). Mask those bytes before comparing. Masks are
+			// computed per run because dynamic-array masks depend on the array
+			// length read from that run's storage. If an internal fp is
+			// reachable only through a mapping (unenumerable keys), skip the
+			// storage comparison rather than risk a false positive.
+			auto fpMasksA = internalFunctionPointerMasks(
+				runA.mainContractStorageLayout, runA.storage, runA.contractCreationOrder);
+			auto fpMasksB = internalFunctionPointerMasks(
+				runB.mainContractStorageLayout, runB.storage, runB.contractCreationOrder);
+			if (!fpMasksA.unmaskable && !fpMasksB.unmaskable)
 			{
 				if (!runA.contractCreationOrder.empty())
-					applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasks);
+					applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasksA.masks);
 				if (!runB.contractCreationOrder.empty())
-					applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasks);
+					applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasksB.masks);
+				solAssert(
+					storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
+					modeLabel + ": storage differs"
+				);
 			}
-			solAssert(
-				storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
-				modeLabel + ": storage differs"
-			);
 			solAssert(
 				transientStorageEqual(runA.transientStorage, runA.contractCreationOrder, runB.transientStorage, runB.contractCreationOrder),
 				modeLabel + ": transient storage differs"

@@ -137,16 +137,32 @@ struct StorageSlotMask
 	unsigned length;  ///< number of bytes to mask
 };
 
+/// Result of analysing a contract's storage layout for internal-function-
+/// pointer fields. @a masks lists the byte ranges to zero before comparison.
+/// @a unmaskable is set when an internal fp is reachable only through storage
+/// we cannot address precisely — a mapping value (runtime keys unknown), or a
+/// dynamic array whose runtime length is implausibly large. In that case the
+/// caller should skip the storage comparison entirely rather than risk a
+/// false positive.
+struct StorageMaskResult
+{
+	std::vector<StorageSlotMask> masks;
+	bool unmaskable = false;
+};
+
 /// Walk a solc storage-layout JSON (see
 /// https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html#json-output)
-/// and emit a mask range for every internal-function-pointer field reachable
-/// via inplace storage (top-level state vars, struct members, struct-of-struct,
-/// inplace static arrays). Indirect-keyed storage (mappings, dynamic arrays,
-/// bytes/string) is intentionally skipped — covering it would require knowing
-/// the runtime keys, and so far no fuzzer corpus has exercised that path. Add
-/// it if/when a finding actually needs it.
-std::vector<StorageSlotMask> internalFunctionPointerMasks(
-	solidity::Json const& _storageLayout
+/// and emit a mask range for every internal-function-pointer field. Covers
+/// inplace storage (top-level state vars, struct members, struct-of-struct,
+/// inplace static arrays) and dynamic arrays: for the latter the runtime
+/// length is read from @p _storage at the main contract (the account at
+/// @p _creationOrder.front()) and the data slot is derived via keccak256.
+/// Mappings cannot be enumerated — if an internal fp is reachable through one,
+/// the result is flagged @a unmaskable.
+StorageMaskResult internalFunctionPointerMasks(
+	solidity::Json const& _storageLayout,
+	std::map<evmc::address, StorageMap> const& _storage,
+	std::vector<evmc::address> const& _creationOrder
 );
 
 /// Apply @p _masks to the storage at @p _address in @p _storage: zero out the
