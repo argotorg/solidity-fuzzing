@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Replay AFL crashes through sol_afl_diff_runner and sol_debug_runner --afl.
 
-Walks <findings_root>/*/crashes/* (default findings_root=findings_afl). For each
-crash file (raw AFL input, possibly carrying the [src][calldata][lenLE][0xCA 0xFE]
-trailer used by the AFL diff harness):
+Walks <findings_root> for AFL crash files — any file whose name starts with
+"id:" — in either the native AFL layout (<campaign>/crashes/id:*) or a flat
+directory of crash files (e.g. a merged fuzzer-results/ folder). Symlinked
+subdirectories are not followed, so a self-referential sync dir cannot cause an
+infinite walk. Byte-identical inputs are collapsed by default (pass --no-dedup
+to process every copy). For each crash file (raw AFL input, possibly carrying
+the [src][calldata][lenLE][0xCA 0xFE] trailer used by the AFL diff harness):
 
   1. Runs sol_afl_diff_runner <crash>
        - The crash itself is *expected*: any solAssert in the harness throws
@@ -33,6 +37,7 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -44,9 +49,13 @@ from pathlib import Path
 DIFF_RUNNER = Path("./build/tools/afl/sol_afl_diff_runner").resolve()
 DEBUG_RUNNER = Path("./build/tools/runners/sol_debug_runner").resolve()
 
-# Per-config solc timeout passed to sol_debug_runner --timeout. The AFL
-# diff_runner has no built-in timeout; we wall-clock it from outside.
-DEFAULT_PER_CONFIG_TIMEOUT_S = 30
+# sol_debug_runner --timeout switches the runner into *hang-triage* mode: it
+# replaces the in-process compile+execute with an external `timeout N solc`
+# subprocess and unconditionally reports every config as compilation-failed,
+# producing NO differential result. That is useless for crash triage, so it is
+# left off by default (0); runaway invocations are bounded by the outer
+# wall-clock timeout instead. Set it >0 only when triaging suspected hangs.
+DEFAULT_PER_CONFIG_TIMEOUT_S = 0
 DEFAULT_OUTER_TIMEOUT_S = 180
 
 # Diff-runner assertion buckets. solAssert(...) message format is:
@@ -161,14 +170,59 @@ def parse_debug_runner_outcome(rc: int, output: str) -> tuple[str, str]:
     return mapping.get(rc, f"debug:rc={rc}"), summary or f"rc={rc}"
 
 
+def derive_campaign(crash: Path, findings_root: Path) -> str:
+    """Best-effort campaign label for a crash file.
+
+      <root>/<campaign>/crashes/<id>   -> <campaign>      (native AFL layout)
+      <root>/<id>                      -> <root.name>     (flat directory)
+      anything else                    -> parent dir name
+    """
+    parent = crash.parent
+    if parent.name == "crashes":
+        return parent.parent.name or findings_root.name
+    if parent == findings_root:
+        return findings_root.name
+    return parent.name
+
+
 def find_crashes(findings_root: Path) -> list[Path]:
-    """Find AFL crash files: <root>/*/crashes/id:* (skip README and .* files)."""
+    """Collect AFL crash files (name starts with 'id:') anywhere under root.
+
+    Handles both the native AFL layout (<campaign>/crashes/<id>) and a flat
+    directory of crash files (a merged fuzzer-results/ folder). Symlinked
+    subdirectories are NOT descended into, so a self-referential AFL sync dir
+    cannot send the walk into an infinite loop.
+    """
     out: list[Path] = []
-    for d in sorted(findings_root.glob("*/crashes")):
-        for f in sorted(d.iterdir()):
-            if f.is_file() and f.name.startswith("id:"):
-                out.append(f)
-    return out
+    for dirpath, _dirnames, filenames in os.walk(findings_root, followlinks=False):
+        d = Path(dirpath)
+        for name in filenames:
+            if name.startswith("id:"):
+                out.append(d / name)
+    return sorted(out)
+
+
+def dedup_crashes(crashes: list[Path]) -> tuple[list[Path], int]:
+    """Drop byte-identical crash inputs, keeping the first by sorted path.
+
+    Merged findings folders and AFL sync dirs routinely hold many copies of the
+    same input. Returns (unique_crashes, dropped_count).
+    """
+    seen: set[str] = set()
+    unique: list[Path] = []
+    dropped = 0
+    for c in crashes:
+        try:
+            digest = hashlib.sha1(c.read_bytes()).hexdigest()
+        except OSError:
+            unique.append(c)  # unreadable — keep it, let the runner report it
+            continue
+        if digest in seen:
+            dropped += 1
+            continue
+        seen.add(digest)
+        unique.append(c)
+    return unique, dropped
 
 
 def run_with_timeout(cmd: list[str], timeout_s: int) -> tuple[int | str, str]:
@@ -188,9 +242,9 @@ def run_with_timeout(cmd: list[str], timeout_s: int) -> tuple[int | str, str]:
         return "TIMEOUT", partial.decode("utf-8", errors="replace")
 
 
-def process_one(crash: Path, out_dir: Path, per_config_timeout: int,
-                outer_timeout: int) -> dict:
-    campaign = crash.parent.parent.name
+def process_one(crash: Path, findings_root: Path, out_dir: Path,
+                per_config_timeout: int, outer_timeout: int) -> dict:
+    campaign = derive_campaign(crash, findings_root)
     key = safe_key(campaign, crash.name)
 
     # Save split source for human review.
@@ -239,7 +293,7 @@ HEADER = (
 )
 
 
-def write_summary(out_dir: Path, rows: list[dict]) -> None:
+def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
     counts: dict[str, int] = {}
     by_cat: dict[str, list[dict]] = {}
     for r in rows:
@@ -261,7 +315,10 @@ def write_summary(out_dir: Path, rows: list[dict]) -> None:
     out = out_dir / "by_category.txt"
     with out.open("w") as fh:
         fh.write("# AFL crash triage summary\n\n")
-        fh.write(f"Total crashes processed: {len(rows)}\n\n")
+        fh.write(f"Total crashes processed: {len(rows)}\n")
+        if dropped:
+            fh.write(f"Duplicate inputs collapsed (not processed): {dropped}\n")
+        fh.write("\n")
 
         fh.write("## sol_afl_diff_runner verdict (primary)\n")
         for cat, n in sorted(counts.items(), key=lambda kv: -kv[1]):
@@ -295,19 +352,26 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("findings_root", nargs="?", default="findings_afl",
-                    help="root holding <campaign>/crashes/<id> (default: findings_afl)")
+                    help="dir to search for crash files (id:*); accepts the "
+                         "native <campaign>/crashes/<id> layout or a flat "
+                         "folder of crash files (default: findings_afl)")
     ap.add_argument("out_dir", nargs="?", default="afl_crash_triage",
                     help="output directory (default: afl_crash_triage)")
     ap.add_argument("--threads", "-j", type=int, default=os.cpu_count() or 1,
                     help="parallel workers (default: %(default)d)")
     ap.add_argument("--per-config-timeout", type=int,
                     default=DEFAULT_PER_CONFIG_TIMEOUT_S,
-                    help="per-solc-config timeout in seconds (passed to "
-                         "sol_debug_runner --timeout). 0 disables.")
+                    help="if >0, put sol_debug_runner in hang-triage mode with "
+                         "this --timeout: no differential result, every config "
+                         "reported compile-failed. Default 0 = real differential "
+                         "cross-check (use only for suspected hangs).")
     ap.add_argument("--outer-timeout", type=int, default=DEFAULT_OUTER_TIMEOUT_S,
                     help="wall-clock timeout per binary invocation (seconds)")
     ap.add_argument("--limit", type=int, default=0,
                     help="process at most this many crashes (0 = all)")
+    ap.add_argument("--no-dedup", action="store_true",
+                    help="process every crash file even if byte-identical to "
+                         "another (by default duplicate inputs are collapsed)")
     args = ap.parse_args()
 
     findings_root = Path(args.findings_root)
@@ -325,10 +389,17 @@ def main() -> int:
     (out_dir / "sources").mkdir(parents=True, exist_ok=True)
 
     crashes = find_crashes(findings_root)
+    print(f"Found {len(crashes)} crash file(s) under {findings_root}",
+          file=sys.stderr)
+    dropped = 0
+    if not args.no_dedup:
+        crashes, dropped = dedup_crashes(crashes)
+        if dropped:
+            print(f"Deduplicated: {dropped} byte-identical copies dropped, "
+                  f"{len(crashes)} unique input(s) remain", file=sys.stderr)
     if args.limit:
         crashes = crashes[: args.limit]
     total = len(crashes)
-    print(f"Found {total} crashes under {findings_root}", file=sys.stderr)
 
     tsv_path = out_dir / "per_crash.tsv"
     rows: list[dict] = []
@@ -337,7 +408,7 @@ def main() -> int:
     with tsv_path.open("w") as tsv:
         tsv.write("\t".join(HEADER) + "\n")
         with ThreadPoolExecutor(max_workers=max(1, args.threads)) as ex:
-            futs = {ex.submit(process_one, c, out_dir,
+            futs = {ex.submit(process_one, c, findings_root, out_dir,
                               args.per_config_timeout, args.outer_timeout): c
                     for c in crashes}
             for fut in as_completed(futs):
@@ -351,7 +422,7 @@ def main() -> int:
                           f"diff={r['diff_cat']}  debug={r['debug_cat']}",
                           file=sys.stderr, flush=True)
 
-    write_summary(out_dir, rows)
+    write_summary(out_dir, rows, dropped)
 
     print(f"\nPer-crash TSV: {tsv_path}", file=sys.stderr)
     print(f"Summary:       {out_dir / 'by_category.txt'}", file=sys.stderr)
