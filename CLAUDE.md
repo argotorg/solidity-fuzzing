@@ -44,6 +44,9 @@ make -j$(nproc)
 - `evmone/` — git submodule; built as an `ExternalProject`. Runners `dlopen` `libevmone.so` at runtime; its directory is baked into the runner RPATH so `LD_LIBRARY_PATH` is not needed.
 - `tools/common/EVMHost.{cpp,h}` — fuzz-specific extensions of solidity's EVMHost (`m_subCallOutOfGas`, `m_contractCreationOrder`). Everything links against this copy, not the one in the solidity submodule.
 - `tools/ossfuzz/` — libFuzzer harnesses and their proto grammars. See `tools/ossfuzz/README.md` for the per-binary breakdown.
+- `tools/property/` — fuzztest-based property tests. Two build modes (see top-level `CMakeLists.txt` for the cmake option):
+  - **Property mode** (default, `build/` tree, any compiler) — each `FUZZ_TEST` runs as a gtest case with a ~1s random-sampling budget. Useful for CI smoke checks. `--fuzz=...` / `--fuzz_for=...` are no-ops here because the binary lacks coverage instrumentation.
+  - **Fuzzing mode** (`build_fuzztest/` tree, clang only) — `cmake -DFUZZTEST_FUZZING_MODE_ENABLED=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..` applies `-fsanitize=fuzzer-no-link` + ASan + coverage flags to the whole tree (yul, solidity submodule, and the property target). The resulting binary supports `--fuzz=<Suite>.<Test> [--fuzz_for=<duration>]` for continuous coverage-guided fuzzing with mutator-driven input generation.
 - `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `sol_crash_backtrace.py`, `check_diversity_and_errors.sh`).
 - `tools/shuffler-fuzzer/` — standalone `stackshuffler` CLI.
 - `tools/afl/` — AFL-specific harnesses.
@@ -58,6 +61,16 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 - `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError` + `StackTooDeep*` are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
 - `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits three aliasing shapes: DIRECT (`root=root.children[i]`), VIA_POINTER (through a `Node storage p` local), GRANDCHILD (`root=root.children[i].children[j]`). Primitive field types vary across `uint8..256 / int256 / address / bool / bytes32` to stress storage packing. Non-differential — `test()` returns a bitmask of mismatching fields; harness asserts zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
 - `sol_roundtrip_ossfuzz` — identity-oracle fuzzer (`solRoundtripProto.proto` + `protoToSolRoundtrip.cpp` + `solRoundtripFuzzer.cpp`). Each proto is a list of probes; each probe picks a type T, an op, and a seed. Ops: ABI round-trip, storage↔memory round-trip, delete-default, integer cast ladder. Same bitmask oracle: any violated identity sets a bit; harness asserts zero. Catches codegen/encoder bugs that corrupt the same way on both codegens (so differential fuzzers miss them).
+- `stack_shuffler_invariance_property` (`tools/property/stackShufflerInvariance.cpp`) — fuzztest-based property/regression target asserting that `trace(stack, target, spill) == trace(stack, target, spill')` for any `spill' ⊇ spill` whose extras don't appear in `target.args` or `liveOut`. Two FUZZ_TESTs: `TraceStable` (base = ∅) and `TraceStableUnderSuperset` (general `base ⊆ augmented`). Domain mirrors the existing libFuzzer shuffler harness (V/PHI/LIT/JUNK slot kinds, target top + tail set + padding). Run continuously via the fuzz-mode build:
+    ```
+    mkdir build_fuzztest && cd build_fuzztest
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+             -DFUZZTEST_FUZZING_MODE_ENABLED=ON
+    make -j stack_shuffler_invariance_property
+    ./tools/property/stack_shuffler_invariance_property \
+        --fuzz=StackShufflerInvariance.TraceStable --fuzz_for=10m
+    ```
 
 ### Proto grammar → Solidity/Yul converters
 

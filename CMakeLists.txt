@@ -17,6 +17,40 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 # Find Boost for our own targets (solidity finds it too but imported targets are dir-scoped)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options)
 
+# --- fuzztest (Google's property/fuzz testing framework) ---
+option(FUZZTEST "Build fuzztest-based property targets via FetchContent" ON)
+option(FUZZTEST_FUZZING_MODE_ENABLED
+    "Enable fuzztest's coverage-guided fuzzing mode (requires clang). Applies sanitizer/coverage flags GLOBALLY; use a separate build directory."
+    OFF
+)
+set(FUZZTEST_AVAILABLE OFF CACHE INTERNAL "Whether fuzztest was successfully fetched")
+if (FUZZTEST AND NOT OSSFUZZ)
+    if (FUZZTEST_FUZZING_MODE_ENABLED AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR "FUZZTEST_FUZZING_MODE_ENABLED=ON requires Clang (got ${CMAKE_CXX_COMPILER_ID}).")
+    endif()
+    include(FetchContent)
+    set(FUZZTEST_FUZZING_MODE ${FUZZTEST_FUZZING_MODE_ENABLED} CACHE BOOL "" FORCE)
+    set(FUZZTEST_COMPATIBILITY_MODE "" CACHE STRING "" FORCE)
+    FetchContent_Declare(
+        fuzztest
+        GIT_REPOSITORY https://github.com/google/fuzztest.git
+        GIT_TAG main
+    )
+    FetchContent_MakeAvailable(fuzztest)
+    if (TARGET fuzztest::fuzztest_gtest_main)
+        set(FUZZTEST_AVAILABLE ON CACHE INTERNAL "" FORCE)
+        if (FUZZTEST_FUZZING_MODE_ENABLED)
+            # Applies fuzzer-coverage + asan flags to every target compiled after
+            # this point — including the solidity submodule below, which is what
+            # we want so the shuffler code is also instrumented.
+            fuzztest_setup_fuzzing_flags()
+            message(STATUS "fuzztest coverage-guided fuzzing mode ENABLED (clang sanitizer flags applied globally)")
+        endif()
+    else()
+        message(WARNING "fuzztest FetchContent succeeded but fuzztest::fuzztest_gtest_main target is not defined; skipping property targets.")
+    endif()
+endif()
+
 # Build solidity as a submodule — skip tests (they conflict with our evmc targets)
 set(TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(solidity)
