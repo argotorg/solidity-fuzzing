@@ -27,8 +27,8 @@
 
 #pragma once
 
-#include <libyul/backends/evm/ssa/LivenessAnalysis.h>
 #include <libyul/backends/evm/ssa/Stack.h>
+#include <libyul/backends/evm/ssa/StackSlotLiveness.h>
 
 #include <tools/ossfuzz/shufflerProto.pb.h>
 
@@ -37,8 +37,8 @@
 namespace solidity::yul::ssa::shuffler_fuzzer
 {
 
-using ::solidity::yul::ssa::LivenessAnalysis;
 using ::solidity::yul::ssa::StackData;
+using ::solidity::yul::ssa::StackSlotLiveness;
 
 /// Upper bound on the initial stack size accepted from the fuzzer input.
 /// The shuffler has a hard-coded reachableStackDepth of 16 and shrinking only
@@ -60,7 +60,7 @@ struct ConvertedInput
 {
 	StackData initial;
 	StackData targetTop;
-	LivenessAnalysis::LivenessData targetTail;
+	StackSlotLiveness targetTail;
 	std::size_t targetStackSize = 0;
 };
 

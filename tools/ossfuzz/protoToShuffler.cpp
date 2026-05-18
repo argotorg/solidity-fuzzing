@@ -18,10 +18,13 @@
 
 #include <tools/ossfuzz/protoToShuffler.h>
 
+#include <libyul/backends/evm/ssa/InstructionStore.h>
 #include <libyul/backends/evm/ssa/SSACFGTypes.h>
 
-#include <algorithm>
-#include <unordered_set>
+#include <cstddef>
+#include <map>
+#include <set>
+#include <utility>
 
 namespace solidity::yul::ssa::shuffler_fuzzer
 {
@@ -31,61 +34,47 @@ namespace
 
 using ProtoSlot = ::solidity::yul::test::shuffler_fuzzer::Slot;
 using ProtoInput = ::solidity::yul::test::shuffler_fuzzer::ShuffleInput;
-using ValueId = SSACFG::ValueId;
-
-/// Convert a single proto slot into a StackSlot, clamping the id into the
-/// fuzzing id range so we get slot collisions rather than every mutation
-/// producing a unique id.
-StackSlot protoSlotToStackSlot(ProtoSlot const& _slot)
-{
-	std::uint32_t const id = _slot.id() % (kMaxSlotId + 1);
-	switch (_slot.kind())
-	{
-	case ProtoSlot::V:
-		return StackSlot::makeValueID(ValueId::makeVariable(id));
-	case ProtoSlot::PHI:
-		return StackSlot::makeValueID(ValueId::makePhi(id));
-	case ProtoSlot::LIT:
-		return StackSlot::makeValueID(ValueId::makeLiteral(id));
-	case ProtoSlot::JUNK:
-		return StackSlot::makeJunk();
-	}
-	// Unknown kind from wire (unlikely given proto2 required enum): treat as junk.
-	return StackSlot::makeJunk();
-}
-
-std::uint64_t valueKey(ValueId const& _vid)
-{
-	return (static_cast<std::uint64_t>(static_cast<std::uint8_t>(_vid.kind())) << 32) |
-		static_cast<std::uint64_t>(_vid.value());
-}
-
-/// Does this slot either appear on the initial stack, or is it a JUNK
-/// placeholder?
-///
-/// Strictly speaking the shuffler's precondition check also accepts anything
-/// for which canBeFreelyGenerated() holds (literals, junk,
-/// FunctionCallReturnLabel). But in practice the shuffler does not know how to
-/// *push* a literal to satisfy a liveness-only demand — fixTailSlot only DUPs
-/// existing slots or pushes JUNK, so a literal that appears only in tail_set
-/// (or a literal in target_top combined with a non-empty tail_set that forces
-/// it out of reach) loops forever. Until the shuffler grows that capability
-/// we require every non-JUNK slot referenced in target_top or tail_set to be
-/// physically present on the initial stack.
-bool isOnInitialOrJunk(StackSlot const& _slot, std::unordered_set<std::uint64_t> const& _initialValueKeys)
-{
-	if (_slot.isJunk())
-		return true;
-	if (!_slot.isValueID())
-		return false; // we don't generate other slot kinds from proto
-	return _initialValueKeys.contains(valueKey(_slot.valueID()));
-}
 
 } // anonymous namespace
 
 ConvertedInput convertProtoInput(ProtoInput const& _input)
 {
 	ConvertedInput out;
+
+	// On `develop` a StackSlot of kind Value just carries an InstId; the defining
+	// instruction lives in an InstructionStore. We build a throwaway store here
+	// purely to mint InstIds — the resulting StackSlots are self-contained
+	// (they cache the opcode) and outlive the store fine.
+	InstructionStore store;
+
+	// Memoize (kind, clamped-id) -> InstId so repeated proto slots collapse onto
+	// the same StackSlot. Each appendXxx() hands out a *fresh* InstId, so without
+	// this every proto slot would be unique and we'd never get the slot
+	// collisions (duplicates) where the interesting shuffling logic lives.
+	std::map<std::pair<int, std::uint32_t>, InstId> slotMemo;
+
+	// Convert a single proto slot into a StackSlot, clamping the id into the
+	// fuzzing id range so we get slot collisions rather than every mutation
+	// producing a unique id. JUNK and unknown wire kinds become junk slots.
+	auto const protoSlotToStackSlot = [&](ProtoSlot const& _slot) -> StackSlot
+	{
+		auto const kind = _slot.kind();
+		if (kind != ProtoSlot::V && kind != ProtoSlot::PHI && kind != ProtoSlot::LIT)
+			return StackSlot::makeJunk();
+
+		std::uint32_t const id = _slot.id() % (kMaxSlotId + 1);
+		auto const memoKey = std::pair{static_cast<int>(kind), id};
+		auto it = slotMemo.find(memoKey);
+		if (it == slotMemo.end())
+		{
+			InstId const instId =
+				kind == ProtoSlot::PHI ? store.appendPhi({0}) :
+				kind == ProtoSlot::LIT ? store.appendLiteral({0}, u256(id)) :
+				store.appendBuiltinCall({0}, {}, {});
+			it = slotMemo.emplace(memoKey, instId).first;
+		}
+		return StackSlot::makeValue(store, it->second);
+	};
 
 	// --- 1. initial stack ---
 	// Bound input length and translate each proto slot.
@@ -99,14 +88,34 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 			out.initial.push_back(protoSlotToStackSlot(_input.initial(static_cast<int>(i))));
 	}
 
-	// Build a fast lookup of every value id (Variable/Phi/Literal) present on
-	// the initial stack. Anything not in this set, and not JUNK, is off-limits
-	// for target_top / tail_set — see isOnInitialOrJunk() for the reasoning.
-	std::unordered_set<std::uint64_t> initialValueKeys;
-	initialValueKeys.reserve(out.initial.size());
+	// Build a fast lookup of every value slot present on the initial stack.
+	// Anything not in this set, and not JUNK, is off-limits for target_top /
+	// tail_set — see isOnInitialOrJunk() for the reasoning.
+	std::set<StackSlot> initialValues;
 	for (auto const& slot: out.initial)
-		if (slot.isValueID())
-			initialValueKeys.insert(valueKey(slot.valueID()));
+		if (slot.isValue())
+			initialValues.insert(slot);
+
+	/// Does this slot either appear on the initial stack, or is it a JUNK
+	/// placeholder?
+	///
+	/// Strictly speaking the shuffler's precondition check also accepts anything
+	/// for which canBeFreelyGenerated() holds (literals, junk,
+	/// FunctionCallReturnLabel). But in practice the shuffler does not know how
+	/// to *push* a literal to satisfy a liveness-only demand — fixTailSlot only
+	/// DUPs existing slots or pushes JUNK, so a literal that appears only in
+	/// tail_set (or a literal in target_top combined with a non-empty tail_set
+	/// that forces it out of reach) loops forever. Until the shuffler grows that
+	/// capability we require every non-JUNK slot referenced in target_top or
+	/// tail_set to be physically present on the initial stack.
+	auto const isOnInitialOrJunk = [&](StackSlot const& _slot)
+	{
+		if (_slot.isJunk())
+			return true;
+		if (!_slot.isValue())
+			return false; // we don't generate other slot kinds from proto
+		return initialValues.contains(_slot);
+	};
 
 	// --- 2. target top ---
 	// Cap size, then replace unavailable slots with JUNK.
@@ -119,7 +128,7 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 		for (std::size_t i = 0; i < n; ++i)
 		{
 			StackSlot slot = protoSlotToStackSlot(_input.target_top(static_cast<int>(i)));
-			if (!isOnInitialOrJunk(slot, initialValueKeys))
+			if (!isOnInitialOrJunk(slot))
 				slot = StackSlot::makeJunk();
 			out.targetTop.push_back(slot);
 		}
@@ -131,30 +140,28 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 	//   * No literals: liveness is a property of non-constant values, and
 	//     literals in a tail set don't correspond to anything the shuffler is
 	//     meant to preserve.
-	//   * Every value id must be on the initial stack (see isOnInitialOrJunk).
-	//   * Deduplicate by value id.
-	LivenessAnalysis::LivenessData::LiveCounts liveCounts;
+	//   * Every value must be on the initial stack (see isOnInitialOrJunk).
+	//   * Deduplicate by slot identity.
+	StackSlotLiveness::Entries liveCounts;
 	{
-		std::unordered_set<std::uint64_t> seen;
+		std::set<StackSlot> seen;
 		std::size_t const n = static_cast<std::size_t>(_input.tail_set_size());
 		liveCounts.reserve(std::min<std::size_t>(n, kMaxTargetSize));
 		for (std::size_t i = 0; i < n && liveCounts.size() < kMaxTargetSize; ++i)
 		{
 			StackSlot const slot = protoSlotToStackSlot(_input.tail_set(static_cast<int>(i)));
-			if (!slot.isValueID())
+			if (!slot.isValue())
 				continue; // drop JUNK
-			ValueId const vid = slot.valueID();
-			if (vid.isLiteral())
+			if (slot.isLiteralValue())
 				continue; // drop literals
-			if (!isOnInitialOrJunk(slot, initialValueKeys))
+			if (!isOnInitialOrJunk(slot))
 				continue; // drop slots not physically on the initial stack
-			std::uint64_t const key = valueKey(vid);
-			if (!seen.insert(key).second)
+			if (!seen.insert(slot).second)
 				continue; // dedupe
-			liveCounts.emplace_back(vid, /*count=*/1u);
+			liveCounts.emplace_back(slot, /*count=*/1u);
 		}
 	}
-	out.targetTail = LivenessAnalysis::LivenessData{std::move(liveCounts)};
+	out.targetTail = StackSlotLiveness{std::move(liveCounts)};
 
 	// --- 4. target stack size ---
 	// Must satisfy: targetTop.size() <= targetStackSize and

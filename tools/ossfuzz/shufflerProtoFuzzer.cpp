@@ -28,14 +28,17 @@
  *        (a) replay ends in the same data state the shuffler reported, and
  *        (b) that state is admissible with respect to the target.
  *
- * Exception handling:
- *   - "Stack too deep" assertions (from Stack.h or the shuffler itself) are
- *     swallowed — the shuffler is a work in progress and still legitimately
- *     gives up on some configurations. Define FUZZER_MODE_STACK_TOO_DEEP_IS_BUG
- *     at compile time once the shuffler is expected to handle those.
- *   - Any other yul/util Exception (MaxIterations, "reached final and forbidden
- *     state", etc.) is rethrown so libFuzzer records it as a crash.
- *   - Non-Exception throws (bad_alloc, std::logic_error, …) also escape.
+ * Result handling:
+ *   - shuffle() returns a StackShufflerResult; it does not throw for the
+ *     expected give-up outcomes.
+ *   - Status::StackTooDeep is swallowed — the shuffler is a work in progress
+ *     and still legitimately gives up on some configurations. Define
+ *     FUZZER_MODE_STACK_TOO_DEEP_IS_BUG at compile time once the shuffler is
+ *     expected to handle those.
+ *   - Status::MaxIterationsReached (and the never-expected Continue) trips a
+ *     solAssert so libFuzzer records it as a crash.
+ *   - Precondition violations inside shuffle() still throw (yulAssert); those
+ *     indicate a converter bug and escape to libFuzzer as a crash.
  *
  * Oracle: the independent replay + admissibility check catches bugs that the
  * shuffler's own internal `yulAssert(state.admissible())` might miss —
@@ -46,23 +49,19 @@
 #include <tools/ossfuzz/protoToShuffler.h>
 #include <tools/ossfuzz/shufflerProto.pb.h>
 
-#include <libyul/backends/evm/ssa/LivenessAnalysis.h>
 #include <libyul/backends/evm/ssa/Stack.h>
 #include <libyul/backends/evm/ssa/StackShuffler.h>
-#include <libyul/Exceptions.h>
 
 #include <libsolutil/Assertions.h>
 #include <libsolutil/Exceptions.h>
 
 #include <src/libfuzzer/libfuzzer_macro.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 
 using namespace solidity;
@@ -186,8 +185,8 @@ bool isAdmissible(StackData const& _final, ConvertedInput const& _t)
 	for (auto const& arg: _t.targetTop)
 		if (!arg.isJunk())
 			bumpCount(arg);
-	for (auto const& [vid, _count]: _t.targetTail)
-		bumpCount(StackSlot::makeValueID(vid));
+	for (auto const& [slot, _count]: _t.targetTail)
+		bumpCount(slot);
 
 	for (auto const& [slot, need]: minCount)
 	{
@@ -213,12 +212,12 @@ std::string toStackFileFormat(ConvertedInput const& _t)
 
 	out << "targetStackTailSet: {";
 	bool first = true;
-	for (auto const& [vid, _count]: _t.targetTail)
+	for (auto const& [slot, _count]: _t.targetTail)
 	{
 		if (!first)
 			out << ", ";
 		first = false;
-		out << slotToString(StackSlot::makeValueID(vid));
+		out << slotToString(slot);
 	}
 	out << "}\n";
 
@@ -257,36 +256,28 @@ DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
 	RecordingCallbacks callbacks{&ops};
 	RecStack stack(stackData, callbacks);
 
-	// The shuffler reports failures by throwing `yul::YulAssertion` (via
-	// `yulAssert`). Successful admissible runs return normally. Only
-	// "stack too deep" trips are honest give-ups and are silenced by
-	// default — everything else (MaxIterations, admissibility violations,
-	// etc.) propagates to libfuzzer as a crash.
-	try
+	// shuffle() returns a status rather than throwing for the expected give-up
+	// outcomes. A Status::StackTooDeep is an honest give-up and is silenced by
+	// default; MaxIterationsReached (and the never-expected Continue) is a bug.
+	// Precondition violations inside shuffle() still throw and escape as crashes.
+	StackShufflerResult const result = StackShuffler<RecordingCallbacks>::shuffle(
+		stack,
+		converted.targetTop,
+		converted.targetTail,
+		converted.targetStackSize
+	);
+	if (result.status == StackShufflerResult::Status::StackTooDeep)
 	{
-		StackShuffler<RecordingCallbacks>::shuffle(
-			stack,
-			converted.targetTop,
-			converted.targetTail,
-			converted.targetStackSize
-		);
-	}
-	catch (yul::YulAssertion const& e)
-	{
-		std::string const msg = e.comment() ? *e.comment() : "";
-		std::string lower = msg;
-		std::transform(lower.begin(), lower.end(), lower.begin(),
-			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-		if (lower.find("stack too deep") != std::string::npos)
-		{
 #ifdef FUZZER_MODE_STACK_TOO_DEEP_IS_BUG
-			throw;
+		solAssert(false, "shuffler gave up: stack too deep");
 #else
-			return; // honest give-up: ignore for now
+		return; // honest give-up: ignore for now
 #endif
-		}
-		throw;
 	}
+	solAssert(
+		result.status == StackShufflerResult::Status::Admissible,
+		"shuffle() returned a non-admissible, non-stack-too-deep status (e.g. max iterations reached)"
+	);
 
 	// --- Oracle 1: replay the emitted opcodes and check we end up where the
 	//     shuffler's internal m_data ended up. Catches any drift between the
