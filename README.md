@@ -168,7 +168,6 @@ with a short header comment explaining what it exercises and why.
 # Reproduce a sol ProtoBuf EVMOne finding:
 ./build/sol_debug_runner crash.sol
 
-
 # Reproduce an AFL finding (".sol" file contains also calldata):
 ./build/sol_debug_runner --afl crash.sol
 
