@@ -170,6 +170,24 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		of.write(sol_source.data(), static_cast<std::streamsize>(sol_source.size()));
 	}
 
+	// Dump the calldata that runOnce() appends after the test() selector, so a
+	// reproducer (sol_debug_runner --calldata <hex>) can exercise the same
+	// input-dependent path the differential fuzzer found. Written even when
+	// empty (no calldata_data) — an empty file is a valid "no extra calldata"
+	// signal. Mirrors PROTO_FUZZER_DUMP_PATH; placed before the size-skip
+	// return below so it is always emitted for the input being replayed.
+	if (char const* cd_dump_path = getenv("PROTO_FUZZER_DUMP_CALLDATA_PATH"))
+	{
+		std::string cdHex;
+		if (_input.has_calldata_data())
+		{
+			bytes cdBytes(_input.calldata_data().begin(), _input.calldata_data().end());
+			cdHex = toHex(cdBytes);
+		}
+		std::ofstream of(cd_dump_path);
+		of << cdHex;
+	}
+
 	if (char const* dump_path = getenv("SOL_DEBUG_FILE"))
 	{
 		sol_source.clear();
