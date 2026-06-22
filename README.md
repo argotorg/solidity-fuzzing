@@ -76,6 +76,7 @@ This builds all relevant fuzzer targets under `build_ossfuzz`.
 The most important are the libfuzzer-based protobuf targets to be ran standalone:
 - `sol_proto_ossfuzz_*` — Solidity differential fuzzers
 - `yul_proto_ossfuzz_*` — Yul differential fuzzers
+* `shuffler_proto_ossfuzz` - Stack shuffler fuzzer
 
 ## Running a libfuzzer-based fuzzers
 
