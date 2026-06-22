@@ -21,6 +21,14 @@ target_link_libraries(tlsf_free_list_property PRIVATE
     fuzztest::fuzztest_gtest_main
 )
 
+add_executable(tarjan_scc_property
+   TarjanSCCProperty.cpp
+)
+target_link_libraries(tarjan_scc_property PRIVATE
+    yul
+    fuzztest::fuzztest_gtest_main
+)
+
 # fuzztest_setup_fuzzing_flags() sets per-target compile/link flags needed
 # for the libfuzzer-driver mode. Property-test mode (the default at runtime)
 # doesn't strictly need them, but enabling them keeps the binary's two modes
