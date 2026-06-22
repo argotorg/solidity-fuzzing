@@ -43,9 +43,7 @@ Make sure to have the following installed:
 
 ## Building Solidity and the Debug Tools, i.e. "normal build"
 
-We'll need a full solidity build along with debug tools (`sol_debug_runner`,
-`yul_debug_runner`) built with a standard CMake workflow. They link against the
-solidity libraries built from the submodule.
+We'll need a full solidity build along with debug tools:
 
 ```bash
 mkdir -p build && cd build
@@ -58,7 +56,7 @@ cd ..
 
 This builds the following debug tools:
 - `sol_debug_runner` — reproduces `sol_proto_ossfuzz_evmone*` findings
-  (and, with `--afl`, AFL crashes from `sol_afl_diff_runner`)
+  and, with `--afl`, AFL crashes from `sol_afl_diff_runner`
 - `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
 
 ## Building libfuzzer Docker Image
@@ -84,6 +82,7 @@ The most important are the libfuzzer-based protobuf targets to be ran standalone
 ```bash
 ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone corpus_dir_sol
 ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone corpus_dir_yul
+./build_ossfuzz/tools/ossfuzz/shuffler_proto_ossfuzz corpus_dir_shuffler
 ```
 
 ## Running the AFL++ differential fuzzer
