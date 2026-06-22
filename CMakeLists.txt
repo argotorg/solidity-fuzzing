@@ -34,7 +34,7 @@ if (FUZZTEST AND NOT OSSFUZZ)
     FetchContent_Declare(
         fuzztest
         GIT_REPOSITORY https://github.com/google/fuzztest.git
-        GIT_TAG main
+        GIT_TAG 2026-02-19
     )
     FetchContent_MakeAvailable(fuzztest)
     if (TARGET fuzztest::fuzztest_gtest_main)
