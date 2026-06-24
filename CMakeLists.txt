@@ -46,7 +46,7 @@ if (FUZZTEST AND NOT OSSFUZZ)
             fuzztest_setup_fuzzing_flags()
             # Enable libstdc++ hardening assertions (bounds checks etc.) globally,
             # matching the libfuzzer/OSS-Fuzz fuzz builds.
-            add_compile_definitions(_GLIBCXX_ASSERTIONS)
+            add_compile_definitions(_GLIBCXX_ASSERTIONS _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
             message(STATUS "fuzztest coverage-guided fuzzing mode ENABLED (clang sanitizer flags applied globally)")
         endif()
     else()
