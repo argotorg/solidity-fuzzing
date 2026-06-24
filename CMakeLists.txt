@@ -44,6 +44,9 @@ if (FUZZTEST AND NOT OSSFUZZ)
             # this point — including the solidity submodule below, which is what
             # we want so the shuffler code is also instrumented.
             fuzztest_setup_fuzzing_flags()
+            # Enable libstdc++ hardening assertions (bounds checks etc.) globally,
+            # matching the libfuzzer/OSS-Fuzz fuzz builds.
+            add_compile_definitions(_GLIBCXX_ASSERTIONS)
             message(STATUS "fuzztest coverage-guided fuzzing mode ENABLED (clang sanitizer flags applied globally)")
         endif()
     else()
