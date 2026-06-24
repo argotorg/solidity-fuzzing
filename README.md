@@ -41,6 +41,16 @@ Make sure to have the following installed:
 * ccache
 * docker
 
+## Applying EVMHost patches
+
+These are needed because `EVMHost.cpp` in solidity is lacking some
+functionality needed for us to be able to minimize false positives.
+```bash
+for p in patches/*.patch; do
+    git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
+done
+```
+
 ## Building Solidity and the Debug Tools, i.e. "normal build"
 
 We'll need a full solidity build along with debug tools:
@@ -109,10 +119,6 @@ regular host build doesn't).
 
 ```bash
 # Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev).
-# Apply local patches against vendored submodules (idempotent — skip if already applied).
-for p in patches/*.patch; do
-    git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
-done
 sudo apt-get install libprotobuf-dev rustup
 rustup toolchain install nightly
 mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.
