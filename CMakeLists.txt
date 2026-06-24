@@ -207,14 +207,32 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tree-sitter-solidity/Makefile")
     include(ExternalProject)
     set(TS_SOLIDITY_DIR "${CMAKE_SOURCE_DIR}/tree-sitter-solidity")
     set(TS_SOLIDITY_LIB "${TS_SOLIDITY_DIR}/libtree-sitter-solidity.so")
-    ExternalProject_Add(tree_sitter_solidity
-        SOURCE_DIR "${TS_SOLIDITY_DIR}"
-        CONFIGURE_COMMAND ""
-        BUILD_IN_SOURCE 1
-        BUILD_COMMAND make libtree-sitter-solidity.so
-        INSTALL_COMMAND ""
-        BUILD_BYPRODUCTS "${TS_SOLIDITY_LIB}"
-    )
+    # Upstream Makefile names the shared lib per-OS: .dylib on macOS, .so elsewhere
+    # (see SOEXT in tree-sitter-solidity/Makefile). Build whatever the Makefile
+    # actually produces, then ensure a libtree-sitter-solidity.so exists where
+    # afl-ts / run_afl.sh expect it. On macOS dlopen loads a Mach-O dylib regardless
+    # of the .so name, so the copy keeps the hardcoded .so paths working.
+    if (APPLE)
+        ExternalProject_Add(tree_sitter_solidity
+            SOURCE_DIR "${TS_SOLIDITY_DIR}"
+            CONFIGURE_COMMAND ""
+            BUILD_IN_SOURCE 1
+            BUILD_COMMAND make libtree-sitter-solidity.dylib
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${TS_SOLIDITY_DIR}/libtree-sitter-solidity.dylib" "${TS_SOLIDITY_LIB}"
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS "${TS_SOLIDITY_LIB}"
+        )
+    else()
+        ExternalProject_Add(tree_sitter_solidity
+            SOURCE_DIR "${TS_SOLIDITY_DIR}"
+            CONFIGURE_COMMAND ""
+            BUILD_IN_SOURCE 1
+            BUILD_COMMAND make libtree-sitter-solidity.so
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS "${TS_SOLIDITY_LIB}"
+        )
+    endif()
 else()
     message(WARNING "tree-sitter-solidity submodule not found. "
         "afl-ts integration in tools/afl/run_afl.sh will not have a grammar to load. "
