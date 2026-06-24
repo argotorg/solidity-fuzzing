@@ -1,6 +1,7 @@
 [submodule "solidity"]
 	path = solidity
 	url = https://github.com/argotorg/solidity.git
+	ref = 090bc8ff23ccebda382a87f6f3871299ad94fb96
 	branch = develop
 [submodule "evmone"]
 	path = evmone
