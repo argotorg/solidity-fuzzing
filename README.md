@@ -104,10 +104,10 @@ It works under `afl-fuzz` and standalone (file path or stdin).
 
 Two binaries get built — same source, different toolchain:
 
-| Path                                              | Toolchain        | When to use                                |
-| ---                                               | ---              | ---                                        |
-| `build/tools/afl/sol_afl_diff_runner`             | host gcc         | one-off check on a single `.sol`; reproducing crashes |
-| `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`    |
+| Path                                              | Toolchain        | When to use  |
+| ---                                               | ---              | ---      |
+| `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`  |
+| `build/tools/afl/sol_afl_diff_runner`             | host gcc         | check a single `.sol` to reproducing crash |
 
 AFL++ itself, the `afl-ts` AST-aware custom mutator, and the
 `tree-sitter-solidity` grammar are all vendored as submodules — no system
