@@ -27,9 +27,10 @@ if (OSSFUZZ)
     find_library(LPM_FUZZER_LIB protobuf-mutator-libfuzzer PATHS "${LPM_PREFIX}/lib" REQUIRED)
     find_library(LPM_LIB protobuf-mutator PATHS "${LPM_PREFIX}/lib" REQUIRED)
     find_library(EVMONE_STANDALONE_LIB evmone-standalone PATHS "${EVMONE_PREFIX}/lib" REQUIRED)
-    # System protobuf. Prefer CONFIG mode (modern protobuf ≥22 ships a cmake
-    # package config whose protobuf::libprotobuf target carries the abseil link
-    # deps); fall back to the FindProtobuf module for older distro protobufs.
+    # Protobuf — the libc++ build staged in deps/ by scripts/build_ossfuzz.sh,
+    # found via CMAKE_PREFIX_PATH (NOT the system libstdc++ protobuf, which would
+    # mix C++ ABIs). CONFIG mode gives a protobuf::libprotobuf target that
+    # carries the abseil link deps; fall back to the module for safety.
     find_package(Protobuf CONFIG QUIET)
     if (NOT Protobuf_FOUND)
         find_package(Protobuf MODULE REQUIRED)
