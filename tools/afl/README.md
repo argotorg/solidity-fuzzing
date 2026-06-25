@@ -42,7 +42,7 @@ silent miscompiles between optimiser configurations).
 See [the main README](../../README.md#running-the-afl-differential-fuzzer)
 for build / corpus / launch commands and troubleshooting. Three build
 trees coexist (`build/` host gcc, `build_afl/` afl-clang-fast,
-`build_ossfuzz/` Docker clang+libc++) and never share object files —
+`build_ossfuzz/` host clang+libFuzzer) and never share object files —
 rebuild any one without touching the others. The AFL build instruments
 libsolc, evmone, and the harness; evmone is built as a static archive
 (`libevmone-standalone.a`) and linked directly to sidestep an

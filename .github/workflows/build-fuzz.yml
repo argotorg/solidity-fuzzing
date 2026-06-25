@@ -9,13 +9,30 @@ on:
 jobs:
   build-fuzz:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository }}-ossfuzz:latest
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
+
+      # Native libFuzzer build — no Docker. clang provides -fsanitize=fuzzer;
+      # boost/protobuf/abseil come from the system; libprotobuf-mutator and
+      # evmone-standalone are built from source by the script into deps/.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ccache git \
+            clang \
+            libboost-all-dev \
+            protobuf-compiler libprotobuf-dev libabsl-dev
+
+      - name: Cache ccache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.ccache
+          key: ccache-ubuntu-fuzz-${{ github.sha }}
+          restore-keys: ccache-ubuntu-fuzz-
 
       - name: Build fuzzers
         run: scripts/build_ossfuzz.sh

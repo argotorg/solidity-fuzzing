@@ -31,10 +31,45 @@ if (OSSFUZZ)
     )
 
     add_custom_target(ossfuzz_abiv2)
-    add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz abiv2_isabelle_ossfuzz)
+    add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz)
 endif()
 
 if (OSSFUZZ)
+    # --- Native fuzz dependencies (staged into deps/ by scripts/build_ossfuzz.sh) ---
+    # libprotobuf-mutator and evmone-standalone are the only deps still built
+    # from source; everything else (protobuf 35, abseil, boost) comes from the
+    # system. LPM_PREFIX / EVMONE_PREFIX are passed on the cmake command line by
+    # the build script; both default to the in-tree deps/ prefix.
+    if (NOT LPM_PREFIX)
+        set(LPM_PREFIX "${CMAKE_SOURCE_DIR}/deps")
+    endif()
+    if (NOT EVMONE_PREFIX)
+        set(EVMONE_PREFIX "${CMAKE_SOURCE_DIR}/deps")
+    endif()
+
+    # LPM harnesses include <src/libfuzzer/libfuzzer_macro.h>; evmone harnesses
+    # include <evmone/evmone.h>. Both header roots are added for every target.
+    set(FUZZ_LPM_INCLUDE "${LPM_PREFIX}/include/libprotobuf-mutator")
+    set(FUZZ_EVMONE_INCLUDE "${EVMONE_PREFIX}/include")
+    include_directories(${FUZZ_LPM_INCLUDE} ${FUZZ_EVMONE_INCLUDE})
+
+    find_library(LPM_FUZZER_LIB protobuf-mutator-libfuzzer PATHS "${LPM_PREFIX}/lib" REQUIRED)
+    find_library(LPM_LIB protobuf-mutator PATHS "${LPM_PREFIX}/lib" REQUIRED)
+    find_library(EVMONE_STANDALONE_LIB evmone-standalone PATHS "${EVMONE_PREFIX}/lib" REQUIRED)
+    # System protobuf. Prefer CONFIG mode (modern protobuf ≥22 ships a cmake
+    # package config whose protobuf::libprotobuf target carries the abseil link
+    # deps); fall back to the FindProtobuf module for older distro protobufs
+    # that predate both the config files and the abseil dependency.
+    find_package(Protobuf CONFIG QUIET)
+    if (NOT Protobuf_FOUND)
+        find_package(Protobuf MODULE REQUIRED)
+    endif()
+
+    # Reusable link-library groups: replaces the old hard-coded
+    # `evmone-standalone protobuf-mutator-libfuzzer.a protobuf-mutator.a protobuf.a`.
+    set(FUZZ_PROTO_LIBS ${LPM_FUZZER_LIB} ${LPM_LIB} protobuf::libprotobuf)
+    set(FUZZ_EVMONE_LIBS ${EVMONE_STANDALONE_LIB})
+
     add_executable(solc_ossfuzz
             solc_ossfuzz.cpp
             ../common/fuzzer_common.cpp
@@ -86,13 +121,11 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
             YulEvmoneInterface.cpp
     )
-    target_include_directories(yul_proto_ossfuzz_evmone PRIVATE /usr/include/libprotobuf-mutator)
+    target_include_directories(yul_proto_ossfuzz_evmone PRIVATE ${FUZZ_LPM_INCLUDE})
     target_link_libraries(yul_proto_ossfuzz_evmone PRIVATE yul
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(yul_proto_ossfuzz_evmone PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(yul_proto_ossfuzz_evmone PUBLIC
@@ -108,14 +141,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
             YulEvmoneInterface.cpp
     )
-    target_include_directories(yul_proto_ossfuzz_evmone_ssacfg PRIVATE /usr/include/libprotobuf-mutator)
+    target_include_directories(yul_proto_ossfuzz_evmone_ssacfg PRIVATE ${FUZZ_LPM_INCLUDE})
     target_compile_definitions(yul_proto_ossfuzz_evmone_ssacfg PRIVATE FUZZER_MODE_SSACFG)
     target_link_libraries(yul_proto_ossfuzz_evmone_ssacfg PRIVATE yul
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(yul_proto_ossfuzz_evmone_ssacfg PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(yul_proto_ossfuzz_evmone_ssacfg PUBLIC
@@ -131,14 +162,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
             YulEvmoneInterface.cpp
     )
-    target_include_directories(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE /usr/include/libprotobuf-mutator)
+    target_include_directories(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE ${FUZZ_LPM_INCLUDE})
     target_compile_definitions(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE FUZZER_MODE_CHECK_STACK_ALLOC)
     target_link_libraries(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE yul
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(yul_proto_ossfuzz_evmone_check_stack_alloc PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(yul_proto_ossfuzz_evmone_check_stack_alloc PUBLIC
@@ -159,17 +188,15 @@ if (OSSFUZZ)
                 ${EVMHOST_CPP}
                 YulEvmoneInterface.cpp
         )
-        target_include_directories(${_sp_target} PRIVATE /usr/include/libprotobuf-mutator)
+        target_include_directories(${_sp_target} PRIVATE ${FUZZ_LPM_INCLUDE})
         target_compile_definitions(${_sp_target} PRIVATE
                 FUZZER_MODE_SINGLE_PASS
                 FUZZER_SINGLE_PASS_CHAR="${pass}"
         )
         target_link_libraries(${_sp_target} PRIVATE yul
                 evmc
-                evmone-standalone
-                protobuf-mutator-libfuzzer.a
-                protobuf-mutator.a
-                protobuf.a
+                ${FUZZ_EVMONE_LIBS}
+                ${FUZZ_PROTO_LIBS}
         )
         set_target_properties(${_sp_target} PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
         target_compile_options(${_sp_target} PUBLIC
@@ -186,14 +213,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
             YulEvmoneInterface.cpp
     )
-    target_include_directories(yul_proto_ossfuzz_evmone_no_ssa PRIVATE /usr/include/libprotobuf-mutator)
+    target_include_directories(yul_proto_ossfuzz_evmone_no_ssa PRIVATE ${FUZZ_LPM_INCLUDE})
     target_compile_definitions(yul_proto_ossfuzz_evmone_no_ssa PRIVATE FUZZER_MODE_NO_SSA)
     target_link_libraries(yul_proto_ossfuzz_evmone_no_ssa PRIVATE yul
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(yul_proto_ossfuzz_evmone_no_ssa PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(yul_proto_ossfuzz_evmone_no_ssa PUBLIC
@@ -206,11 +231,9 @@ if (OSSFUZZ)
             protoToShuffler.cpp
             shufflerProto.pb.cc
     )
-    target_include_directories(shuffler_proto_ossfuzz PRIVATE /usr/include/libprotobuf-mutator)
+    target_include_directories(shuffler_proto_ossfuzz PRIVATE ${FUZZ_LPM_INCLUDE})
     target_link_libraries(shuffler_proto_ossfuzz PRIVATE yul
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(shuffler_proto_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(shuffler_proto_ossfuzz PUBLIC
@@ -226,39 +249,15 @@ if (OSSFUZZ)
             abiV2Proto.pb.cc
     )
     target_include_directories(abiv2_proto_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(abiv2_proto_ossfuzz PRIVATE solidity
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(abiv2_proto_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(abiv2_proto_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    add_executable(abiv2_isabelle_ossfuzz
-            AbiV2IsabelleFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            ${EVMHOST_CPP}
-            protoToAbiV2.cpp
-            abiV2Proto.pb.cc
-    )
-    target_include_directories(abiv2_isabelle_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(abiv2_isabelle_ossfuzz PRIVATE solidity
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-            abicoder
-            gmp.a
-    )
-    set_target_properties(abiv2_isabelle_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(abiv2_isabelle_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
 
     add_executable(sol_proto_ossfuzz_nondiff
             solProtoFuzzer.cpp
@@ -268,14 +267,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
     )
     target_include_directories(sol_proto_ossfuzz_nondiff PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(sol_proto_ossfuzz_nondiff PRIVATE solidity libsolc
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_proto_ossfuzz_nondiff PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_proto_ossfuzz_nondiff PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
@@ -289,14 +286,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
     )
     target_include_directories(sol_proto_ossfuzz_evmone PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(sol_proto_ossfuzz_evmone PRIVATE solidity libsolc
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_proto_ossfuzz_evmone PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_proto_ossfuzz_evmone PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
@@ -310,15 +305,13 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
     )
     target_include_directories(sol_proto_ossfuzz_evmone_viair PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_compile_definitions(sol_proto_ossfuzz_evmone_viair PRIVATE FUZZER_MODE_VIAIR)
     target_link_libraries(sol_proto_ossfuzz_evmone_viair PRIVATE solidity libsolc
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_proto_ossfuzz_evmone_viair PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_proto_ossfuzz_evmone_viair PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
@@ -331,12 +324,10 @@ if (OSSFUZZ)
             sol2Proto.pb.cc
     )
     target_include_directories(sol_ice_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(sol_ice_ossfuzz PRIVATE solidity libsolc
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_ice_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_ice_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
@@ -354,14 +345,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
     )
     target_include_directories(sol_recstruct_alias_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(sol_recstruct_alias_ossfuzz PRIVATE solidity libsolc
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_recstruct_alias_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_recstruct_alias_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
@@ -378,14 +367,12 @@ if (OSSFUZZ)
             ${EVMHOST_CPP}
     )
     target_include_directories(sol_roundtrip_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
+            ${FUZZ_LPM_INCLUDE}
     )
     target_link_libraries(sol_roundtrip_ossfuzz PRIVATE solidity libsolc
             evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
+            ${FUZZ_EVMONE_LIBS}
+            ${FUZZ_PROTO_LIBS}
     )
     set_target_properties(sol_roundtrip_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
     target_compile_options(sol_roundtrip_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})

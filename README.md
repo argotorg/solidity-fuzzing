@@ -13,12 +13,13 @@ files, so you can rebuild any one without touching the others.
 | Tree             | Compiler                  | Workflow / artefacts                                                                |
 | ---              | ---                       | ---                                                                                 |
 | `build/`         | host gcc/clang            | `solc`, debug runners (`sol_debug_runner`, `yul_debug_runner`), for reproducing crashes |
-| `build_ossfuzz/` | clang + libc++ (in Docker) | libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
+| `build_ossfuzz/` | host clang                | libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
 | `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`)  |
 
-The fuzz build **must** go through Docker — libFuzzer + MemorySanitizer
-require an instrumented libc++ that only the OSS-Fuzz Docker image
-ships. Sections below cover each tree in turn.
+All three build natively on the host — **no Docker.** The fuzz build only
+enables `-fsanitize=fuzzer` + UBSan (no MemorySanitizer), so it links against
+the system's boost/protobuf/abseil instead of an instrumented libc++ world.
+Sections below cover each tree in turn.
 
 ## Cloning and Setup
 
@@ -37,9 +38,10 @@ Make sure to have the following installed:
 * libboost-dev, libboost-program-options-dev, libboost-filesystem-dev
 * linux-perf
 * gdb
-* protobuf-compiler (protoc)
+* clang / clang++ (libFuzzer is clang-only)
+* protobuf-compiler (protoc), libprotobuf, abseil
+* static boost libraries
 * ccache
-* docker
 
 ## Applying EVMHost patches
 
@@ -69,18 +71,16 @@ This builds the following debug tools:
   and, with `--afl`, AFL crashes from `sol_afl_diff_runner`
 - `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
 
-## Building libfuzzer Docker Image
+## Building the libfuzzer-based fuzzers
 
 ```bash
-docker build -t solidity-ossfuzz -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz .
+scripts/build_ossfuzz.sh
 ```
 
-## Building libfuzzer-based fuzzers using the Docker Image
-
-```bash
-docker run --rm -v "$(pwd)":/src/solidity-fuzzing -ti solidity-ossfuzz \
-    /src/solidity-fuzzing/scripts/build_ossfuzz.sh
-```
+The script regenerates the protobuf bindings with the system `protoc`, builds
+`libprotobuf-mutator` and `evmone-standalone` into `deps/` (only the first
+time), then builds the fuzzer targets under `build_ossfuzz/` using
+`cmake/toolchains/libfuzzer-native.cmake`. No Docker is involved.
 
 This builds all relevant fuzzer targets under `build_ossfuzz`.
 The most important are the libfuzzer-based protobuf targets to be ran standalone:
@@ -195,21 +195,25 @@ optimizer, writing output to `.out`. Valid passes: `c S L M s r D`.
 
 ## FAQ
 
-### Why the elaborate docker image to build fuzzers?
+### How does the fuzz build work without Docker?
 
-- Fuzzing binaries **must** link against libc++ and not libstdc++
-  This is [because][2] (1) MemorySanitizer (which flags uses of
-  uninitialized memory) depends on libc++; and (2) because libc++ is
-  instrumented (to check for memory and type errors) and libstdc++ not,
-  the former may find more bugs.
+Google's OSS-Fuzz infrastructure builds these harnesses inside a Docker image
+that rebuilds boost/protobuf/evmone against an instrumented **libc++**, because
+its jobs run MemorySanitizer (which requires an instrumented standard library).
 
-- Linking against libc++ requires us to compile everything solidity depends
-  on from source (and link these against libc++ as well)
+This local build does **not** run MSan — it only enables `-fsanitize=fuzzer`
+(libFuzzer) plus UBSan. libc++ therefore buys nothing, so we drop it
+(`cmake/toolchains/libfuzzer-native.cmake`) and link against the system's
+ordinary libstdc++-built **boost**, **protobuf** and **abseil**. That removes
+the only reason the whole dependency stack had to be rebuilt.
 
-- To reproduce the compiler versions used by upstream oss-fuzz bots, we need
-  to reuse their docker image containing the said compiler versions
+The two deps that still aren't packaged for this purpose —
+`libprotobuf-mutator` and `evmone-standalone` — are built from source by
+`scripts/build_ossfuzz.sh` into `deps/`. libprotobuf-mutator is built against
+the *system* protobuf (not its bundled copy) and the bindings are regenerated
+with the system `protoc`, so there is no version skew.
 
-- Some fuzzers depend on libprotobuf, libprotobuf-mutator, libevmone etc.
-  which may not be available locally; even if they were they might not be the
-  right versions
+The trade-off: this build may catch slightly fewer bugs than the MSan/libc++
+OSS-Fuzz build (no uninitialized-memory detection, uninstrumented stdlib), but
+it builds and runs natively on any machine with clang + the system libraries.
 

@@ -9,24 +9,23 @@ This repo produces two sets of binaries from two different build directories. **
 | Build tree       | Toolchain             | Produces                                                                          |
 | ---------------- | --------------------- | --------------------------------------------------------------------------------- |
 | `build/`         | Host compiler, cmake  | `solc`, `sol_debug_runner`, `yul_debug_runner`, `stackshuffler` — for reproducing |
-| `build_ossfuzz/` | clang + libc++ in Docker | libFuzzer fuzzers under `tools/ossfuzz/` — for fuzzing                         |
+| `build_ossfuzz/` | host clang, cmake     | libFuzzer fuzzers under `tools/ossfuzz/` — for fuzzing                             |
 
-Fuzzing binaries **must** link against libc++ (MemorySanitizer requires it; libc++ is instrumented). That is why the fuzz build only works inside the OSS-Fuzz Docker image — it pulls in the exact compiler/toolchain OSS-Fuzz uses upstream.
+Both trees build natively on the host — **no Docker.** The fuzz build only turns on `-fsanitize=fuzzer` + UBSan (no MemorySanitizer), so it does not need an instrumented libc++ world. It links against the system's libstdc++-built boost, protobuf and abseil. The only deps still built from source are `libprotobuf-mutator` and `evmone-standalone`, which `scripts/build_ossfuzz.sh` stages into `deps/`.
 
-### Building fuzzers (build_ossfuzz/) — Docker only
-
-```bash
-docker run --rm -v "$(pwd)":/src/solidity-fuzzing -ti solidity-ossfuzz \
-    /src/solidity-fuzzing/scripts/build_ossfuzz.sh
-```
-
-**Never run `cmake`/`make` directly on the host to build anything under `build_ossfuzz/`.** It will link against the wrong libc++/toolchain and either fail or silently produce a broken fuzzer. If the docker image is missing, build it first:
+### Building fuzzers (build_ossfuzz/) — native
 
 ```bash
-docker build -t solidity-ossfuzz -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz .
+scripts/build_ossfuzz.sh
 ```
 
-`scripts/build_ossfuzz.sh` regenerates `*.pb.{cc,h}` from the `.proto` files before building. The proto bindings are committed (so that LSP / IDE works) but are refreshed on every fuzz build.
+Prerequisites (Arch package names): `clang`, `protobuf`, `abseil-cpp`, `boost` (static `.a` libs), `cmake`, `make`, `git`. The script:
+
+1. regenerates `*.pb.{cc,h}` from the `.proto` files with the **system** `protoc` (committed so LSP/IDE works, refreshed on every build so they match the linked libprotobuf);
+2. builds `libprotobuf-mutator` (against the system protobuf) and `evmone-standalone` into `deps/` (skipped if already present);
+3. configures `build_ossfuzz/` with `cmake/toolchains/libfuzzer-native.cmake` and builds the fuzzer targets.
+
+`deps/` and `build_ossfuzz/` are git-ignored. To force a dep rebuild, delete the relevant `deps/lib/*.a`.
 
 ### Building debug runners and `solc` (build/) — host cmake
 
