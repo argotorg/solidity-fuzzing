@@ -40,3 +40,4 @@ fuzz-*.log
 /090bc8f-6e3e8b7
 /shuffler_proto_corpus
 /deps/
+/dist
