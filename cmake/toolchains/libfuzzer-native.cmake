@@ -27,16 +27,6 @@ endif()
 set(OSSFUZZ ON CACHE BOOL "Enable fuzzer build" FORCE)
 # Use libfuzzer as the fuzzing back-end
 set(LIB_FUZZING_ENGINE "-fsanitize=fuzzer" CACHE STRING "Use libfuzzer back-end" FORCE)
-# UBSan is opt-in: on the host clang (clang 22, newer than the clang ~18 the
-# OSS-Fuzz Docker image used) -fsanitize=undefined currently miscompiles the
-# solidity AST (corrupt dynamic_cast → SEGV in CompilerStack::parse). Default it
-# off so the native build is usable; flip -DFUZZ_UBSAN=ON to re-enable once the
-# toolchain interaction is resolved.
-option(FUZZ_UBSAN "Add -fsanitize=undefined to the fuzz build" OFF)
-set(_fuzz_ubsan "")
-if (FUZZ_UBSAN)
-    set(_fuzz_ubsan "-fsanitize=undefined")
-endif()
 # clang/libfuzzer instrumentation flags.
 #
 # Differences from the OSS-Fuzz Docker toolchain:
@@ -49,7 +39,7 @@ endif()
 #     which compiles solidity correctly) sidesteps it.
 #   * lld instead of gold. Docker used gold to avoid OOM on Google's large link
 #     jobs; locally lld (bundled with clang) is faster and the natural pairing.
-set(CMAKE_CXX_FLAGS "-O2 -DNDEBUG -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION ${_fuzz_ubsan} -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
+set(CMAKE_CXX_FLAGS "-O2 -DNDEBUG -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=undefined -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
 # Link against the system's static Boost archives (libboost_*.a). Unlike the
 # Docker toolchain we do NOT request a static C runtime — distro Boost packages
 # are built against the shared runtime and their cmake config rejects
