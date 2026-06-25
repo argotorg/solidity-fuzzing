@@ -164,7 +164,10 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/AFLplusplus/Makefile")
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/AFLplusplus"
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND make source-only
+        # NO_NYX=1 skips the optional Nyx (QEMU/KVM snapshot) backend. We only
+        # use the standard fork-server path (afl-fuzz + afl-clang-fast), and the
+        # Nyx sub-build pulls QEMU + Rust and fails noisily on non-Debian libdirs.
+        BUILD_COMMAND make source-only NO_NYX=1
         INSTALL_COMMAND ""
         BUILD_BYPRODUCTS
             "${CMAKE_SOURCE_DIR}/AFLplusplus/afl-fuzz"
