@@ -85,6 +85,7 @@ function build_protobuf_and_lpm
     -DCMAKE_EXE_LINKER_FLAGS="${LIBCXX_LDFLAGS}" \
     -DLIB_PROTO_MUTATOR_DOWNLOAD_PROTOBUF=ON \
     -DLIB_PROTO_MUTATOR_TESTING=OFF \
+    -DLIB_PROTO_MUTATOR_EXAMPLES=OFF \
     -DCMAKE_INSTALL_PREFIX="${DEPS}"
   cmake --build "${build}" -j"$(nproc)"
   cp -rp "${build}/external.protobuf/bin/." "${DEPS}/bin/"
