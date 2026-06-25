@@ -1,16 +1,19 @@
 # Native libFuzzer toolchain — builds the OSS-Fuzz harnesses on the host,
 # without Docker.
 #
-# This is the libc++-free sibling of libfuzzer.cmake. The only reason the
-# OSS-Fuzz Docker image rebuilds boost/protobuf/evmone with `-stdlib=libc++`
-# is MemorySanitizer parity for Google's infrastructure. The local fuzz build
-# enables `-fsanitize=fuzzer` + UBSan only (no MSan), so libc++ buys nothing
-# here. Dropping it lets us link directly against the system's libstdc++-built
-# boost, protobuf and abseil instead of rebuilding the whole dependency stack.
+# Uses clang + libc++ (-stdlib=libc++). clang + the system libstdc++ SEGVs
+# inside libstdc++'s dynamic_cast (CompilerStack::parse -> ASTNode::filteredNodes)
+# on essentially every input — empirically not a linker / ODR / opt-level / data
+# problem, just a clang + libstdc++ RTTI incompatibility. The gcc host build/
+# tree and the original clang + libc++ Docker build are both unaffected, so we
+# build the fuzz world against libc++ here too.
 #
-# libprotobuf-mutator and evmone-standalone are the only deps still built from
-# source — scripts/build_ossfuzz.sh stages them into deps/ and passes their
-# locations in via LPM_PREFIX / EVMONE_PREFIX.
+# Because libc++ and libstdc++ have incompatible C++ ABIs, every C++ dependency
+# that crosses the boundary must also be libc++: boost, protobuf+abseil, evmone
+# and libprotobuf-mutator are all built with -stdlib=libc++ into deps/ by
+# scripts/build_ossfuzz.sh and located via BOOST_ROOT / CMAKE_PREFIX_PATH /
+# LPM_PREFIX / EVMONE_PREFIX. (The system libstdc++-built boost/protobuf/abseil
+# packages must NOT be used.)
 
 # Inherit default options
 include("${CMAKE_CURRENT_LIST_DIR}/default.cmake")
@@ -27,28 +30,20 @@ endif()
 set(OSSFUZZ ON CACHE BOOL "Enable fuzzer build" FORCE)
 # Use libfuzzer as the fuzzing back-end
 set(LIB_FUZZING_ENGINE "-fsanitize=fuzzer" CACHE STRING "Use libfuzzer back-end" FORCE)
-# clang/libFuzzer instrumentation flags. The optimisation level is left to
-# CMAKE_BUILD_TYPE (Release -> -O3 -DNDEBUG); only the instrumentation/back-end
-# bits live here.
-#
-# Differences from the OSS-Fuzz Docker toolchain:
-#   * no libc++ (-stdlib=libc++, the libc++ include dir, _LIBCPP_HARDENING_MODE)
-#     — we link the system's libstdc++-built boost/protobuf/abseil instead.
-#   * lld instead of gold. Docker used gold to avoid OOM on Google's large link
-#     jobs; locally lld (bundled with clang) is faster.
-#
-# KNOWN ISSUE (clang + libstdc++): the resulting binaries SEGV inside libstdc++'s
-# dynamic_cast (CompilerStack::parse -> ASTNode::filteredNodes) on essentially
-# every input. Empirically ruled out: linker (bfd/gold/lld crash identically),
-# type_info ODR/visibility (symbols unique + DEFAULT), corrupt AST/RTTI data
-# (object + RTTI graph verified valid), and optimisation level (call site at -O0
-# still crashes). The host build/ tree (gcc + libstdc++) and the original Docker
-# build (clang + libc++) are unaffected — i.e. it is a clang + libstdc++ RTTI
-# incompatibility, not anything in this file.
-set(CMAKE_CXX_FLAGS "-fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=undefined -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
-# Link against the system's static Boost archives (libboost_*.a). Unlike the
-# Docker toolchain we do NOT request a static C runtime — distro Boost packages
-# are built against the shared runtime and their cmake config rejects
-# Boost_USE_STATIC_RUNTIME=ON.
-set(BOOST_FOUND ON CACHE BOOL "" FORCE)
+
+# clang/libFuzzer flags. The optimisation level is left to CMAKE_BUILD_TYPE
+# (Release -> -O3 -DNDEBUG); only the stdlib / instrumentation / back-end bits
+# live here:
+#   * -stdlib=libc++ + libc++ hardening — see the file header.
+#   * UBSan + libFuzzer coverage instrumentation.
+#   * lld (bundled with clang) for fast links.
+set(CMAKE_CXX_FLAGS "-stdlib=libc++ -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=undefined -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
+# Link the libFuzzer harnesses against libc++ as well.
+set(CMAKE_EXE_LINKER_FLAGS "-stdlib=libc++ -fuse-ld=lld" CACHE STRING "" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS "-stdlib=libc++ -fuse-ld=lld" CACHE STRING "" FORCE)
+
+# Boost: link the static, libc++-built archives staged in deps/ (BOOST_ROOT is
+# passed on the command line by scripts/build_ossfuzz.sh). Never fall back to the
+# system libstdc++ boost packages — that would mix C++ ABIs.
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Link against static Boost libraries" FORCE)
+set(Boost_NO_SYSTEM_PATHS ON CACHE BOOL "Ignore system Boost; use deps/ (libc++)" FORCE)
