@@ -27,19 +27,25 @@ endif()
 set(OSSFUZZ ON CACHE BOOL "Enable fuzzer build" FORCE)
 # Use libfuzzer as the fuzzing back-end
 set(LIB_FUZZING_ENGINE "-fsanitize=fuzzer" CACHE STRING "Use libfuzzer back-end" FORCE)
-# clang/libfuzzer instrumentation flags.
+# clang/libFuzzer instrumentation flags. The optimisation level is left to
+# CMAKE_BUILD_TYPE (Release -> -O3 -DNDEBUG); only the instrumentation/back-end
+# bits live here.
 #
 # Differences from the OSS-Fuzz Docker toolchain:
 #   * no libc++ (-stdlib=libc++, the libc++ include dir, _LIBCPP_HARDENING_MODE)
 #     — we link the system's libstdc++-built boost/protobuf/abseil instead.
-#   * -O2 -DNDEBUG instead of -O1. The host clang (clang 22, much newer than the
-#     clang ~18 the Docker image pinned) miscompiles solidity's AST at -O1: the
-#     parser produces a corrupt node whose dynamic_cast SEGVs in
-#     CompilerStack::parse. -O2 -DNDEBUG (the level a plain Release build uses,
-#     which compiles solidity correctly) sidesteps it.
 #   * lld instead of gold. Docker used gold to avoid OOM on Google's large link
-#     jobs; locally lld (bundled with clang) is faster and the natural pairing.
-set(CMAKE_CXX_FLAGS "-O2 -DNDEBUG -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=undefined -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
+#     jobs; locally lld (bundled with clang) is faster.
+#
+# KNOWN ISSUE (clang + libstdc++): the resulting binaries SEGV inside libstdc++'s
+# dynamic_cast (CompilerStack::parse -> ASTNode::filteredNodes) on essentially
+# every input. Empirically ruled out: linker (bfd/gold/lld crash identically),
+# type_info ODR/visibility (symbols unique + DEFAULT), corrupt AST/RTTI data
+# (object + RTTI graph verified valid), and optimisation level (call site at -O0
+# still crashes). The host build/ tree (gcc + libstdc++) and the original Docker
+# build (clang + libc++) are unaffected — i.e. it is a clang + libstdc++ RTTI
+# incompatibility, not anything in this file.
+set(CMAKE_CXX_FLAGS "-fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=undefined -fsanitize=fuzzer-no-link -fuse-ld=lld" CACHE STRING "Custom compilation flags" FORCE)
 # Link against the system's static Boost archives (libboost_*.a). Unlike the
 # Docker toolchain we do NOT request a static C runtime — distro Boost packages
 # are built against the shared runtime and their cmake config rejects
