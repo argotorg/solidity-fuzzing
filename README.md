@@ -41,10 +41,14 @@ Make sure to have the following installed:
 * static boost libraries
 * ccache
 
-## Applying EVMHost patches
+## Applying solidity patches
 
-These are needed because `EVMHost.cpp` in solidity is lacking some
-functionality needed for us to be able to minimize false positives.
+Local patches to the `solidity` submodule, applied to its working tree. They
+cover two things: `EVMHost.cpp` fixes (it lacks functionality we need to
+minimize false positives), and small source tweaks required to build solidity
+against libc++ (e.g. `YulArity` needs an `operator<` that newer libc++'s
+`std::map` calls directly). Apply (idempotent — the reverse-check skips
+already-applied patches):
 ```bash
 for p in patches/*.patch; do
     git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
