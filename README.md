@@ -10,10 +10,10 @@ The repo supports three independent fuzzing workflows. Each uses its own
 toolchain and its own out-of-tree build directory; they never share object
 files, so you can rebuild any one without touching the others.
 
-| Tree             | Compiler                  | Workflow / artefacts                                                                |
-| ---              | ---                       | ---                                                                                 |
-| `build/`         | host gcc/clang            | `solc`, debug runners (`sol_debug_runner`, `yul_debug_runner`), for reproducing crashes |
-| `build_ossfuzz/` | host clang                | libFuzzer harnesses (`sol_proto_ossfuzz_*`, `yul_proto_ossfuzz_*`, …)      |
+| Tree             | Compiler                  | Workflow / artefacts   |
+| ---              | ---                       | ---                                |
+| `build/`         | host gcc/clang            | `solc`, crash repro runners `*_debug_runner` |
+| `build_ossfuzz/` | host clang                | libFuzzer harnesses `*_proto_ossfuzz_*` |
 | `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`)  |
 
 All three build natively on the host with the system toolchain. Sections below
