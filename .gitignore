@@ -41,3 +41,8 @@ fuzz-*.log
 /shuffler_proto_corpus
 /deps/
 /dist
+
+# Generated protobuf bindings — regenerated on every build by
+# scripts/build_ossfuzz.sh (deps/bin/protoc), so not committed.
+/tools/ossfuzz/*.pb.cc
+/tools/ossfuzz/*.pb.h

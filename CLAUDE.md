@@ -9,9 +9,9 @@ This repo produces two sets of binaries from two different build directories. **
 | Build tree       | Toolchain             | Produces                                                                          |
 | ---------------- | --------------------- | --------------------------------------------------------------------------------- |
 | `build/`         | Host compiler, cmake  | `solc`, `sol_debug_runner`, `yul_debug_runner`, `stackshuffler` — for reproducing |
-| `build_ossfuzz/` | host clang, cmake     | libFuzzer fuzzers under `tools/ossfuzz/` — for fuzzing                             |
+| `build_ossfuzz/` | host clang + libc++   | libFuzzer fuzzers under `tools/ossfuzz/` — for fuzzing                             |
 
-Both trees build natively on the host — **no Docker.** The fuzz build only turns on `-fsanitize=fuzzer` + UBSan (no MemorySanitizer), so it does not need an instrumented libc++ world. It links against the system's libstdc++-built boost, protobuf and abseil. The only deps still built from source are `libprotobuf-mutator` and `evmone-standalone`, which `scripts/build_ossfuzz.sh` stages into `deps/`.
+Both trees build natively on the host — **no Docker.** The fuzz build uses clang + libc++ (`-fsanitize=fuzzer` + UBSan, no MemorySanitizer) because clang + the system libstdc++ SEGVs in `dynamic_cast` during every parse. Since libc++'s ABI is incompatible with the system libstdc++ libraries, `boost`, `protobuf`+`abseil`, `evmone-standalone` and `libprotobuf-mutator` are all built from source with `-stdlib=libc++` and staged into `deps/` by `scripts/build_ossfuzz.sh`.
 
 ### Building fuzzers (build_ossfuzz/) — native
 
@@ -19,13 +19,15 @@ Both trees build natively on the host — **no Docker.** The fuzz build only tur
 scripts/build_ossfuzz.sh
 ```
 
-Prerequisites (Arch package names): `clang`, `protobuf`, `abseil-cpp`, `boost` (static `.a` libs), `cmake`, `make`, `git`. The script:
+The fuzz world is built with **clang + libc++** (`-stdlib=libc++`); clang + the system libstdc++ SEGVs inside libstdc++'s `dynamic_cast` during every parse (see `cmake/toolchains/libfuzzer-native.cmake`). Because libc++ and libstdc++ have incompatible C++ ABIs, the deps that cross the boundary are built from source against libc++ — the system `protobuf`/`abseil`/`boost` packages must **not** be used.
 
-1. regenerates `*.pb.{cc,h}` from the `.proto` files with the **system** `protoc` (committed so LSP/IDE works, refreshed on every build so they match the linked libprotobuf);
-2. builds `libprotobuf-mutator` (against the system protobuf) and `evmone-standalone` into `deps/` (skipped if already present);
-3. configures `build_ossfuzz/` with `cmake/toolchains/libfuzzer-native.cmake` and builds the fuzzer targets.
+Prerequisites (Arch package names): `clang`, `libc++`, `cmake`, `make`, `ninja`, `git`, `wget`. The script:
 
-`deps/` and `build_ossfuzz/` are git-ignored. To force a dep rebuild, delete the relevant `deps/lib/*.a`.
+1. builds `boost`, `protobuf`+`abseil` (via `libprotobuf-mutator`'s bundled copy), `evmone-standalone` and `libprotobuf-mutator` into `deps/` with `-stdlib=libc++` (skipped if already present);
+2. regenerates `*.pb.{cc,h}` from the `.proto` files with the libc++ `protoc` in `deps/bin/` so they match the linked libprotobuf — these are **git-ignored** (regenerated on every build, not committed);
+3. configures `build_ossfuzz/` with `cmake/toolchains/libfuzzer-native.cmake` (pointing `CMAKE_PREFIX_PATH`/`BOOST_ROOT` at `deps/`) and builds the fuzzer targets.
+
+`deps/` and `build_ossfuzz/` are git-ignored. To force a dep rebuild, delete the relevant `deps/lib/*.a` (e.g. `deps/lib/libboost_filesystem.a`).
 
 ### Building debug runners and `solc` (build/) — host cmake
 
