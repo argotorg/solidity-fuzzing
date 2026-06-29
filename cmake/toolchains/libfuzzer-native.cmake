@@ -28,8 +28,15 @@ endif()
 
 # Build fuzzing binaries
 set(OSSFUZZ ON CACHE BOOL "Enable fuzzer build" FORCE)
-# Use libfuzzer as the fuzzing back-end
-set(LIB_FUZZING_ENGINE "-fsanitize=fuzzer" CACHE STRING "Use libfuzzer back-end" FORCE)
+# Fuzzing back-end. Distro libFuzzer runtimes (libclang_rt.fuzzer) are compiled
+# against libstdc++, so their internal std::__cxx11 string/iostream symbols can't
+# be satisfied in this -stdlib=libc++ link. scripts/build_ossfuzz.sh therefore
+# builds libFuzzer from compiler-rt source against libc++ and passes its archive
+# path as -DLIB_FUZZING_ENGINE. Only fall back to the (broken-on-libc++)
+# -fsanitize=fuzzer runtime if nothing was supplied on the command line.
+if (NOT LIB_FUZZING_ENGINE)
+    set(LIB_FUZZING_ENGINE "-fsanitize=fuzzer" CACHE STRING "Use libfuzzer back-end" FORCE)
+endif()
 
 # clang/libFuzzer flags. The optimisation level is left to CMAKE_BUILD_TYPE
 # (Release -> -O3 -DNDEBUG); only the stdlib / instrumentation / back-end bits

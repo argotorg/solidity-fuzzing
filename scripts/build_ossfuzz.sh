@@ -9,7 +9,9 @@
 # libstdc++ boost/protobuf/abseil. Instead this script builds boost,
 # protobuf+abseil (via libprotobuf-mutator's bundled copy), evmone-standalone
 # and libprotobuf-mutator with -stdlib=libc++ into deps/, and the cmake build
-# links against those.
+# links against those. For the same ABI reason the libFuzzer engine itself is
+# built from compiler-rt source against libc++ (the distro libclang_rt.fuzzer.a
+# is libstdc++) — see build_libfuzzer below.
 #
 # Requirements (Arch package names in parentheses):
 #   clang/clang++         (clang)        — libFuzzer is clang-only
@@ -126,6 +128,48 @@ function generate_protobuf_bindings
   done
 }
 
+# libFuzzer itself, built from compiler-rt source against libc++.
+#
+# The distro libFuzzer runtime (libclang_rt.fuzzer.a shipped with clang) is
+# compiled against libstdc++ — every clang we've tried, distro or apt.llvm.org,
+# does this. Its internal std::__cxx11 string/iostream symbols then go unresolved
+# when linked into our -stdlib=libc++ harnesses (ld.lld: undefined symbol:
+# std::__cxx11::basic_string<...>::reserve, std::ios_base::ios_base(), ...). So we
+# compile the matching-version libFuzzer sources ourselves with -stdlib=libc++ and
+# link the resulting archive via -DLIB_FUZZING_ENGINE instead.
+function build_libfuzzer
+{
+  if [[ -f "${DEPS}/lib/libFuzzer.a" ]]; then
+    return
+  fi
+  local major
+  major="$(${CXX} -dumpversion | cut -d. -f1)"
+  local src="${DEPS}/src/llvm-fuzzer"
+  if [[ ! -d "${src}/.git" ]]; then
+    # Sparse, blobless clone of just compiler-rt/lib/fuzzer at the clang version.
+    git clone --depth 1 --filter=blob:none --sparse \
+      --branch "release/${major}.x" \
+      https://github.com/llvm/llvm-project.git "${src}" \
+      || git clone --depth 1 --filter=blob:none --sparse \
+           --branch main \
+           https://github.com/llvm/llvm-project.git "${src}"
+    git -C "${src}" sparse-checkout set compiler-rt/lib/fuzzer
+  fi
+  local fdir="${src}/compiler-rt/lib/fuzzer"
+  local obj="${DEPS}/build/libfuzzer"
+  mkdir -p "${obj}"
+  rm -f "${obj}"/*.o
+  # Plain compile — do NOT instrument the engine itself (no -fsanitize=fuzzer*).
+  # The platform-specific Darwin/Windows sources are #if-guarded to empty on Linux.
+  local f
+  for f in "${fdir}"/*.cpp; do
+    "${CXX}" ${LIBCXX_CXXFLAGS} -std=c++17 -O2 -g -fno-omit-frame-pointer -fPIC \
+      -c "${f}" -o "${obj}/$(basename "${f}" .cpp).o"
+  done
+  rm -f "${DEPS}/lib/libFuzzer.a"
+  ar rcs "${DEPS}/lib/libFuzzer.a" "${obj}"/*.o
+}
+
 function build_fuzzers
 {
   cd "${BUILDDIR}"
@@ -139,6 +183,7 @@ function build_fuzzers
     -DCMAKE_PREFIX_PATH="${DEPS}" \
     -DBOOST_ROOT="${DEPS}" \
     -DLPM_PREFIX="${DEPS}" -DEVMONE_PREFIX="${DEPS}" \
+    -DLIB_FUZZING_ENGINE="${DEPS}/lib/libFuzzer.a" \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
   ccache -z
   make ossfuzz ossfuzz_proto ossfuzz_abiv2 -j"$(nproc)"
@@ -148,5 +193,6 @@ function build_fuzzers
 build_boost
 build_protobuf_and_lpm
 build_evmone_standalone
+build_libfuzzer
 generate_protobuf_bindings
 build_fuzzers
