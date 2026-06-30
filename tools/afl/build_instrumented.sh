@@ -2,9 +2,9 @@
 # Build sol_afl_diff_runner (and the libsolc / evmone / supporting libs it
 # links against) with afl-clang-fast so AFL++ gets edge-coverage feedback.
 #
-# Output tree: build_afl/  — separate from build/ (host gcc) and
-# build_ossfuzz/ (Docker libFuzzer) so the three toolchains never clobber
-# each other's object files. Same source tree, three build trees.
+# Output tree: build_afl/  — shared with scripts/build_ossfuzz.sh (the AFL++
+# proto fuzzers), and separate from build/ (host gcc) so the toolchains never
+# clobber each other's object files.
 #
 # Re-run after toolchain or source changes; cmake handles incremental
 # rebuilds. ccache is enabled via the same launcher pattern as build/.
