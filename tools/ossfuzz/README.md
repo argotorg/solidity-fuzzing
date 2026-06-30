@@ -43,6 +43,7 @@ output / logs / storage:
 
 - `sol_proto_ossfuzz_evmone` — Solidity, same viaIR on both sides
 - `sol_proto_ossfuzz_evmone_viair` — legacy vs IR
+- `sol_proto_ossfuzz_nondiff` — legacy non-differential (older solProto grammar)
 - `yul_proto_ossfuzz_evmone[_ssacfg,_no_ssa,_check_stack_alloc]` — Yul
 - `yul_proto_ossfuzz_evmone_single_pass_<c S L M s r D>` — one pass
 

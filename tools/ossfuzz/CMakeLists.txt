@@ -1,58 +1,46 @@
-# OSS-Fuzz / libFuzzer harnesses. See tools/ossfuzz/README.md for the per-binary
-# breakdown. Most proto fuzzers share a source file and differ only by a
-# FUZZER_MODE_* compile definition, so add_ossfuzz_target() (below) captures the
-# common wiring and each target becomes a single declarative call.
+# OSS-Fuzz proto-fuzzer harnesses, built under AFL++ + libprotobuf-mutator. See
+# tools/ossfuzz/README.md for the per-binary breakdown. Most proto fuzzers share
+# a source file and differ only by a FUZZER_MODE_* compile definition, so
+# add_ossfuzz_target() (below) captures the common wiring and each target becomes
+# a single declarative call.
 
 if (OSSFUZZ)
-    # Two build flavours share this file:
-    #   * libFuzzer (clang + libc++): every C++ dep crosses the libc++ ABI
-    #     boundary, so LPM, protobuf+abseil, boost and evmone are all built from
-    #     source into deps/ by scripts/build_ossfuzz.sh.
-    #   * AFL (afl-clang-fast{,++} + system libstdc++): no libc++, so protobuf /
-    #     abseil / boost come from the system; only LPM is built from source
-    #     (into deps_afl/) and evmone is linked from the in-tree static archive
-    #     the top-level CMakeLists builds under afl-clang-fast. Detected the same
-    #     way the top-level CMakeLists detects an AFL build.
-    if (CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
-        set(FUZZ_AFL_MODE ON)
+    # These harnesses build only under AFL++ (afl-clang-fast{,++} + system
+    # libstdc++); scripts/build_ossfuzz.sh drives the build. boost, protobuf and
+    # abseil come from the system packages; evmone is the in-tree static archive
+    # the top-level CMakeLists builds under afl-clang-fast; only LPM is built
+    # from source (into deps_afl/). Detected the same way the top-level
+    # CMakeLists detects an AFL build — refuse any other compiler outright.
+    if (NOT CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
+        message(FATAL_ERROR
+            "tools/ossfuzz: OSSFUZZ requires AFL++ (afl-clang-fast++) — build "
+            "via scripts/build_ossfuzz.sh.")
     endif()
 
-    # libprotobuf-mutator (built from source in both flavours). LPM_PREFIX is
-    # passed on the cmake command line by the build script (deps/ for libFuzzer,
-    # deps_afl/ for AFL); default to the in-tree deps/ prefix.
+    # libprotobuf-mutator — built from source into deps_afl/ and passed on the
+    # cmake command line as LPM_PREFIX by the build script. The harnesses include
+    # <src/libfuzzer/libfuzzer_macro.h> from this prefix.
     if (NOT LPM_PREFIX)
-        set(LPM_PREFIX "${CMAKE_SOURCE_DIR}/deps")
+        set(LPM_PREFIX "${CMAKE_SOURCE_DIR}/deps_afl")
     endif()
-    # LPM harnesses include <src/libfuzzer/libfuzzer_macro.h>.
     include_directories("${LPM_PREFIX}/include/libprotobuf-mutator")
     find_library(LPM_FUZZER_LIB protobuf-mutator-libfuzzer PATHS "${LPM_PREFIX}/lib" REQUIRED)
     find_library(LPM_LIB protobuf-mutator PATHS "${LPM_PREFIX}/lib" REQUIRED)
 
-    # Protobuf — libFuzzer: the libc++ build staged in deps/ (via CMAKE_PREFIX_PATH,
-    # NOT the system libstdc++ protobuf, which would mix C++ ABIs). AFL: the system
-    # protobuf (ABI matches afl-clang-fast's libstdc++). CONFIG mode gives a
-    # protobuf::libprotobuf target carrying the abseil link deps; fall back to the
-    # module for safety.
+    # Protobuf — the system package (its ABI matches afl-clang-fast's system
+    # libstdc++). CONFIG mode gives a protobuf::libprotobuf target carrying the
+    # abseil link deps; fall back to the module for safety.
     find_package(Protobuf CONFIG QUIET)
     if (NOT Protobuf_FOUND)
         find_package(Protobuf MODULE REQUIRED)
     endif()
 
-    # evmone. AFL: the in-tree static archive (evmone_external), reached by
-    # EVMHost via the extern "C" factory under -DEVMONE_STATIC; no header staging
-    # needed beyond the submodule include. libFuzzer: the libc++ archive staged
-    # in deps/ (EVMONE_PREFIX).
-    if (FUZZ_AFL_MODE)
-        include_directories("${CMAKE_SOURCE_DIR}/evmone/include")
-        add_compile_definitions(EVMONE_STATIC)
-        set(EVMONE_STANDALONE_LIB "${EVMONE_LIB_DIR}/libevmone-standalone.a")
-    else()
-        if (NOT EVMONE_PREFIX)
-            set(EVMONE_PREFIX "${CMAKE_SOURCE_DIR}/deps")
-        endif()
-        include_directories("${EVMONE_PREFIX}/include")
-        find_library(EVMONE_STANDALONE_LIB evmone-standalone PATHS "${EVMONE_PREFIX}/lib" REQUIRED)
-    endif()
+    # evmone — the in-tree static archive (evmone_external), reached by EVMHost
+    # via the extern "C" factory under -DEVMONE_STATIC; no header staging needed
+    # beyond the submodule include.
+    include_directories("${CMAKE_SOURCE_DIR}/evmone/include")
+    add_compile_definitions(EVMONE_STATIC)
+    set(EVMONE_STANDALONE_LIB "${EVMONE_LIB_DIR}/libevmone-standalone.a")
 
     # The protobuf compiler does not emit warning-free C++ bindings; silence the
     # known-noisy diagnostics on every harness (they all compile a *.pb.cc).
@@ -68,7 +56,7 @@ if (OSSFUZZ)
     set(FUZZ_PROTO_LIBS ${LPM_FUZZER_LIB} ${LPM_LIB} protobuf::libprotobuf)
     set(FUZZ_EVMONE_LIBS ${EVMONE_STANDALONE_LIB})
 
-    # Define one libFuzzer harness. SOURCES / LIBS are required; DEFINES is the
+    # Define one ossfuzz harness. SOURCES / LIBS are required; DEFINES is the
     # optional FUZZER_MODE_* (etc.) list baked in at compile time.
     function(add_ossfuzz_target name)
         cmake_parse_arguments(ARG "" "" "SOURCES;LIBS;DEFINES" ${ARGN})
@@ -79,9 +67,9 @@ if (OSSFUZZ)
         if (ARG_DEFINES)
             target_compile_definitions(${name} PRIVATE ${ARG_DEFINES})
         endif()
-        # AFL: evmone is built in-tree by the evmone_external ExternalProject;
-        # make sure the archive exists before we link it.
-        if (FUZZ_AFL_MODE AND TARGET evmone_external)
+        # evmone is built in-tree by the evmone_external ExternalProject; make
+        # sure the archive exists before we link it.
+        if (TARGET evmone_external)
             add_dependencies(${name} evmone_external)
         endif()
     endfunction()
@@ -197,7 +185,7 @@ if (OSSFUZZ)
     add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz)
 else()
     # Property / host build: the single-input harnesses are built as plain
-    # libraries (linked into test drivers), not libFuzzer executables.
+    # libraries (linked into test drivers), not fuzz executables.
     add_library(solc_ossfuzz solc_ossfuzz.cpp ../common/fuzzer_common.cpp)
     target_link_libraries(solc_ossfuzz PRIVATE libsolc evmasm)
 

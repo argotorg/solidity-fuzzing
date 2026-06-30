@@ -33,7 +33,7 @@ Prerequisites (Arch package names): `clang` + `llvm-dev` (to build AFL++'s LLVM 
 
 `deps_afl/` and `build_afl/` are git-ignored. To force the LPM rebuild, delete `deps_afl/lib/libprotobuf-mutator.a`.
 
-> **Note:** `tools/ossfuzz/CMakeLists.txt` still carries a dormant libc++/libFuzzer flavour (the non-`FUZZ_AFL_MODE` branch, using `deps/` + `EVMONE_PREFIX`). No build script or CI job currently drives it — `scripts/build_ossfuzz.sh` is AFL-only — so treat that path as untested unless you wire it up.
+> **Note:** `tools/ossfuzz/CMakeLists.txt` is AFL-only — configuring `OSSFUZZ` with anything other than `afl-clang-fast++` fails fast with a `FATAL_ERROR`. (The old libc++/libFuzzer build flavour has been removed.)
 
 ### Building debug runners and `solc` (build/) — host cmake
 

@@ -16,7 +16,7 @@ crash-*
 fuzz-*.log
 /build_afl
 /corpus_afl
-/findings_afl
+/my_corpus*
 /realworld_cache
 /hang_triage
 /ice_crash
@@ -31,6 +31,6 @@ fuzz-*.log
 /findings_*
 
 # Generated protobuf bindings — regenerated on every build by
-# scripts/build_ossfuzz.sh (deps/bin/protoc), so not committed.
+# scripts/build_ossfuzz.sh (system protoc), so not committed.
 /tools/ossfuzz/*.pb.cc
 /tools/ossfuzz/*.pb.h

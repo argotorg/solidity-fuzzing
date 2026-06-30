@@ -38,8 +38,8 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.ccache
-          key: ccache-ubuntu-afl-${{ github.sha }}
-          restore-keys: ccache-ubuntu-afl-
+          key: ccache-ubuntu-ossfuzz-${{ github.sha }}
+          restore-keys: ccache-ubuntu-ossfuzz-
 
       # AFLplusplus is a submodule (checked out above); build its toolchain so
       # afl-clang-fast++ and utils/aflpp_driver/libAFLDriver.a exist. Mirrors the

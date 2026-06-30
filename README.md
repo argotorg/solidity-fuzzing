@@ -75,7 +75,7 @@ See [tools/ossfuzz](tools/ossfuzz/README.md) and
 # Dump source from a crash, then replay (debug runners live in build/):
 PROTO_FUZZER_DUMP_PATH=bad.sol \
   build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
-build/tools/runners/sol_debug_runner bad.sol        # 0 ok, 1 diff, 3 ICE
+build/tools/runners/sol_debug_runner bad.sol        # 0 ok, 1 diff, 2 compile-fail, 3 ICE
 
 # Yul equivalent:
 PROTO_FUZZER_DUMP_PATH=bad.yul \
