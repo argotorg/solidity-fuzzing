@@ -15,24 +15,32 @@ jobs:
         with:
           submodules: recursive
 
-      # Native libFuzzer build — no Docker. clang provides -fsanitize=fuzzer.
-      # The fuzz world is built against libc++ (-stdlib=libc++), so we need the
-      # libc++ headers/runtime; boost, protobuf and abseil are NOT taken from the
-      # system (their distro builds are libstdc++) — the script rebuilds them
-      # against libc++ into deps/, along with libprotobuf-mutator and evmone.
+      # Native AFL++ build — no Docker, no libc++. The fuzzers are built with
+      # AFL++'s afl-clang-fast++ against the system libstdc++; boost, protobuf
+      # and abseil come from the system. Only libprotobuf-mutator is built from
+      # source (into deps_afl/) by scripts/build_ossfuzz.sh. clang + llvm-dev
+      # are needed to build AFL++'s LLVM-mode compiler; ninja + pkg-config +
+      # protoc are used by the build script.
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ccache git wget \
-            clang libc++-dev libc++abi-dev
+            build-essential cmake ccache git wget ninja-build pkg-config \
+            clang llvm-dev \
+            protobuf-compiler libprotobuf-dev libabsl-dev libboost-all-dev
 
       - name: Cache ccache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.ccache
-          key: ccache-ubuntu-fuzz-${{ github.sha }}
-          restore-keys: ccache-ubuntu-fuzz-
+          key: ccache-ubuntu-afl-${{ github.sha }}
+          restore-keys: ccache-ubuntu-afl-
+
+      # AFLplusplus is a submodule (checked out above); build its toolchain so
+      # afl-clang-fast++ and utils/aflpp_driver/libAFLDriver.a exist. Mirrors the
+      # `aflplusplus` cmake ExternalProject (make source-only NO_NYX=1).
+      - name: Build AFL++
+        run: make -C AFLplusplus source-only NO_NYX=1 -j$(nproc)
 
       - name: Build fuzzers
         run: scripts/build_ossfuzz.sh
