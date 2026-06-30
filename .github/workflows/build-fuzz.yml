@@ -10,6 +10,11 @@ jobs:
   build-fuzz:
     runs-on: ubuntu-latest
 
+    # Pin ccache's dir so it matches the path cached below; ccache 4.x otherwise
+    # defaults to ~/.cache/ccache, which the cache step would miss.
+    env:
+      CCACHE_DIR: ~/.ccache
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -25,7 +30,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ccache git wget ninja-build pkg-config \
+            build-essential cmake ccache git ninja-build pkg-config \
             clang llvm-dev \
             protobuf-compiler libprotobuf-dev libabsl-dev libboost-all-dev
 
