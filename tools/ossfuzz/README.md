@@ -10,12 +10,15 @@ LPM through a per-grammar custom mutator (below).
 
 ```bash
 scripts/build_ossfuzz.sh                                   # -> build_afl/
-scripts/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
+scripts/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone seeds_sol_proto
 ```
 
 `run_ossfuzz_afl.sh` picks the matching mutator and sets
 `AFL_CUSTOM_MUTATOR_ONLY=1`, so only the grammar mutator runs (no byte
-havoc on the serialized protobuf). The corpus needs one non-empty seed.
+havoc on the serialized protobuf). The seed dir needs one non-empty file
+in the harness's text-format protobuf — a one-byte seed (empty default
+message) is enough; the mutator grows structure from there. Solidity
+*source* files (e.g. `corpus_afl/`) are NOT valid seeds for proto fuzzers.
 
 ## LPM ↔ AFL mutator
 
