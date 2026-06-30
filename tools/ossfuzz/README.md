@@ -20,6 +20,12 @@ in the harness's text-format protobuf — a one-byte seed (empty default
 message) is enough; the mutator grows structure from there. Solidity
 *source* files (e.g. `corpus_afl/`) are NOT valid seeds for proto fuzzers.
 
+Resume a stopped run from its own findings dir (no corpus dir needed):
+
+```bash
+scripts/run_ossfuzz_afl.sh --resume sol_proto_ossfuzz_evmone
+```
+
 ## LPM ↔ AFL mutator
 
 `lpm_afl_mutator.cc` is the bridge: `afl_custom_fuzz` deserializes the

@@ -2,16 +2,28 @@
 # Launch a protobuf fuzzer under afl-fuzz with the matching LPM custom mutator.
 #
 #   scripts/run_ossfuzz_afl.sh <fuzzer> <corpus_dir> [findings_dir]
+#   scripts/run_ossfuzz_afl.sh --resume <fuzzer> [findings_dir]
 #
 # <fuzzer> is the binary name under build_afl/tools/ossfuzz/, e.g.
 # sol_proto_ossfuzz_evmone. The corpus dir must hold at least one non-empty
-# seed. Extra afl-fuzz flags can be appended after a trailing --.
+# seed. With --resume, AFL re-reads its own findings dir (afl-fuzz -i-) and
+# continues from the existing queue — no corpus dir needed.
 set -eu
 
 ROOTDIR="$(realpath "$(dirname "$0")/..")"
-FUZZER="${1:?usage: run_ossfuzz_afl.sh <fuzzer> <corpus_dir> [findings_dir]}"
-CORPUS="${2:?need a corpus dir}"
-FINDINGS="${3:-findings_${FUZZER}}"
+
+RESUME=0
+if [ "${1:-}" = "--resume" ]; then RESUME=1; shift; fi
+
+USAGE="usage: run_ossfuzz_afl.sh [--resume] <fuzzer> <corpus_dir> [findings_dir]"
+FUZZER="${1:?$USAGE}"
+if [ "$RESUME" -eq 1 ]; then
+  INPUT="-"                          # AFL resume marker: re-read the findings dir
+  FINDINGS="${2:-findings_${FUZZER}}"
+else
+  INPUT="${2:?need a corpus dir}"
+  FINDINGS="${3:-findings_${FUZZER}}"
+fi
 
 # Map fuzzer -> grammar -> mutator .so.
 case "$FUZZER" in
@@ -29,5 +41,5 @@ export AFL_CUSTOM_MUTATOR_LIBRARY="${ROOTDIR}/deps_afl/lib/lib${base}_lpm_mutato
 export AFL_CUSTOM_MUTATOR_ONLY=1   # only the LPM grammar mutator, no byte havoc
 export AFL_SKIP_CPUFREQ=1
 
-exec "${ROOTDIR}/AFLplusplus/afl-fuzz" -i "$CORPUS" -o "$FINDINGS" -m none -t 2000 \
+exec "${ROOTDIR}/AFLplusplus/afl-fuzz" -i "$INPUT" -o "$FINDINGS" -m none -t 2000 \
   -- "${ROOTDIR}/build_afl/tools/ossfuzz/${FUZZER}"
