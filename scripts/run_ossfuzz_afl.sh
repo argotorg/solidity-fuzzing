@@ -25,11 +25,15 @@ else
   FINDINGS="${3:-findings_${FUZZER}}"
   # AFL aborts ("No usable test cases") on a missing or empty input dir, even
   # though the LPM custom mutator can grow a corpus from nothing. Drop in a
-  # single non-empty seed so afl-fuzz has a queue entry to start mutating.
+  # single seed so afl-fuzz has a queue entry to start mutating. The harness and
+  # mutator use TEXT-format protobuf (DEFINE_PROTO_FUZZER's use_binary=false), so
+  # the seed must be valid text format: a comment line is non-empty (AFL needs
+  # that) yet parses to a default message — arbitrary bytes flood stderr with
+  # "Error parsing text-format ... Program" instead.
   if [ ! -d "$INPUT" ] || [ -z "$(find "$INPUT" -maxdepth 1 -type f ! -empty -print -quit)" ]; then
     echo "seeding empty corpus dir: $INPUT" >&2
     mkdir -p "$INPUT"
-    printf '\x00' > "$INPUT/seed"
+    printf '# empty seed: valid text-format protobuf, parses to a default message\n' > "$INPUT/seed"
   fi
 fi
 
