@@ -1,197 +1,94 @@
 # Solidity Fuzzing Tools
 
 Fuzzing infrastructure for the [Solidity
-compiler](https://github.com/argotorg/solidity). Contains OSS-Fuzz harnesses,
-fuzzers, and debug runners to debug & reproduce findings.
+compiler](https://github.com/argotorg/solidity): AFL++ harnesses, fuzzers,
+and debug runners to reproduce findings.
 
-## Three workflows, three build trees
+## Two build trees
 
-The repo supports three independent fuzzing workflows. Each uses its own
-toolchain and its own out-of-tree build directory; they never share object
-files, so you can rebuild any one without touching the others.
+Everything builds natively on the host — no Docker, no libc++.
 
-| Tree             | Compiler                  | Workflow / artefacts   |
-| ---              | ---                       | ---                                |
-| `build/`         | host gcc/clang            | `solc`, crash repro runners `*_debug_runner` |
-| `build_ossfuzz/` | host clang                | libFuzzer harnesses `*_proto_ossfuzz_*` |
-| `build_afl/`     | `afl-clang-fast`          | AFL++ differential fuzzer (`sol_afl_diff_runner`)  |
+- `build/` — host gcc/clang: `solc`, the `*_debug_runner` crash-repro
+  tools, and the AFL toolchain (afl-clang-fast, afl-ts, grammar).
+- `build_afl/` — `afl-clang-fast++`: the AFL fuzzers — protobuf harnesses
+  (`*_proto_ossfuzz_*`) and the differential `.sol` fuzzer
+  (`sol_afl_diff_runner`).
 
-All three build natively on the host with the system toolchain. Sections below
-cover each tree in turn.
+They never share object files; rebuild one without touching the other.
 
-## Cloning and Setup
+## Setup
 
 ```bash
-git clone --recurse-submodules https://github.com/argotorg/solidity-fuzzing.git
-cd solidity-fuzzing
-
-# Or if already cloned without submodules:
-git submodule update --init --recursive
+git clone --recurse-submodules \
+  https://github.com/argotorg/solidity-fuzzing.git
+cd solidity-fuzzing      # or: git submodule update --init --recursive
 ```
 
-Make sure to have the following installed:
-* gcc / g++ (C++20 support required, i.e. GCC 10+)
-* cmake (>= 3.13)
-* make
-* libboost-dev, libboost-program-options-dev, libboost-filesystem-dev
-* linux-perf
-* gdb
-* clang / clang++ (libFuzzer is clang-only)
-* protobuf-compiler (protoc), libprotobuf, abseil
-* static boost libraries
-* ccache
+Needs: gcc/g++ (C++20), clang/clang++, llvm-dev, cmake (>=3.13), make,
+ninja, boost (incl. static libs), protobuf + abseil, protoc, ccache, gdb.
 
-## Applying solidity patches
+Apply the local solidity patches (EVMHost fixes; idempotent):
 
-Local patches to the `solidity` submodule, applied to its working tree. They
-cover two things: `EVMHost.cpp` fixes (it lacks functionality we need to
-minimize false positives), and small source tweaks required to build solidity
-against libc++ (e.g. `YulArity` needs an `operator<` that newer libc++'s
-`std::map` calls directly). Apply (idempotent — the reverse-check skips
-already-applied patches):
 ```bash
 for p in patches/*.patch; do
-    git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
+  git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
 done
 ```
 
-## Building Solidity and the Debug Tools, i.e. "normal build"
-
-We'll need a full solidity build along with debug tools:
+## Build
 
 ```bash
-mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" -DCMAKE_C_FLAGS="-fno-omit-frame-pointer" ..
-make -j$(nproc)
-cd ..
+# 1. solc + debug runners (build/)
+mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd ..
+
+# 2. AFL toolchain — afl-clang-fast, afl-ts, grammar (needs llvm-dev)
+make -C build -j$(nproc) aflplusplus afl_ts tree_sitter_solidity
+
+# 3. AFL fuzzers (build_afl/)
+scripts/build_ossfuzz.sh            # protobuf fuzzers + LPM mutators
+tools/afl/build_instrumented.sh     # differential .sol fuzzer
 ```
 
-This builds the following debug tools:
-- `sol_debug_runner` — reproduces `sol_proto_ossfuzz_evmone*` findings
-  and, with `--afl`, AFL crashes from `sol_afl_diff_runner`
-- `yul_debug_runner` — reproduces `yul_proto_ossfuzz_evmone*` findings
+`scripts/build_ossfuzz.sh` builds libprotobuf-mutator into `deps_afl/`
+(against the system protobuf), one LPM custom mutator per grammar, and the
+fuzzers into `build_afl/`. See [tools/ossfuzz](tools/ossfuzz/README.md).
 
-## Building the libfuzzer-based fuzzers
+## Run
 
 ```bash
-scripts/build_ossfuzz.sh
+echo core | sudo tee /proc/sys/kernel/core_pattern   # one-time, AFL needs it
+
+# Protobuf fuzzers — afl-fuzz + the matching LPM grammar mutator:
+scripts/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
+scripts/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone corpus_yul
+
+# Differential .sol fuzzer (afl-ts AST mutator):
+tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 ```
 
-The script regenerates the protobuf bindings with the system `protoc`, builds
-`libprotobuf-mutator` and `evmone-standalone` into `deps/` (only the first
-time), then builds the fuzzer targets under `build_ossfuzz/` using
-`cmake/toolchains/libfuzzer-native.cmake`.
+See [tools/ossfuzz](tools/ossfuzz/README.md) and
+[tools/afl](tools/afl/README.md) for the fuzzer lists and triage.
 
-This builds all relevant fuzzer targets under `build_ossfuzz`.
-The most important are the libfuzzer-based protobuf targets to be ran standalone:
-- `sol_proto_ossfuzz_*` — Solidity differential fuzzers
-- `yul_proto_ossfuzz_*` — Yul differential fuzzers
-- `shuffler_proto_ossfuzz` - Stack shuffler fuzzer
-
-## Running a libfuzzer-based fuzzers
+## Reproduce a finding
 
 ```bash
-./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone corpus_dir_sol
-./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone corpus_dir_yul
-./build_ossfuzz/tools/ossfuzz/shuffler_proto_ossfuzz corpus_dir_shuffler
+# Dump source from a crash, then replay (debug runners live in build/):
+PROTO_FUZZER_DUMP_PATH=bad.sol \
+  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
+build/tools/runners/sol_debug_runner bad.sol        # 0 ok, 1 diff, 3 ICE
+
+# Yul equivalent:
+PROTO_FUZZER_DUMP_PATH=bad.yul \
+  build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-file
+build/tools/runners/yul_debug_runner bad.yul
+
+# AFL .sol crash (the file embeds calldata) — needs --afl:
+build/tools/runners/sol_debug_runner --afl findings_*/default/crashes/id:...
 ```
 
-## Running the AFL++ differential fuzzer
-
-`sol_afl_diff_runner` reads a single `.sol` file, compiles + deploys it under
-two optimiser settings (`minimal` vs `standard`), calls each with deterministic
-calldata, and `solAssert`s that status / output / logs / storage match. On any
-mismatch the unhandled exception triggers SIGABRT and AFL++ records a crash.
-It works under `afl-fuzz` and standalone (file path or stdin).
-
-Two binaries get built — same source, different toolchain:
-
-| Path                                              | Toolchain        | When to use  |
-| ---                                               | ---              | ---      |
-| `build_afl/tools/afl/sol_afl_diff_runner`         | `afl-clang-fast` | real fuzzing campaigns under `afl-fuzz`  |
-| `build/tools/afl/sol_afl_diff_runner`             | host gcc         | check a single `.sol` to reproducing crash |
-
-AFL++ itself, the `afl-ts` AST-aware custom mutator, and the
-`tree-sitter-solidity` grammar are all vendored as submodules — no system
-AFL++ install needed. The grammar builds in the default `make` target;
-AFL++ + afl-ts are opt-in (they need `clang` + `llvm-dev` that the
-regular host build doesn't).
+### AFL diff-runner regression tests
 
 ```bash
-# Build solc + host harness + grammar + AFL toolchain (needs clang + llvm-dev).
-sudo apt-get install libprotobuf-dev rustup
-rustup toolchain install nightly
-mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd .. # Build solc + host harness + grammar.
-make -C build -j$(nproc) aflplusplus afl_ts                        # Build the AFL toolchain (needs clang + llvm-dev).
-tools/afl/build_afl.sh
-
-# Build the AFL-instrumented harness in build_afl/.
-tools/afl/build_instrumented.sh
-
-# Setup: pull ~15 real-world projects + build the merged seed corpus + expand corpus
-tools/afl/fetch_realworld.sh              # pull real-world projects
-tools/afl/build_corpus.sh                 # writes corpus_afl/ (~8700 files)
-tools/afl/build_corpus_tsgen.sh           # grammar-driven extra surface via tsgen
-cp corpus_tsgen/*.sol corpus_afl/
-
-# One-time system setup: AFL++ requires this kernel setting.
-echo core | sudo tee /proc/sys/kernel/core_pattern
-
-# Launch — coverage-guided AFL++ + afl-ts AST mutation, all from submodules:
-tools/afl/run_afl_parallel.sh -j 8        # multi-threaded
-tools/afl/run_afl.sh                      # single-threaded
-
-# Repro a crash still with the exact harness AFL ran
-build/tools/afl/sol_afl_diff_runner some.sol; echo $?  # 0 = no diff, 134 = mismatch
-
-# Replay an AFL crash with full per-config diagnostics, must use --afl
-build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:000000,...
+make -C build -j$(nproc) sol_afl_diff_runner
+tools/afl/tests/run.sh               # every inputs/*.sol must exit 0
 ```
-
-See [tools/afl/README.md](tools/afl/README.md) for details on the harness,
-corpus, mutator integration, and follow-up TODOs.
-
-### Regression tests for the AFL diff runner
-
-`tools/afl/tests/` holds a small suite of `.sol` inputs that pin past
-harness false-positive fixes (e.g. self-bytecode introspection via
-`extcodecopy(address(),...)` / `extcodesize(address())`). Each input is
-expected to complete with exit code 0 — either passes the differential
-or is legitimately skipped. A non-zero exit means the runner crashed
-via `solAssert` / SIGABRT, i.e. a regression in the skip logic.
-
-```bash
-make -C build -j$(nproc) sol_afl_diff_runner   # ensure host runner is built
-tools/afl/tests/run.sh                         # runs every inputs/*.sol
-```
-
-To add a regression input, drop a `.sol` under `tools/afl/tests/inputs/`
-with a short header comment explaining what it exercises and why.
-
-## Running Debug Systems
-
-```bash
-# Reproduce a sol ProtoBuf EVMOne finding:
-./build/sol_debug_runner crash.sol
-
-# Reproduce an AFL finding (".sol" file contains also calldata):
-./build/sol_debug_runner --afl crash.sol
-
-# Reproduce a Yul Protobuf EVMOne finding:
-./build/yul_debug_runner crash.yul
-```
-
-### Replaying a Yul single-pass crash corpus
-
-`run_yul_crashes.py -p <pass>` dumps each `crash-<hash>` in `<pass>_crash/` to
-`.yul` and replays through `yul_debug_runner` with the matching single-step
-optimizer, writing output to `.out`. Valid passes: `c S L M s r D`.
-
-### Replaying an ICE crash corpus
-
-`run_ice_crashes.py` dumps each `crash-<hash>` in `ice_crash/` to `.sol` via
-`sol_ice_ossfuzz` and recompiles with `solc` (default args: `--via-ir
---optimize`, override with `--solc-args`), writing output to `.out`.
-
