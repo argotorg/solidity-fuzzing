@@ -52,6 +52,11 @@ esac
 export AFL_CUSTOM_MUTATOR_LIBRARY="${ROOTDIR}/deps_afl/lib/lib${base}_lpm_mutator.so"
 export AFL_CUSTOM_MUTATOR_ONLY=1   # only the LPM grammar mutator, no byte havoc
 export AFL_SKIP_CPUFREQ=1
+# AFL trims new queue entries by chopping raw bytes, which bypasses the custom
+# mutator and hands the harness a truncated text-format proto — flooding stderr
+# with "Error parsing text-format ... Program". We don't implement the custom
+# trim API, so just disable trimming; LPM keeps inputs minimal anyway.
+export AFL_DISABLE_TRIM=1
 
 exec "${ROOTDIR}/AFLplusplus/afl-fuzz" -i "$INPUT" -o "$FINDINGS" -m none -t 2000 \
   -- "${ROOTDIR}/build_afl/tools/ossfuzz/${FUZZER}"
