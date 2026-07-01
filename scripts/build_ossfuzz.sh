@@ -97,6 +97,14 @@ build_fuzzers() {
     -DCMAKE_C_LINKER_DEPFILE_SUPPORTED=FALSE \
     -DCMAKE_CXX_LINKER_DEPFILE_SUPPORTED=FALSE \
     -DOSSFUZZ=ON -DLPM_PREFIX="${DEPS}" -DLIB_FUZZING_ENGINE="${ENGINE}"
+  # Build the evmone static archive first. The yul_proto_* harnesses link
+  # libevmone-standalone.a as a plain file path, and the evmone_external
+  # ExternalProject byproduct has no make rule when the linking targets are
+  # built in isolation (add_dependencies only orders it when it's already in
+  # the build set). Building it explicitly here creates the archive so the
+  # subsequent harness link finds it, instead of failing with
+  # "No rule to make target '.../libevmone-standalone.a'".
+  cmake --build "${BUILDDIR}" -j"$(nproc)" --target evmone_external
   cmake --build "${BUILDDIR}" -j"$(nproc)" --target ossfuzz_proto ossfuzz_abiv2
 }
 
