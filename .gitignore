@@ -34,3 +34,4 @@ fuzz-*.log
 # scripts/build_ossfuzz.sh (system protoc), so not committed.
 /tools/ossfuzz/*.pb.cc
 /tools/ossfuzz/*.pb.h
+/__pycache__
