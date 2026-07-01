@@ -119,13 +119,21 @@ find "$OUT"/ -mindepth 1 -delete
 
 if [[ -z "${SKIP_CMIN:-}" && -x "$HARNESS" && -x "$AFL_CMIN" ]]; then
     echo "Minimizing with afl-cmin (this can take a while)..."
+    # afl-cmin's -o must be a real dir, not a symlink: it emptiness-checks by
+    # os.rmdir(-o), which fails on a symlink (ENOTDIR) and then reports "not
+    # empty" even when the target is empty. fuzz-afl points OUT at a shared
+    # corpus via symlink, so minimize into a real dir and copy the result in.
+    CMIN_OUT="${OUT}.cmin"
+    rm -rf "$CMIN_OUT"
     # No `@@`: sol_afl_diff_runner runs in AFL++ persistent + shared-memory
     # mode, so afl-cmin (via afl-showmap) feeds inputs over shared memory.
     AFL_SKIP_CPUFREQ=1 "$AFL_CMIN" \
         -i "$RAW_OUT" \
-        -o "$OUT" \
+        -o "$CMIN_OUT" \
         -t 2000 -m none \
         -- "$HARNESS"
+    find "$CMIN_OUT" -maxdepth 1 -type f -exec cp -t "$OUT"/ {} +
+    rm -rf "$CMIN_OUT"
     final=$(find "$OUT" -type f | wc -l)
     echo
     echo "Wrote $final unique-coverage seeds to $OUT/"
