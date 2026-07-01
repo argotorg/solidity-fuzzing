@@ -112,8 +112,10 @@ mkdir -p "$OUT"
 # Wipe contents (including dotfiles like a leftover `.traces/` from an
 # interrupted prior cmin run) without removing the directory itself —
 # afl-cmin.py errors out if its `-o` is non-empty, and the directory may
-# be a bind-mount we must not unlink.
-find "$OUT" -mindepth 1 -delete
+# be a bind-mount or symlink we must not unlink. The trailing slash makes
+# find follow OUT when it's a symlink (fuzz-afl points corpus_tsgen at the
+# shared corpus dir); without it find won't descend and the wipe no-ops.
+find "$OUT"/ -mindepth 1 -delete
 
 if [[ -z "${SKIP_CMIN:-}" && -x "$HARNESS" && -x "$AFL_CMIN" ]]; then
     echo "Minimizing with afl-cmin (this can take a while)..."
