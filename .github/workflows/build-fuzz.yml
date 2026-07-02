@@ -23,7 +23,7 @@ jobs:
       # Native AFL++ build — no Docker, no libc++. The fuzzers are built with
       # AFL++'s afl-clang-fast++ against the system libstdc++; boost, protobuf
       # and abseil come from the system. Only libprotobuf-mutator is built from
-      # source (into deps_afl/) by scripts/build_ossfuzz.sh. clang + llvm-dev
+      # source (into deps_afl/) by tools/ossfuzz/build_ossfuzz.sh. clang + llvm-dev
       # are needed to build AFL++'s LLVM-mode compiler; ninja + pkg-config +
       # protoc are used by the build script.
       - name: Install dependencies
@@ -48,4 +48,4 @@ jobs:
         run: make -C AFLplusplus source-only NO_NYX=1 -j$(nproc)
 
       - name: Build fuzzers
-        run: scripts/build_ossfuzz.sh
+        run: tools/ossfuzz/build_ossfuzz.sh

@@ -13,7 +13,7 @@ This repo produces two sets of binaries from two different build directories. **
 
 Both trees build natively on the host — **no Docker.** The fuzz build uses AFL++'s `afl-clang-fast++` against the **system libstdc++** (no libc++), so `boost`, `protobuf`+`abseil` come from the system packages and `evmone` is the in-tree static archive built under the AFL toolchain. Only `libprotobuf-mutator` (LPM) is built from source, into `deps_afl/`. AFL++ is a submodule (`AFLplusplus/`) built via the top-level `CMakeLists.txt`; the proto fuzzers link the AFL++ driver (`utils/aflpp_driver/libAFLDriver.a`) as `LIB_FUZZING_ENGINE`.
 
-The proto grammars are mutated by LPM, not AFL's byte-level havoc: `scripts/build_ossfuzz.sh` builds one AFL++ custom-mutator `.so` per grammar (`tools/ossfuzz/lpm_afl_mutator.cc`), and `scripts/run_ossfuzz_afl.sh` wires the matching `.so` into `afl-fuzz` via `AFL_CUSTOM_MUTATOR_LIBRARY` + `AFL_CUSTOM_MUTATOR_ONLY=1`.
+The proto grammars are mutated by LPM, not AFL's byte-level havoc: `tools/ossfuzz/build_ossfuzz.sh` builds one AFL++ custom-mutator `.so` per grammar (`tools/ossfuzz/lpm_afl_mutator.cc`), and `tools/ossfuzz/run_ossfuzz_afl.sh` wires the matching `.so` into `afl-fuzz` via `AFL_CUSTOM_MUTATOR_LIBRARY` + `AFL_CUSTOM_MUTATOR_ONLY=1`.
 
 ### Building fuzzers (build_afl/) — native AFL++
 
@@ -21,7 +21,7 @@ The proto grammars are mutated by LPM, not AFL's byte-level havoc: `scripts/buil
 # Prereq: build the AFL++ toolchain once (afl-clang-fast++ + libAFLDriver.a):
 make -C build aflplusplus      # or: make -C AFLplusplus source-only NO_NYX=1
 
-scripts/build_ossfuzz.sh
+tools/ossfuzz/build_ossfuzz.sh
 ```
 
 Prerequisites (Arch package names): `clang` + `llvm-dev` (to build AFL++'s LLVM mode), `protobuf` + `abseil` (system, libstdc++), `boost` (static, system), `cmake`, `ninja`, `make`, `git`, `protoc`, `ccache`. The script:

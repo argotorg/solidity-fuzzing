@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Launch a protobuf fuzzer under afl-fuzz with the matching LPM custom mutator.
 #
-#   scripts/run_ossfuzz_afl.sh <fuzzer> <corpus_dir> [findings_dir]
-#   scripts/run_ossfuzz_afl.sh --resume <fuzzer> [findings_dir]
+#   tools/ossfuzz/run_ossfuzz_afl.sh <fuzzer> <corpus_dir> [findings_dir]
+#   tools/ossfuzz/run_ossfuzz_afl.sh --resume <fuzzer> [findings_dir]
 #
 # <fuzzer> is the binary name under build_afl/tools/ossfuzz/, e.g.
 # sol_proto_ossfuzz_evmone. The corpus dir must hold at least one non-empty
@@ -10,7 +10,7 @@
 # continues from the existing queue — no corpus dir needed.
 set -eu
 
-ROOTDIR="$(realpath "$(dirname "$0")/..")"
+ROOTDIR="$(realpath "$(dirname "$0")/../..")"
 
 RESUME=0
 if [ "${1:-}" = "--resume" ]; then RESUME=1; shift; fi

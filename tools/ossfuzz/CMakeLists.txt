@@ -6,7 +6,7 @@
 
 if (OSSFUZZ)
     # These harnesses build only under AFL++ (afl-clang-fast{,++} + system
-    # libstdc++); scripts/build_ossfuzz.sh drives the build. boost, protobuf and
+    # libstdc++); tools/ossfuzz/build_ossfuzz.sh drives the build. boost, protobuf and
     # abseil come from the system packages; evmone is the in-tree static archive
     # the top-level CMakeLists builds under afl-clang-fast; only LPM is built
     # from source (into deps_afl/). Detected the same way the top-level
@@ -14,7 +14,7 @@ if (OSSFUZZ)
     if (NOT CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
         message(FATAL_ERROR
             "tools/ossfuzz: OSSFUZZ requires AFL++ (afl-clang-fast++) — build "
-            "via scripts/build_ossfuzz.sh.")
+            "via tools/ossfuzz/build_ossfuzz.sh.")
     endif()
 
     # libprotobuf-mutator — built from source into deps_afl/ and passed on the
@@ -158,7 +158,7 @@ if (OSSFUZZ)
                 protoToAbiV2.cpp abiV2Proto.pb.cc
         LIBS solidity evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
 
-    # Aggregate targets driven by scripts/build_ossfuzz.sh.
+    # Aggregate targets driven by tools/ossfuzz/build_ossfuzz.sh.
     add_custom_target(ossfuzz_proto)
     add_dependencies(ossfuzz_proto
         sol_proto_ossfuzz_nondiff

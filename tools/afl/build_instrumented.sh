@@ -2,7 +2,7 @@
 # Build sol_afl_diff_runner (and the libsolc / evmone / supporting libs it
 # links against) with afl-clang-fast so AFL++ gets edge-coverage feedback.
 #
-# Output tree: build_afl/  — shared with scripts/build_ossfuzz.sh (the AFL++
+# Output tree: build_afl/  — shared with tools/ossfuzz/build_ossfuzz.sh (the AFL++
 # proto fuzzers), and separate from build/ (host gcc) so the toolchains never
 # clobber each other's object files.
 #

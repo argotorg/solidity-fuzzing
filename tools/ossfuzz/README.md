@@ -9,8 +9,8 @@ LPM through a per-grammar custom mutator (below).
 ## Build & run
 
 ```bash
-scripts/build_ossfuzz.sh                                   # -> build_afl/
-scripts/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone seeds_sol_proto
+tools/ossfuzz/build_ossfuzz.sh                                   # -> build_afl/
+tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone seeds_sol_proto
 ```
 
 `run_ossfuzz_afl.sh` picks the matching mutator and sets
@@ -23,7 +23,7 @@ message) is enough; the mutator grows structure from there. Solidity
 Resume a stopped run from its own findings dir (no corpus dir needed):
 
 ```bash
-scripts/run_ossfuzz_afl.sh --resume sol_proto_ossfuzz_evmone
+tools/ossfuzz/run_ossfuzz_afl.sh --resume sol_proto_ossfuzz_evmone
 ```
 
 ## LPM ↔ AFL mutator

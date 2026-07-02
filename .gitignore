@@ -31,7 +31,7 @@ fuzz-*.log
 /findings_*
 
 # Generated protobuf bindings — regenerated on every build by
-# scripts/build_ossfuzz.sh (system protoc), so not committed.
+# tools/ossfuzz/build_ossfuzz.sh (system protoc), so not committed.
 /tools/ossfuzz/*.pb.cc
 /tools/ossfuzz/*.pb.h
 /__pycache__

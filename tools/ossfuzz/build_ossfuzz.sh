@@ -15,7 +15,7 @@
 #   cmake, ninja, make, git, protoc, ccache
 set -ex
 
-ROOTDIR="$(realpath "$(dirname "$0")/..")"
+ROOTDIR="$(realpath "$(dirname "$0")/../..")"
 DEPS="${ROOTDIR}/deps_afl"
 BUILDDIR="${ROOTDIR}/build_afl"
 AFLCC="${ROOTDIR}/AFLplusplus/afl-clang-fast"

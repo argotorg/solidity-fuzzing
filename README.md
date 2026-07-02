@@ -45,11 +45,11 @@ mkdir -p build && cd build && cmake .. && make -j$(nproc) && cd ..
 make -C build -j$(nproc) aflplusplus afl_ts tree_sitter_solidity
 
 # 3. AFL fuzzers (build_afl/)
-scripts/build_ossfuzz.sh            # protobuf fuzzers + LPM mutators
+tools/ossfuzz/build_ossfuzz.sh            # protobuf fuzzers + LPM mutators
 tools/afl/build_instrumented.sh     # differential .sol fuzzer
 ```
 
-`scripts/build_ossfuzz.sh` builds libprotobuf-mutator into `deps_afl/`
+`tools/ossfuzz/build_ossfuzz.sh` builds libprotobuf-mutator into `deps_afl/`
 (against the system protobuf), one LPM custom mutator per grammar, and the
 fuzzers into `build_afl/`. See [tools/ossfuzz](tools/ossfuzz/README.md).
 
@@ -59,8 +59,8 @@ fuzzers into `build_afl/`. See [tools/ossfuzz](tools/ossfuzz/README.md).
 echo core | sudo tee /proc/sys/kernel/core_pattern   # one-time, AFL needs it
 
 # Protobuf fuzzers — afl-fuzz + the matching LPM grammar mutator:
-scripts/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
-scripts/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone corpus_yul
+tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
+tools/ossfuzz/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone corpus_yul
 
 # Differential .sol fuzzer (afl-ts AST mutator):
 tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
