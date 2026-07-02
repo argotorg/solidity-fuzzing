@@ -125,6 +125,12 @@ if (NOT EVMONE_LIB_DIR)
             BINARY_DIR "${EVMONE_BUILD_DIR}"
             CMAKE_ARGS
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                # Force lib (not lib64) so evmone's ARCHIVE_OUTPUT_DIRECTORY,
+                # ${CMAKE_INSTALL_LIBDIR}, matches the ${EVMONE_BUILD_DIR}/lib
+                # path hardcoded below. GNUInstallDirs picks lib64 on non-Debian
+                # 64-bit hosts (e.g. NixOS), so without this the standalone
+                # archive lands in lib64/ and the harness link can't find it.
+                -DCMAKE_INSTALL_LIBDIR=lib
                 -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
                 -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                 -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
@@ -164,7 +170,10 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/AFLplusplus/Makefile")
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/AFLplusplus"
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND make source-only
+        # NO_NYX=1 skips the optional Nyx (QEMU/KVM snapshot) backend. We only
+        # use the standard fork-server path (afl-fuzz + afl-clang-fast), and the
+        # Nyx sub-build pulls QEMU + Rust and fails noisily on non-Debian libdirs.
+        BUILD_COMMAND make source-only NO_NYX=1
         INSTALL_COMMAND ""
         BUILD_BYPRODUCTS
             "${CMAKE_SOURCE_DIR}/AFLplusplus/afl-fuzz"

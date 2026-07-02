@@ -20,8 +20,20 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-DUMPER = Path("./build_ossfuzz/tools/ossfuzz/sol_ice_ossfuzz").resolve()
+DUMPER = Path("./build_afl/tools/ossfuzz/sol_ice_ossfuzz").resolve()
 SOLC = Path("./build/solidity/solc/solc").resolve()
+
+
+def is_crash_file(name: str) -> bool:
+    """True for a raw fuzzer crash input, not our generated artifacts.
+
+    Accepts both libFuzzer ("crash-<hash>") and AFL++ ("id:000000,sig:...")
+    naming. The "." guard excludes the per-crash .sol/.out/.bt files we write
+    alongside, plus AFL's crashes/README.txt.
+    """
+    if "." in name:
+        return False
+    return name.startswith("crash-") or name.startswith("id:")
 
 ICE_MARKER = "Internal compiler error"
 # solc prints e.g. "Dynamic exception type: boost::wrapexcept<solidity::langutil::InternalCompilerError>"
@@ -160,7 +172,7 @@ def main() -> int:
         return 1
 
     crashes = sorted(f for f in crash_dir.iterdir()
-                     if f.is_file() and f.name.startswith("crash-") and "." not in f.name)
+                     if f.is_file() and is_crash_file(f.name))
     if args.limit is not None:
         crashes = crashes[:args.limit]
     total = len(crashes)

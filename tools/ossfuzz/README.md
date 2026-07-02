@@ -1,457 +1,81 @@
-## Executables generated
+# Protobuf fuzzers (AFL++ + libprotobuf-mutator)
 
-This directory contain test harnesses in  C/C++ that define the `LLVMFuzzerTestOneInput` API.
-All differential fuzzers use the latest EVM version.
+LPM harnesses for solc and Yul. Each uses `DEFINE_PROTO_FUZZER`: a
+protobuf grammar is converted to Solidity/Yul, compiled, deployed on
+evmone, and checked. They run under AFL++ — the harness stays
+engine-agnostic (libFuzzer-style `LLVMFuzzerTestOneInput`), and AFL drives
+LPM through a per-grammar custom mutator (below).
 
-### Differential fuzzers (LibFuzzer + EVMOne + ProtoBuf)
-
-These check whether a system generates the same LOGs, STATE, and RETURNDATA when deployed
-and ran with a fuzz-generated CALLDATA. Hence, these are differential fuzzers over the
-deployed (via EVMOne) bytcode.
-
-| Executable | Source / Mode | What it compares |
-|---|---|---|
-| `sol_proto_ossfuzz_evmone` | `solProtoFuzzer2.cpp` | Unopt vs opt (same `viaIR` flag, chosen by input) |
-| `sol_proto_ossfuzz_evmone_viair` | `solProtoFuzzer2.cpp` | Legacy unopt (viaIR=false) vs IR opt (viaIR=true) |
-| `yul_proto_ossfuzz_evmone` | `yulProtoFuzzerEvmone.cpp` | Unopt Yul vs fully-optimized Yul |
-| `yul_proto_ossfuzz_evmone_ssacfg` | `yulProtoFuzzerEvmone.cpp` | Unopt legacy codegen vs opt SSA CFG codegen |
-| `yul_proto_ossfuzz_evmone_single_pass_<abbr>` | `yulProtoFuzzerEvmone.cpp` | Prereq passes only vs prereq + one pass: `c S L M s r D` |
-| `yul_proto_ossfuzz_evmone_no_ssa` | `yulProtoFuzzerEvmone.cpp`  | Unopt vs full opt  w/ SSATransform stripped |
-| `yul_proto_ossfuzz_evmone_check_stack_alloc` | `yulProtoFuzzerEvmone.cpp`, | Opt with stack alloc off vs on (legacy codegen) |
-
-Pass abbreviations currently built: `c` CommonSubexpressionEliminator, `S`
-UnusedStoreEliminator, `L` LoadResolver, `M` LoopInvariantCodeMotion, `s`
-ExpressionSimplifier, `r` UnusedAssignEliminator, `D` DeadCodeEliminator.
-
-### Non-differential fuzzers (LibFuzzer + EVMOne)
-
-| Executable | Source / Mode | What it checks |
-|---|---|---|
-| `sol_proto_ossfuzz_nondiff` | `solProtoFuzzer.cpp` | Self-checking `test()` must not revert and must return 0 |
-| `sol_recstruct_alias_ossfuzz` | `solRecStructAliasFuzzer.cpp` | Aliased storage struct copy (#1392) |
-| `sol_roundtrip_ossfuzz` | `solRoundtripFuzzer.cpp` | Primitive-type identity oracles |
-
-
-### Crash-only fuzzers (LibFuzzer, no EVMOne)
-
-| Executable | Source | What it feeds random bytes to |
-|---|---|---|
-| `sol_ice_ossfuzz` | `sol_ice_ossfuzz.cpp` | Solidity frontend `sol2Proto` → `CompilerStack::compile` |
-| `shuffler_proto_ossfuzz` | `shufflerProtoFuzzer.cpp` | SSA stack shuffler |
-
-
-### Legacy fuzzers
-
-| Executable | Source | What it feeds random bytes to |
-|---|---|---|
-| `strictasm_opt_ossfuzz` | `strictasm_opt_ossfuzz.cpp` | Yul optimizer |
-| `strictasm_assembly_ossfuzz` | `strictasm_assembly_ossfuzz.cpp` | Yul assembler |
-| `const_opt_ossfuzz` | `const_opt_ossfuzz.cpp` | Constant optimizer |
-| `solc_ossfuzz` | `solc_ossfuzz.cpp` | Solidity compiler |
-| `solc_mutator_ossfuzz` | `solc_ossfuzz.cpp` + custom mutator | Solidity compiler |
-
-
-`solidity.dict` contains Solidity-specific syntactical tokens that are more
-likely to guide the fuzzer towards generating parseable and varied Solidity
-input.
-
-## Debugging stack-shuffler crashes with `stackshuffler`
-
-`shuffler_proto_ossfuzz` finds crashes in the SSA stack shuffler. Each crash
-artifact is a raw protobuf — to inspect it by eye, or to feed it to the
-standalone `stackshuffler` CLI, dump it to the `.stack` file format first:
+## Build & run
 
 ```bash
-# 1. Build the standalone shuffler (from a normal, non-ossfuzz build):
-mkdir -p build && cd build && cmake .. && make -j$(nproc) stackshuffler && cd ..
-
-# 2. Dump the crash input to a .stack file. The fuzzer recognises
-#    PROTO_FUZZER_DUMP_PATH: when set, it writes the converted shuffler input
-#    (initial, targetStackTop, targetStackTailSet, targetStackSize) to that
-#    path, then proceeds with the same run that originally crashed.
-PROTO_FUZZER_DUMP_PATH=bad.stack \
-  ./build_ossfuzz/tools/ossfuzz/shuffler_proto_ossfuzz crash-<hash>
-
-# 3. Reproduce outside the fuzzer with the standalone CLI. --verbose prints
-#    the full trace table (initial stack, every emitted op, final row).
-./build/tools/shuffler-fuzzer/stackshuffler --verbose bad.stack
+tools/ossfuzz/build_ossfuzz.sh                                   # -> build_afl/
+tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone seeds_sol_proto
 ```
 
-Example `bad.stack`:
+`run_ossfuzz_afl.sh` picks the matching mutator and sets
+`AFL_CUSTOM_MUTATOR_ONLY=1`, so only the grammar mutator runs (no byte
+havoc on the serialized protobuf). The seed dir needs one non-empty file
+in the harness's text-format protobuf — a one-byte seed (empty default
+message) is enough; the mutator grows structure from there. Solidity
+*source* files (e.g. `corpus_afl/`) are NOT valid seeds for proto fuzzers.
 
-```
-initial: [v0, JUNK]
-targetStackTop: []
-targetStackTailSet: {lit10}
-targetStackSize: 1
-```
-
-Exit code `1` + `Status: MaxIterationsReached` means the shuffler gave up; exit
-code `0` + `Status: Admissible` means it converged. Note that only a subset of
-shuffler bugs surface in the standalone tool — the fuzzer also checks an
-independent replay oracle (see `shufflerProtoFuzzer.cpp`) that the standalone
-CLI does not run.
-
-### Stack-too-deep suppression
-
-The fuzzer currently silences exceptions whose message contains "stack too
-deep" (case-insensitive) — those cases are honest shuffler give-ups, not bugs,
-until the shuffler learns to handle them. To flip this off and treat every
-shuffler-thrown assertion as a crash, add
-`-DFUZZER_MODE_STACK_TOO_DEEP_IS_BUG` to `shuffler_proto_ossfuzz` in
-`tools/ossfuzz/CMakeLists.txt` (mirroring the pattern used by
-`yul_proto_ossfuzz_evmone_ssacfg` etc.) and rebuild.
-
-## Debugging solidity issues with `sol_debug_runner`
-
-`sol_debug_runner` is a standalone tool for debugging differential testing
-failures and internal compiler crashes from `sol_proto_ossfuzz_evmone`. It
-takes a `.sol` file and runs it through the same compile-deploy-execute
-pipeline as the fuzzer, across all 4 configurations:
-`{noOpt, opt} x {viaIR=true, viaIR=false}`. It prints bytecodes, EVM
-execution results, logs, and storage for each, then reports which
-differential comparisons pass or fail.
-
-### Reproducing a fuzzer crash
-
-1. Dump the Yul/Solidity source from a crash input:
-
-  ```bash
-  PROTO_FUZZER_DUMP_PATH=tout.yul PROTO_FUZZER_DUMP_SEQ_PATH=tout.seq \
-    ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-bd3e51cef7024834e7a83e27e361a611c7dce954
-   ```
-
-2. Run the debug tool:
-
-   ```bash
-   mkdir -p /tmp/debug-output
-    ./build/yul_debug_runner tout.yul --verbose \
-    --optimizer-sequence "<seq from tout.seq>" \
-    --optimizer-cleanup-sequence "<cleanup from tout.seq>"
-   ```
-
-   If the sequences are not given, the default sequences are used
-
-3. Check the terminal output. The tool prints per-configuration details
-   (bytecode, status, logs, storage) followed by a differential comparison
-   section:
-
-   ```
-   ========== DIFFERENTIAL COMPARISONS ==========
-
-   --- Comparing noOpt_viaIR=true vs opt_viaIR=true ---
-     Status:  MATCH (SUCCESS vs SUCCESS)
-     Output:  MATCH
-     Logs:    DIFFER
-     Storage: MATCH
-   ```
-
-4. Inspect files in `--output-dir`:
-   - `<config>.bytecode.hex` — compiled bytecode in hex
-   - `<config>.log` — full execution details (status, output, logs, storage)
-
-### CLI options
-
-```
-./build/sol_debug_runner <file.sol> [--output-dir <dir>] [--via-ir true|false] [--calldata <hex>] [--quiet]
-```
-
-- `<file.sol>` — Solidity source file (positional, required)
-- `--output-dir <dir>` — write bytecode and log files here (optional)
-- `--via-ir true|false` — initial viaIR setting (default: `true`). The tool
-  always tests both values; this controls which is "primary".
-- `--calldata <hex>` — extra calldata in hex (e.g. `a0ffba`), appended after
-  the `test()` method selector
-- `--quiet` — suppress all output except a one-line summary (`OK`,
-  `MISMATCH`, or `INTERNAL_ERROR`). Used by the delta debugger.
-
-### Exit codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | All match — no bug |
-| 1 | Differential mismatch found |
-| 2 | Normal compilation failure / file error |
-| 3 | Internal compiler error (assertion failure, crash) |
-
-
-## Debugging Yul issues with `yul_debug_runner`
-
-`yul_debug_runner` is the Yul equivalent of `sol_debug_runner`. It reproduces
-the `yul_proto_ossfuzz_evmone`, `yul_proto_ossfuzz_evmone_ssacfg`, and
-`yul_proto_ossfuzz_evmone_check_stack_alloc` fuzzers' compile-deploy-execute
-flow on a `.yul` file. It runs four configurations (unoptimized, optimized
-legacy, optimized SSACFG, optimized legacy without stack allocation), deploys
-all on evmone, and compares output, logs, and storage across pairs. Always
-uses the latest EVM version.
-
-### Building
-
-Build using the normal (non-ossfuzz) cmake build (see the main README for the
-full cmake invocation):
+Resume a stopped run from its own findings dir (no corpus dir needed):
 
 ```bash
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc) yul_debug_runner
+tools/ossfuzz/run_ossfuzz_afl.sh --resume sol_proto_ossfuzz_evmone
 ```
 
-### Reproducing a fuzzer crash
+## LPM ↔ AFL mutator
 
-1. Dump the Yul source from a crash input:
+`lpm_afl_mutator.cc` is the bridge: `afl_custom_fuzz` deserializes the
+(text-format) protobuf the harness expects, runs
+`protobuf_mutator::Mutator` over the message tree, and re-serializes — so
+every input stays a valid program and the existing corpus is reused. One
+`.so` per grammar is built into `deps_afl/lib/` (the proto type is a
+compile-time `-D`). The engine is AFL++'s `libAFLDriver.a`
+(`LIB_FUZZING_ENGINE`), replacing libFuzzer.
 
-   ```bash
-   PROTO_FUZZER_DUMP_PATH=bad.yul \
-     ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-<hash>
-   ```
+## Fuzzers
 
-2. Run the debug tool:
+Differential — unopt vs opt, deployed on evmone, comparing status /
+output / logs / storage:
 
-   ```bash
-     ./build/yul_debug_runner bad.yul
-   ```
+- `sol_proto_ossfuzz_evmone` — Solidity, same viaIR on both sides
+- `sol_proto_ossfuzz_evmone_viair` — legacy vs IR
+- `sol_proto_ossfuzz_nondiff` — legacy non-differential (older solProto grammar)
+- `yul_proto_ossfuzz_evmone[_ssacfg,_no_ssa,_check_stack_alloc]` — Yul
+- `yul_proto_ossfuzz_evmone_single_pass_<c S L M s r D>` — one pass
 
-3. Check the terminal output. The tool prints per-configuration details
-   (bytecode, status, logs, storage) followed by a differential comparison
-   section:
+Non-differential / crash-only:
 
-   ```
-   ========== DIFFERENTIAL COMPARISONS ==========
+- `sol_ice_ossfuzz` — frontend ICE hunter
+- `sol_recstruct_alias_ossfuzz` — recursive-struct alias copy (#1392)
+- `sol_roundtrip_ossfuzz` — primitive identity oracles
+- `shuffler_proto_ossfuzz` — SSA stack shuffler
+- `abiv2_proto_ossfuzz` — ABIv2 coder
 
-   --- Comparing unoptimized vs optimized_legacy ---
-     Status:  MATCH (SUCCESS vs SUCCESS)
-     Output:  MATCH
-     Logs:    DIFFER
-     Storage: MATCH
+## Reproduce
 
-   --- Comparing unoptimized vs optimized_ssacfg ---
-     Status:  MATCH (SUCCESS vs SUCCESS)
-     Output:  MATCH
-     Logs:    MATCH
-     Storage: MATCH
-
-   --- Comparing optimized_legacy vs optimized_ssacfg ---
-     Status:  MATCH (SUCCESS vs SUCCESS)
-     Output:  MATCH
-     Logs:    DIFFER
-     Storage: MATCH
-
-   --- Comparing optimized_legacy_no_stack_alloc vs optimized_legacy ---
-     Status:  MATCH (SUCCESS vs SUCCESS)
-     Output:  MATCH
-     Logs:    MATCH
-     Storage: MATCH
-   ```
-
-4. Optionally write output files:
-
-   ```bash
-     ./build/yul_debug_runner bad.yul --output-dir /tmp/debug-output
-   ```
-
-### Failure-frame diagnostic on status mismatches
-
-When a status code differs between two configs, the runner installs an
-evmone tracer and prints the deepest frame that ended with a non-success
-non-revert status — i.e. the actual instruction that died, not the outer
-CALL that propagated the failure:
-
-```
---- Comparing optimized_legacy_no_stack_alloc vs optimized_legacy ---
-  Status:  DIFFER (INVALID_INSTRUCTION vs SUCCESS)
-  [optimized_legacy_no_stack_alloc] failure at PC=95 (0x5f)  opcode=0xfe (INVALID)  gas=303673  stack_height=0  status=INVALID_INSTRUCTION
-  bytecode window [79...111] / 128 bytes:
-    20 60 60 5f 39 5f 51 90 5f 52 60 01 60 b4 1b 55 fe 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
-                                                    ^^
-```
-
-Implementation in `tools/runners/evmone_tracer_facade.hpp` + `LastOpTracer`
-in `yul_debug_runner.cpp`. Mnemonic comes from
-`solidity::evmasm::instructionInfo`.
-
-### Reproducing a `single_pass_<abbr>` crash
-
-Most single-pass crashes are runtime differentials (Run A vs Run B execution
-mismatch wrapped in `solAssert`), not compiler ICEs — so `solc` alone won't
-reproduce them, you need to compile *both* configurations and run them on
-evmone. The fuzzer's two configs are:
-
-- Run A: `yulOptimiserSteps=""`, cleanup=`""` (prerequisites only)
-- Run B: `yulOptimiserSteps="<abbr>"`, cleanup=`""`
-
-`yul_debug_runner --optimizer-sequence <abbr>` is **not** byte-faithful — an
-empty `--optimizer-cleanup-sequence` falls back to defaults and the
-optimized config uses `optimizeStackAllocation=true` (fuzzer uses `false`).
-But the failure-frame diagnostic above usually pinpoints the bad instruction
-anyway, so it's the fastest debugging path. Replay the fuzzer binary
-directly when you need ground-truth reproduction:
+Dump the source, then replay with the debug runner (both in `build/`):
 
 ```bash
-./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_<abbr> crash-<hash>
+PROTO_FUZZER_DUMP_PATH=bad.sol \
+  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
+build/tools/runners/sol_debug_runner bad.sol
+# yul: dump bad.yul the same way, then yul_debug_runner bad.yul
 ```
 
-If the crash is a real compile-time ICE (rare here), `solc --strict-assembly
---optimize --yul-optimizations "<abbr>:" bad.yul` will trigger it; the empty
-string after `:` matches the fuzzer's empty cleanup steps.
+Exit codes: 0 match, 1 differential mismatch, 2 compile fail, 3 ICE. The
+debug runners run all configs and print per-config bytecode, logs, and
+storage; `--output-dir` writes them. `shuffler_proto_ossfuzz` dumps a
+`.stack` file — replay with `stackshuffler` (see ../shuffler-fuzzer).
 
-### CLI options
-
-```
-./build/yul_debug_runner <file.yul> [--output-dir <dir>] [--calldata <hex>] [--quiet]
-```
-
-- `<file.yul>` — Yul source file (positional, required)
-- `--output-dir <dir>` — write bytecode and log files here (optional)
-- `--calldata <hex>` — calldata in hex (e.g. `a0ffba`), passed to the
-  deployed contract
-- `--quiet` — suppress all output except a one-line summary (`OK`,
-  `MISMATCH`, or `INTERNAL_ERROR`). Used by delta debuggers.
-
-### Exit codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | All match — no bug |
-| 1 | Differential mismatch found |
-| 2 | Normal compilation failure / file error |
-| 3 | Internal compiler error (assertion failure, crash) |
-
-
-## Checking generated Solidity with check_sol_proto_files.py
-
-`check_sol_proto_files.py` compiles a directory of generated `.sol` files
-with `solc` and reports errors, warnings, and a tally of which language
-features appear. It is useful for verifying that the protobuf-to-Solidity
-converter (`protoToSol2`) produces valid code and for assessing corpus
-coverage.
-
-### Dumping `.sol` files from a corpus
-
-First, dump Solidity source from fuzzer corpus entries:
+## Corpus check
 
 ```bash
-rm -rf tmp
-mkdir -p tmp
-find corpuses/my_corpus_yul_proto_ossfuzz_evmone/ -maxdepth 1 -type f -print0 \
-  | shuf -z -n 1000 \
-  | while IFS= read -r -d '' file; do
-      PROTO_FUZZER_DUMP_PATH="tmp/$(basename "$file").yul" \
-        ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone "$file"
-    done
+tools/runners/check_diversity_and_errors.sh corpus_dir 300 \
+  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone
 ```
 
-or
-
-```bash
-rm -rf tmp
-mkdir -p tmp
-find corpuses/my_corpus_sol_proto_ossfuzz_evmone/ -maxdepth 1 -type f -print0 \
-  | shuf -z -n 1000 \
-  | while IFS= read -r -d '' file; do
-      PROTO_FUZZER_DUMP_PATH="tmp/$(basename "$file").sol" \
-        ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone "$file"
-    done
-```
-
-### Running the checker
-
-```bash
-python3 tools/ossfuzz/check_sol_proto_files.py tmp/ \
-  --solc ./build/solidity/solc/solc
-```
-
-### CLI options
-
-- `<sol_dir>` — directory containing `.sol` files (positional, required)
-- `--solc <path>` — path to `solc` binary (default: `solc`)
-- `--no-compile` — skip compilation, only tally features
-- `--max-files <N>` — process at most N files (default: all)
-
-### Output
-
-The tool prints two sections:
-
-**Compilation results** — total errors, warnings, and breakdowns by type.
-Files with errors are listed with their first few error messages. Example:
-
-```
-============================================================
-COMPILATION RESULTS
-============================================================
-Files compiled:  50
-Files with errors: 0
-Total errors:    0
-Total warnings:  104
-
-Warning types:
-  This is a pre-release compiler version, ...: 50
-  Unused function parameter. ...: 22
-```
-
-**Feature tally** — counts of language features grouped by category (contract
-structure, functions, state variables, types, events/errors, control flow,
-expressions, builtins, and new features). For each feature it shows the total
-occurrence count and how many files contain it. Example:
-
-```
-  New Features (this PR):
-    ether_units                     (none)
-    indexed_params                  total=     1  files=    1/50
-    array_push                      (none)
-    returns_two                     total=     2  files=    2/50
-    free_functions                  total=    50  files=   34/50
-```
-
-Features showing `(none)` indicate the fuzzer corpus hasn't grown large
-enough to produce those protobuf field combinations yet — this is normal for
-a young corpus.
-
-## Quick corpus check with check_diversity_and_errors.sh
-
-`check_diversity_and_errors.sh` is a convenience wrapper that dumps `.sol`
-files from a fuzzer corpus and pipes them through `check_sol_proto_files.py`
-in one step. It picks N random corpus entries, runs the fuzzer binary to dump
-their Solidity source, compiles them with `solc`, and reports errors + feature
-diversity.
-
-### Usage
-
-```bash
-# Default fuzzer (sol_proto_ossfuzz_evmone), 300 files:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300
-
-# Explicit fuzzer binary:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300 \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone
-
-# viaIR variant:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone_viair 300 \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
-```
-
-### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `<corpus_dir>` | Directory containing fuzzer corpus files (required) |
-| `<num_files>` | Number of random corpus entries to sample (required) |
-| `[fuzzer_binary]` | Path to fuzzer binary (default: `./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone`) |
-
-The script expects `./build/solc/solc` for compilation checks and
-`./tools/ossfuzz/check_sol_proto_files.py` for the analysis. Dumped
-files go into a temporary directory that is cleaned up automatically.
-
-## OSSFuzz notes
-
-[oss-fuzz][1] is Google's fuzzing infrastructure that performs continuous
-fuzzing. What this means is that, each and every upstream commit is
-automatically fetched by the infrastructure and fuzzed on a daily basis.
-
-We have configuration files:here with the `.options` extension that are
-parsed by oss-fuzz. The only option that we use currently is the `dictionary`
-option that asks the fuzzing engines behind oss-fuzz to use the specified
-dictionary. The specified dictionary happens to be `solidity.dict`.
-
-[1]: https://github.com/google/oss-fuzz
-[2]: https://github.com/google/oss-fuzz/issues/1114#issuecomment-360660201
-
+Dumps N entries, compiles each with solc, tallies language features.

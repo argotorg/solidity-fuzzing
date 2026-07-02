@@ -1,76 +1,50 @@
-add_custom_target(ossfuzz)
-add_dependencies(ossfuzz
-        solc_ossfuzz
-        solc_mutator_ossfuzz
-        const_opt_ossfuzz
-        strictasm_opt_ossfuzz
-        strictasm_assembly_ossfuzz
-)
+# OSS-Fuzz proto-fuzzer harnesses, built under AFL++ + libprotobuf-mutator. See
+# tools/ossfuzz/README.md for the per-binary breakdown. Most proto fuzzers share
+# a source file and differ only by a FUZZER_MODE_* compile definition, so
+# add_ossfuzz_target() (below) captures the common wiring and each target becomes
+# a single declarative call.
 
 if (OSSFUZZ)
-    add_custom_target(ossfuzz_proto)
-    add_dependencies(ossfuzz_proto
-            sol_proto_ossfuzz_nondiff
-            sol_proto_ossfuzz_evmone
-            sol_proto_ossfuzz_evmone_viair
-            sol_ice_ossfuzz
-            yul_proto_ossfuzz_evmone
-            yul_proto_ossfuzz_evmone_ssacfg
-            yul_proto_ossfuzz_evmone_check_stack_alloc
-            yul_proto_ossfuzz_evmone_single_pass_c
-            yul_proto_ossfuzz_evmone_single_pass_S
-            yul_proto_ossfuzz_evmone_single_pass_L
-            yul_proto_ossfuzz_evmone_single_pass_M
-            yul_proto_ossfuzz_evmone_single_pass_s
-            yul_proto_ossfuzz_evmone_single_pass_r
-            yul_proto_ossfuzz_evmone_single_pass_D
-            yul_proto_ossfuzz_evmone_no_ssa
-            shuffler_proto_ossfuzz
-            sol_recstruct_alias_ossfuzz
-            sol_roundtrip_ossfuzz
-    )
+    # These harnesses build only under AFL++ (afl-clang-fast{,++} + system
+    # libstdc++); tools/ossfuzz/build_ossfuzz.sh drives the build. boost, protobuf and
+    # abseil come from the system packages; evmone is the in-tree static archive
+    # the top-level CMakeLists builds under afl-clang-fast; only LPM is built
+    # from source (into deps_afl/). Detected the same way the top-level
+    # CMakeLists detects an AFL build — refuse any other compiler outright.
+    if (NOT CMAKE_CXX_COMPILER MATCHES "afl-clang-fast")
+        message(FATAL_ERROR
+            "tools/ossfuzz: OSSFUZZ requires AFL++ (afl-clang-fast++) — build "
+            "via tools/ossfuzz/build_ossfuzz.sh.")
+    endif()
 
-    add_custom_target(ossfuzz_abiv2)
-    add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz abiv2_isabelle_ossfuzz)
-endif()
+    # libprotobuf-mutator — built from source into deps_afl/ and passed on the
+    # cmake command line as LPM_PREFIX by the build script. The harnesses include
+    # <src/libfuzzer/libfuzzer_macro.h> from this prefix.
+    if (NOT LPM_PREFIX)
+        set(LPM_PREFIX "${CMAKE_SOURCE_DIR}/deps_afl")
+    endif()
+    include_directories("${LPM_PREFIX}/include/libprotobuf-mutator")
+    find_library(LPM_FUZZER_LIB protobuf-mutator-libfuzzer PATHS "${LPM_PREFIX}/lib" REQUIRED)
+    find_library(LPM_LIB protobuf-mutator PATHS "${LPM_PREFIX}/lib" REQUIRED)
 
-if (OSSFUZZ)
-    add_executable(solc_ossfuzz
-            solc_ossfuzz.cpp
-            ../common/fuzzer_common.cpp
-            ${TESTCASEREADER_CPP}
-    )
-    target_link_libraries(solc_ossfuzz PRIVATE libsolc evmasm)
-    set_target_properties(solc_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
+    # Protobuf — the system package (its ABI matches afl-clang-fast's system
+    # libstdc++). CONFIG mode gives a protobuf::libprotobuf target carrying the
+    # abseil link deps; fall back to the module for safety.
+    find_package(Protobuf CONFIG QUIET)
+    if (NOT Protobuf_FOUND)
+        find_package(Protobuf MODULE REQUIRED)
+    endif()
 
-    add_executable(solc_mutator_ossfuzz
-            solc_ossfuzz.cpp
-            ../common/fuzzer_common.cpp
-            ${TESTCASEREADER_CPP}
-            SolidityGenerator.cpp
-            SolidityCustomMutatorInterface.cpp
-    )
-    target_link_libraries(solc_mutator_ossfuzz PRIVATE libsolc evmasm)
-    set_target_properties(solc_mutator_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
+    # evmone — the in-tree static archive (evmone_external), reached by EVMHost
+    # via the extern "C" factory under -DEVMONE_STATIC; no header staging needed
+    # beyond the submodule include.
+    include_directories("${CMAKE_SOURCE_DIR}/evmone/include")
+    add_compile_definitions(EVMONE_STATIC)
+    set(EVMONE_STANDALONE_LIB "${EVMONE_LIB_DIR}/libevmone-standalone.a")
 
-    add_executable(const_opt_ossfuzz const_opt_ossfuzz.cpp ../common/fuzzer_common.cpp)
-    target_link_libraries(const_opt_ossfuzz PRIVATE libsolc evmasm)
-    set_target_properties(const_opt_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-
-    add_executable(strictasm_opt_ossfuzz strictasm_opt_ossfuzz.cpp)
-    target_link_libraries(strictasm_opt_ossfuzz PRIVATE yul)
-    set_target_properties(strictasm_opt_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-
-    add_executable(strictasm_assembly_ossfuzz strictasm_assembly_ossfuzz.cpp)
-    target_link_libraries(strictasm_assembly_ossfuzz PRIVATE yul)
-    set_target_properties(strictasm_assembly_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-
-    # The -Wno-* compile options are required for source files that
-    # are auto-generated by the protobuf compiler because the compiler
-    # does not generate warning-free C++ bindings with regard to
-    # upstream Clang builds that are used by ossfuzz.
-    set(
-        SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS
+    # The protobuf compiler does not emit warning-free C++ bindings; silence the
+    # known-noisy diagnostics on every harness (they all compile a *.pb.cc).
+    set(SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS
         -Wno-sign-conversion
         -Wno-suggest-destructor-override
         -Wno-inconsistent-missing-destructor-override
@@ -78,362 +52,163 @@ if (OSSFUZZ)
         -Wno-deprecated
     )
 
-    add_executable(yul_proto_ossfuzz_evmone
-            yulProtoFuzzerEvmone.cpp
-            FuzzerDiffCommon.cpp
-            protoToYul.cpp
-            yulProto.pb.cc
-            ${EVMHOST_CPP}
-            YulEvmoneInterface.cpp
-    )
-    target_include_directories(yul_proto_ossfuzz_evmone PRIVATE /usr/include/libprotobuf-mutator)
-    target_link_libraries(yul_proto_ossfuzz_evmone PRIVATE yul
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(yul_proto_ossfuzz_evmone PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(yul_proto_ossfuzz_evmone PUBLIC
-            ${COMPILE_OPTIONS}
-            ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
-    )
+    # Reusable link-library groups.
+    set(FUZZ_PROTO_LIBS ${LPM_FUZZER_LIB} ${LPM_LIB} protobuf::libprotobuf)
+    set(FUZZ_EVMONE_LIBS ${EVMONE_STANDALONE_LIB})
 
-    add_executable(yul_proto_ossfuzz_evmone_ssacfg
-            yulProtoFuzzerEvmone.cpp
-            FuzzerDiffCommon.cpp
-            protoToYul.cpp
-            yulProto.pb.cc
-            ${EVMHOST_CPP}
-            YulEvmoneInterface.cpp
-    )
-    target_include_directories(yul_proto_ossfuzz_evmone_ssacfg PRIVATE /usr/include/libprotobuf-mutator)
-    target_compile_definitions(yul_proto_ossfuzz_evmone_ssacfg PRIVATE FUZZER_MODE_SSACFG)
-    target_link_libraries(yul_proto_ossfuzz_evmone_ssacfg PRIVATE yul
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(yul_proto_ossfuzz_evmone_ssacfg PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(yul_proto_ossfuzz_evmone_ssacfg PUBLIC
-            ${COMPILE_OPTIONS}
-            ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
-    )
+    # Define one ossfuzz harness. SOURCES / LIBS are required; DEFINES is the
+    # optional FUZZER_MODE_* (etc.) list baked in at compile time.
+    function(add_ossfuzz_target name)
+        cmake_parse_arguments(ARG "" "" "SOURCES;LIBS;DEFINES" ${ARGN})
+        add_executable(${name} ${ARG_SOURCES})
+        target_link_libraries(${name} PRIVATE ${ARG_LIBS})
+        set_target_properties(${name} PROPERTIES LINK_FLAGS "${LIB_FUZZING_ENGINE}")
+        target_compile_options(${name} PRIVATE ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
+        if (ARG_DEFINES)
+            target_compile_definitions(${name} PRIVATE ${ARG_DEFINES})
+        endif()
+        # evmone is built in-tree by the evmone_external ExternalProject; make
+        # sure the archive exists before we link it.
+        if (TARGET evmone_external)
+            add_dependencies(${name} evmone_external)
+        endif()
+    endfunction()
 
-    add_executable(yul_proto_ossfuzz_evmone_check_stack_alloc
-            yulProtoFuzzerEvmone.cpp
-            FuzzerDiffCommon.cpp
-            protoToYul.cpp
-            yulProto.pb.cc
-            ${EVMHOST_CPP}
-            YulEvmoneInterface.cpp
-    )
-    target_include_directories(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE /usr/include/libprotobuf-mutator)
-    target_compile_definitions(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE FUZZER_MODE_CHECK_STACK_ALLOC)
-    target_link_libraries(yul_proto_ossfuzz_evmone_check_stack_alloc PRIVATE yul
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(yul_proto_ossfuzz_evmone_check_stack_alloc PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(yul_proto_ossfuzz_evmone_check_stack_alloc PUBLIC
-            ${COMPILE_OPTIONS}
-            ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
-    )
+    # Shared source / library sets for the two big differential families.
+    set(YUL_EVMONE_SOURCES
+        yulProtoFuzzerEvmone.cpp FuzzerDiffCommon.cpp protoToYul.cpp
+        yulProto.pb.cc ${EVMHOST_CPP} YulEvmoneInterface.cpp)
+    set(YUL_EVMONE_LIBS yul evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
 
-    # One binary per single-pass mode. The target pass abbreviation is baked
-    # into the binary at compile time via FUZZER_SINGLE_PASS_CHAR, avoiding
-    # any env-var plumbing at fuzz time. To add a pass, extend this list.
+    set(SOL2_EVMONE_SOURCES
+        solProtoFuzzer2.cpp FuzzerDiffCommon.cpp SolidityEvmoneInterface.cpp
+        protoToSol2.cpp sol2Proto.pb.cc ${EVMHOST_CPP})
+    set(SOL_EVMONE_LIBS solidity libsolc evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
+
+    # --- single-input harnesses (frontend + yul; no proto grammar / evmone) ---
+    add_ossfuzz_target(solc_ossfuzz
+        SOURCES solc_ossfuzz.cpp ../common/fuzzer_common.cpp ${TESTCASEREADER_CPP}
+        LIBS libsolc evmasm)
+    add_ossfuzz_target(solc_mutator_ossfuzz
+        SOURCES solc_ossfuzz.cpp ../common/fuzzer_common.cpp ${TESTCASEREADER_CPP}
+                SolidityGenerator.cpp SolidityCustomMutatorInterface.cpp
+        LIBS libsolc evmasm)
+    add_ossfuzz_target(const_opt_ossfuzz
+        SOURCES const_opt_ossfuzz.cpp ../common/fuzzer_common.cpp
+        LIBS libsolc evmasm)
+    add_ossfuzz_target(strictasm_opt_ossfuzz SOURCES strictasm_opt_ossfuzz.cpp LIBS yul)
+    add_ossfuzz_target(strictasm_assembly_ossfuzz SOURCES strictasm_assembly_ossfuzz.cpp LIBS yul)
+
+    # --- yul differential family (one binary per optimizer mode) ---
+    add_ossfuzz_target(yul_proto_ossfuzz_evmone
+        SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS})
+    add_ossfuzz_target(yul_proto_ossfuzz_evmone_ssacfg
+        SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS} DEFINES FUZZER_MODE_SSACFG)
+    add_ossfuzz_target(yul_proto_ossfuzz_evmone_check_stack_alloc
+        SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS} DEFINES FUZZER_MODE_CHECK_STACK_ALLOC)
+    add_ossfuzz_target(yul_proto_ossfuzz_evmone_no_ssa
+        SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS} DEFINES FUZZER_MODE_NO_SSA)
+
+    # One binary per single-pass mode; the pass char is baked in at compile time
+    # via FUZZER_SINGLE_PASS_CHAR (no env-var plumbing at fuzz time). To add a
+    # pass, extend this list.
     foreach(pass c S L M s r D)
-        set(_sp_target "yul_proto_ossfuzz_evmone_single_pass_${pass}")
-        add_executable(${_sp_target}
-                yulProtoFuzzerEvmone.cpp
-                FuzzerDiffCommon.cpp
-                protoToYul.cpp
-                yulProto.pb.cc
-                ${EVMHOST_CPP}
-                YulEvmoneInterface.cpp
-        )
-        target_include_directories(${_sp_target} PRIVATE /usr/include/libprotobuf-mutator)
-        target_compile_definitions(${_sp_target} PRIVATE
-                FUZZER_MODE_SINGLE_PASS
-                FUZZER_SINGLE_PASS_CHAR="${pass}"
-        )
-        target_link_libraries(${_sp_target} PRIVATE yul
-                evmc
-                evmone-standalone
-                protobuf-mutator-libfuzzer.a
-                protobuf-mutator.a
-                protobuf.a
-        )
-        set_target_properties(${_sp_target} PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-        target_compile_options(${_sp_target} PUBLIC
-                ${COMPILE_OPTIONS}
-                ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
-        )
+        add_ossfuzz_target(yul_proto_ossfuzz_evmone_single_pass_${pass}
+            SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS}
+            DEFINES FUZZER_MODE_SINGLE_PASS FUZZER_SINGLE_PASS_CHAR="${pass}")
     endforeach()
 
-    add_executable(yul_proto_ossfuzz_evmone_no_ssa
-            yulProtoFuzzerEvmone.cpp
-            FuzzerDiffCommon.cpp
-            protoToYul.cpp
-            yulProto.pb.cc
-            ${EVMHOST_CPP}
-            YulEvmoneInterface.cpp
-    )
-    target_include_directories(yul_proto_ossfuzz_evmone_no_ssa PRIVATE /usr/include/libprotobuf-mutator)
-    target_compile_definitions(yul_proto_ossfuzz_evmone_no_ssa PRIVATE FUZZER_MODE_NO_SSA)
-    target_link_libraries(yul_proto_ossfuzz_evmone_no_ssa PRIVATE yul
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(yul_proto_ossfuzz_evmone_no_ssa PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(yul_proto_ossfuzz_evmone_no_ssa PUBLIC
-            ${COMPILE_OPTIONS}
-            ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
+    # --- sol differential family (sol2 grammar) ---
+    add_ossfuzz_target(sol_proto_ossfuzz_evmone
+        SOURCES ${SOL2_EVMONE_SOURCES} LIBS ${SOL_EVMONE_LIBS})
+    add_ossfuzz_target(sol_proto_ossfuzz_evmone_viair
+        SOURCES ${SOL2_EVMONE_SOURCES} LIBS ${SOL_EVMONE_LIBS} DEFINES FUZZER_MODE_VIAIR)
+
+    # frontend-ICE hunter: compile-only, no evmone, no differential (see README).
+    add_ossfuzz_target(sol_ice_ossfuzz
+        SOURCES sol_ice_ossfuzz.cpp protoToSol2.cpp sol2Proto.pb.cc
+        LIBS solidity libsolc ${FUZZ_PROTO_LIBS})
+
+    # legacy non-differential sol fuzzer (older solProto grammar).
+    add_ossfuzz_target(sol_proto_ossfuzz_nondiff
+        SOURCES solProtoFuzzer.cpp SolidityEvmoneInterface.cpp protoToSol.cpp
+                solProto.pb.cc ${EVMHOST_CPP}
+        LIBS ${SOL_EVMONE_LIBS})
+
+    # narrow report-#1392 recursive-struct aliasing harness (in-contract oracle).
+    add_ossfuzz_target(sol_recstruct_alias_ossfuzz
+        SOURCES solRecStructAliasFuzzer.cpp SolidityEvmoneInterface.cpp
+                protoToSolRecStructAlias.cpp solRecStructAliasProto.pb.cc ${EVMHOST_CPP}
+        LIBS ${SOL_EVMONE_LIBS})
+
+    # identity-oracle round-trip harness.
+    add_ossfuzz_target(sol_roundtrip_ossfuzz
+        SOURCES solRoundtripFuzzer.cpp SolidityEvmoneInterface.cpp
+                protoToSolRoundtrip.cpp solRoundtripProto.pb.cc ${EVMHOST_CPP}
+        LIBS ${SOL_EVMONE_LIBS})
+
+    # stack-shuffler proto fuzzer (no solidity / evmone).
+    add_ossfuzz_target(shuffler_proto_ossfuzz
+        SOURCES shufflerProtoFuzzer.cpp protoToShuffler.cpp shufflerProto.pb.cc
+        LIBS yul ${FUZZ_PROTO_LIBS})
+
+    # ABIv2 proto fuzzer.
+    add_ossfuzz_target(abiv2_proto_ossfuzz
+        SOURCES ${EVMHOST_CPP} abiV2ProtoFuzzer.cpp SolidityEvmoneInterface.cpp
+                protoToAbiV2.cpp abiV2Proto.pb.cc
+        LIBS solidity evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
+
+    # Aggregate targets driven by tools/ossfuzz/build_ossfuzz.sh.
+    add_custom_target(ossfuzz_proto)
+    add_dependencies(ossfuzz_proto
+        sol_proto_ossfuzz_nondiff
+        sol_proto_ossfuzz_evmone
+        sol_proto_ossfuzz_evmone_viair
+        sol_ice_ossfuzz
+        yul_proto_ossfuzz_evmone
+        yul_proto_ossfuzz_evmone_ssacfg
+        yul_proto_ossfuzz_evmone_check_stack_alloc
+        yul_proto_ossfuzz_evmone_single_pass_c
+        yul_proto_ossfuzz_evmone_single_pass_S
+        yul_proto_ossfuzz_evmone_single_pass_L
+        yul_proto_ossfuzz_evmone_single_pass_M
+        yul_proto_ossfuzz_evmone_single_pass_s
+        yul_proto_ossfuzz_evmone_single_pass_r
+        yul_proto_ossfuzz_evmone_single_pass_D
+        yul_proto_ossfuzz_evmone_no_ssa
+        shuffler_proto_ossfuzz
+        sol_recstruct_alias_ossfuzz
+        sol_roundtrip_ossfuzz
     )
 
-    add_executable(shuffler_proto_ossfuzz
-            shufflerProtoFuzzer.cpp
-            protoToShuffler.cpp
-            shufflerProto.pb.cc
-    )
-    target_include_directories(shuffler_proto_ossfuzz PRIVATE /usr/include/libprotobuf-mutator)
-    target_link_libraries(shuffler_proto_ossfuzz PRIVATE yul
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(shuffler_proto_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(shuffler_proto_ossfuzz PUBLIC
-            ${COMPILE_OPTIONS}
-            ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS}
-    )
-
-    add_executable(abiv2_proto_ossfuzz
-            ${EVMHOST_CPP}
-            abiV2ProtoFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            protoToAbiV2.cpp
-            abiV2Proto.pb.cc
-    )
-    target_include_directories(abiv2_proto_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(abiv2_proto_ossfuzz PRIVATE solidity
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(abiv2_proto_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(abiv2_proto_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    add_executable(abiv2_isabelle_ossfuzz
-            AbiV2IsabelleFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            ${EVMHOST_CPP}
-            protoToAbiV2.cpp
-            abiV2Proto.pb.cc
-    )
-    target_include_directories(abiv2_isabelle_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(abiv2_isabelle_ossfuzz PRIVATE solidity
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-            abicoder
-            gmp.a
-    )
-    set_target_properties(abiv2_isabelle_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(abiv2_isabelle_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    add_executable(sol_proto_ossfuzz_nondiff
-            solProtoFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            protoToSol.cpp
-            solProto.pb.cc
-            ${EVMHOST_CPP}
-    )
-    target_include_directories(sol_proto_ossfuzz_nondiff PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(sol_proto_ossfuzz_nondiff PRIVATE solidity libsolc
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_proto_ossfuzz_nondiff PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_proto_ossfuzz_nondiff PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    add_executable(sol_proto_ossfuzz_evmone
-            solProtoFuzzer2.cpp
-            FuzzerDiffCommon.cpp
-            SolidityEvmoneInterface.cpp
-            protoToSol2.cpp
-            sol2Proto.pb.cc
-            ${EVMHOST_CPP}
-    )
-    target_include_directories(sol_proto_ossfuzz_evmone PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(sol_proto_ossfuzz_evmone PRIVATE solidity libsolc
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_proto_ossfuzz_evmone PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_proto_ossfuzz_evmone PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    add_executable(sol_proto_ossfuzz_evmone_viair
-            solProtoFuzzer2.cpp
-            FuzzerDiffCommon.cpp
-            SolidityEvmoneInterface.cpp
-            protoToSol2.cpp
-            sol2Proto.pb.cc
-            ${EVMHOST_CPP}
-    )
-    target_include_directories(sol_proto_ossfuzz_evmone_viair PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_compile_definitions(sol_proto_ossfuzz_evmone_viair PRIVATE FUZZER_MODE_VIAIR)
-    target_link_libraries(sol_proto_ossfuzz_evmone_viair PRIVATE solidity libsolc
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_proto_ossfuzz_evmone_viair PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_proto_ossfuzz_evmone_viair PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    # Frontend-ICE hunter: compile-only, no evmone, no differential. Looks for
-    # InternalCompilerError and boost assertion failures on any sol2Proto output.
-    add_executable(sol_ice_ossfuzz
-            sol_ice_ossfuzz.cpp
-            protoToSol2.cpp
-            sol2Proto.pb.cc
-    )
-    target_include_directories(sol_ice_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(sol_ice_ossfuzz PRIVATE solidity libsolc
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_ice_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_ice_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    # Narrow-target fuzzer for report #1392: storage-to-storage whole-struct
-    # assignment where the source aliases a descendant of the destination
-    # through a recursive `Self[] children` field. Both legacy and IR codegens
-    # miss the alias check, so this uses an in-contract oracle (test() returns
-    # a bitmask of mismatched fields), not cross-config differential.
-    add_executable(sol_recstruct_alias_ossfuzz
-            solRecStructAliasFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            protoToSolRecStructAlias.cpp
-            solRecStructAliasProto.pb.cc
-            ${EVMHOST_CPP}
-    )
-    target_include_directories(sol_recstruct_alias_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(sol_recstruct_alias_ossfuzz PRIVATE solidity libsolc
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_recstruct_alias_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_recstruct_alias_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
-
-    # Identity-oracle fuzzer: asserts primitive-type identities
-    # (abi round-trip, storage-mem round-trip, delete-default, cast ladder)
-    # hold across Solidity codegen. Non-differential — any nonzero bit in
-    # test()'s return is a violated identity.
-    add_executable(sol_roundtrip_ossfuzz
-            solRoundtripFuzzer.cpp
-            SolidityEvmoneInterface.cpp
-            protoToSolRoundtrip.cpp
-            solRoundtripProto.pb.cc
-            ${EVMHOST_CPP}
-    )
-    target_include_directories(sol_roundtrip_ossfuzz PRIVATE
-            /usr/include/libprotobuf-mutator
-    )
-    target_link_libraries(sol_roundtrip_ossfuzz PRIVATE solidity libsolc
-            evmc
-            evmone-standalone
-            protobuf-mutator-libfuzzer.a
-            protobuf-mutator.a
-            protobuf.a
-    )
-    set_target_properties(sol_roundtrip_ossfuzz PROPERTIES LINK_FLAGS ${LIB_FUZZING_ENGINE})
-    target_compile_options(sol_roundtrip_ossfuzz PUBLIC ${COMPILE_OPTIONS} ${SILENCE_PROTOBUF_AUTOGENERATED_WARNINGS})
+    add_custom_target(ossfuzz_abiv2)
+    add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz)
 else()
-    add_library(solc_ossfuzz
-            solc_ossfuzz.cpp
-            ../common/fuzzer_common.cpp
-            )
+    # Property / host build: the single-input harnesses are built as plain
+    # libraries (linked into test drivers), not fuzz executables.
+    add_library(solc_ossfuzz solc_ossfuzz.cpp ../common/fuzzer_common.cpp)
     target_link_libraries(solc_ossfuzz PRIVATE libsolc evmasm)
 
-    add_library(solc_mutator_ossfuzz
-            solc_ossfuzz.cpp
-            ../common/fuzzer_common.cpp
-            )
+    add_library(solc_mutator_ossfuzz solc_ossfuzz.cpp ../common/fuzzer_common.cpp)
     target_link_libraries(solc_mutator_ossfuzz PRIVATE libsolc evmasm)
 
-    add_library(const_opt_ossfuzz
-            const_opt_ossfuzz.cpp
-            ../common/fuzzer_common.cpp)
+    add_library(const_opt_ossfuzz const_opt_ossfuzz.cpp ../common/fuzzer_common.cpp)
     target_link_libraries(const_opt_ossfuzz PRIVATE libsolc evmasm)
 
-    add_library(strictasm_opt_ossfuzz
-            strictasm_opt_ossfuzz.cpp
-            )
+    add_library(strictasm_opt_ossfuzz strictasm_opt_ossfuzz.cpp)
     target_link_libraries(strictasm_opt_ossfuzz PRIVATE yul)
 
-    add_library(strictasm_assembly_ossfuzz
-            strictasm_assembly_ossfuzz.cpp
-            )
+    add_library(strictasm_assembly_ossfuzz strictasm_assembly_ossfuzz.cpp)
     target_link_libraries(strictasm_assembly_ossfuzz PRIVATE yul)
-
-#    add_executable(abiv2_proto_ossfuzz
-#            ${EVMHOST_CPP}
-#            abiV2ProtoFuzzer.cpp
-#            abiV2FuzzerCommon.cpp
-#            protoToAbiV2.cpp
-#            abiV2Proto.pb.cc
-#    )
-#    target_include_directories(abiv2_proto_ossfuzz PRIVATE
-#            /src/LPM/external.protobuf/include
-#            /src/libprotobuf-mutator
-#            /src/evmone/include
-#    )
-#    target_link_libraries(abiv2_proto_ossfuzz PRIVATE solidity
-#            evmone intx ethash keccak evmc-instructions evmc
-#            protobuf-mutator-libfuzzer.a
-#            protobuf-mutator.a
-#            protobuf.a
-#            FuzzingEngine.a
-#    )
 endif()
+
+# Aggregate "ossfuzz" target: the five single-input harnesses, which exist in
+# both build modes (executables under OSSFUZZ, libraries otherwise).
+add_custom_target(ossfuzz)
+add_dependencies(ossfuzz
+    solc_ossfuzz
+    solc_mutator_ossfuzz
+    const_opt_ossfuzz
+    strictasm_opt_ossfuzz
+    strictasm_assembly_ossfuzz
+)

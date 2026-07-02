@@ -112,18 +112,28 @@ mkdir -p "$OUT"
 # Wipe contents (including dotfiles like a leftover `.traces/` from an
 # interrupted prior cmin run) without removing the directory itself —
 # afl-cmin.py errors out if its `-o` is non-empty, and the directory may
-# be a bind-mount we must not unlink.
-find "$OUT" -mindepth 1 -delete
+# be a bind-mount or symlink we must not unlink. The trailing slash makes
+# find follow OUT when it's a symlink (fuzz-afl points corpus_tsgen at the
+# shared corpus dir); without it find won't descend and the wipe no-ops.
+find "$OUT"/ -mindepth 1 -delete
 
 if [[ -z "${SKIP_CMIN:-}" && -x "$HARNESS" && -x "$AFL_CMIN" ]]; then
     echo "Minimizing with afl-cmin (this can take a while)..."
+    # afl-cmin's -o must be a real dir, not a symlink: it emptiness-checks by
+    # os.rmdir(-o), which fails on a symlink (ENOTDIR) and then reports "not
+    # empty" even when the target is empty. fuzz-afl points OUT at a shared
+    # corpus via symlink, so minimize into a real dir and copy the result in.
+    CMIN_OUT="${OUT}.cmin"
+    rm -rf "$CMIN_OUT"
     # No `@@`: sol_afl_diff_runner runs in AFL++ persistent + shared-memory
     # mode, so afl-cmin (via afl-showmap) feeds inputs over shared memory.
     AFL_SKIP_CPUFREQ=1 "$AFL_CMIN" \
         -i "$RAW_OUT" \
-        -o "$OUT" \
+        -o "$CMIN_OUT" \
         -t 2000 -m none \
         -- "$HARNESS"
+    find "$CMIN_OUT" -maxdepth 1 -type f -exec cp -t "$OUT"/ {} +
+    rm -rf "$CMIN_OUT"
     final=$(find "$OUT" -type f | wc -l)
     echo
     echo "Wrote $final unique-coverage seeds to $OUT/"
