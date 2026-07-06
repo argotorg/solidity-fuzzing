@@ -22,6 +22,18 @@ VALID_PASSES = list("cSLMsrD")  # see CLAUDE.md: yul single_pass binaries
 RUNNER = Path("./build/tools/runners/yul_debug_runner").resolve()
 
 
+def is_crash_file(name: str) -> bool:
+    """True for a raw fuzzer crash input, not our generated artifacts.
+
+    Accepts both libFuzzer ("crash-<hash>") and AFL++ ("id:000000,sig:...")
+    naming. The "." guard excludes the per-crash .yul/.out files we write
+    alongside, plus AFL's crashes/README.txt.
+    """
+    if "." in name:
+        return False
+    return name.startswith("crash-") or name.startswith("id:")
+
+
 def process_one(crash: Path, crash_dir: Path, dumper: Path, opt: str, work_root: Path):
     yul_out = (crash_dir / f"{crash.name}.yul").resolve()
     run_out = (crash_dir / f"{crash.name}.out").resolve()
@@ -64,7 +76,7 @@ def main() -> int:
 
     opt = args.opt_pass
     crash_dir = Path(args.crash_dir) if args.crash_dir else Path(f"{opt}_crash")
-    dumper = Path(f"./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_{opt}").resolve()
+    dumper = Path(f"./build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone_single_pass_{opt}").resolve()
 
     for p in (dumper, RUNNER):
         if not (p.is_file() and os.access(p, os.X_OK)):
@@ -75,7 +87,7 @@ def main() -> int:
         return 1
 
     crashes = sorted(f for f in crash_dir.iterdir()
-                     if f.is_file() and f.name.startswith("crash-") and "." not in f.name)
+                     if f.is_file() and is_crash_file(f.name))
     total = len(crashes)
     done = 0
     threads = max(1, args.threads)

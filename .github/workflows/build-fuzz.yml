@@ -9,13 +9,43 @@ on:
 jobs:
   build-fuzz:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository }}-ossfuzz:latest
+
+    # Pin ccache's dir so it matches the path cached below; ccache 4.x otherwise
+    # defaults to ~/.cache/ccache, which the cache step would miss.
+    env:
+      CCACHE_DIR: ~/.ccache
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
+      # Native AFL++ build — no Docker, no libc++. The fuzzers are built with
+      # AFL++'s afl-clang-fast++ against the system libstdc++; boost, protobuf
+      # and abseil come from the system. Only libprotobuf-mutator is built from
+      # source (into deps_afl/) by tools/ossfuzz/build_ossfuzz.sh. clang + llvm-dev
+      # are needed to build AFL++'s LLVM-mode compiler; ninja + pkg-config +
+      # protoc are used by the build script.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ccache git ninja-build pkg-config \
+            clang llvm-dev \
+            protobuf-compiler libprotobuf-dev libabsl-dev libboost-all-dev
+
+      - name: Cache ccache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.ccache
+          key: ccache-ubuntu-ossfuzz-${{ github.sha }}
+          restore-keys: ccache-ubuntu-ossfuzz-
+
+      # AFLplusplus is a submodule (checked out above); build its toolchain so
+      # afl-clang-fast++ and utils/aflpp_driver/libAFLDriver.a exist. Mirrors the
+      # `aflplusplus` cmake ExternalProject (make source-only NO_NYX=1).
+      - name: Build AFL++
+        run: make -C AFLplusplus source-only NO_NYX=1 -j$(nproc)
+
       - name: Build fuzzers
-        run: scripts/build_ossfuzz.sh
+        run: tools/ossfuzz/build_ossfuzz.sh

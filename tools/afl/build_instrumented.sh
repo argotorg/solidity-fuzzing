@@ -2,9 +2,9 @@
 # Build sol_afl_diff_runner (and the libsolc / evmone / supporting libs it
 # links against) with afl-clang-fast so AFL++ gets edge-coverage feedback.
 #
-# Output tree: build_afl/  — separate from build/ (host gcc) and
-# build_ossfuzz/ (Docker libFuzzer) so the three toolchains never clobber
-# each other's object files. Same source tree, three build trees.
+# Output tree: build_afl/  — shared with tools/ossfuzz/build_ossfuzz.sh (the AFL++
+# proto fuzzers), and separate from build/ (host gcc) so the toolchains never
+# clobber each other's object files.
 #
 # Re-run after toolchain or source changes; cmake handles incremental
 # rebuilds. ccache is enabled via the same launcher pattern as build/.
@@ -58,6 +58,12 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
 # never carry -soname. Side benefit: evmone gets full AFL instrumentation
 # on par with solc, and the dlopen + RPATH dance is gone at runtime.
 
+# Build the evmone static archive first. sol_afl_diff_runner links
+# libevmone-standalone.a as a plain file path, and the evmone_external
+# ExternalProject byproduct has no make rule when the linking target is built
+# in isolation — so building it up front avoids a "No rule to make target
+# '.../libevmone-standalone.a'" failure.
+cmake --build "$BUILD_DIR" -j$(nproc) --target evmone_external
 cmake --build "$BUILD_DIR" -j$(nproc) --target sol_afl_diff_runner
 
 echo

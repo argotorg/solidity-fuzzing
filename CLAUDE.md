@@ -6,27 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo produces two sets of binaries from two different build directories. **They are not interchangeable.**
 
-| Build tree       | Toolchain             | Produces                                                                          |
-| ---------------- | --------------------- | --------------------------------------------------------------------------------- |
-| `build/`         | Host compiler, cmake  | `solc`, `sol_debug_runner`, `yul_debug_runner`, `stackshuffler` — for reproducing |
-| `build_ossfuzz/` | clang + libc++ in Docker | libFuzzer fuzzers under `tools/ossfuzz/` — for fuzzing                         |
+| Build tree | Toolchain                          | Produces                                                                          |
+| ---------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| `build/`   | Host compiler, cmake              | `solc`, `sol_debug_runner`, `yul_debug_runner`, `stackshuffler` — for reproducing |
+| `build_afl/` | AFL++ `afl-clang-fast++` + system libstdc++ | the proto fuzzers under `tools/ossfuzz/` (+ `sol_afl_diff_runner`) — for fuzzing |
 
-Fuzzing binaries **must** link against libc++ (MemorySanitizer requires it; libc++ is instrumented). That is why the fuzz build only works inside the OSS-Fuzz Docker image — it pulls in the exact compiler/toolchain OSS-Fuzz uses upstream.
+Both trees build natively on the host — **no Docker.** The fuzz build uses AFL++'s `afl-clang-fast++` against the **system libstdc++** (no libc++), so `boost`, `protobuf`+`abseil` come from the system packages and `evmone` is the in-tree static archive built under the AFL toolchain. Only `libprotobuf-mutator` (LPM) is built from source, into `deps_afl/`. AFL++ is a submodule (`AFLplusplus/`) built via the top-level `CMakeLists.txt`; the proto fuzzers link the AFL++ driver (`utils/aflpp_driver/libAFLDriver.a`) as `LIB_FUZZING_ENGINE`.
 
-### Building fuzzers (build_ossfuzz/) — Docker only
+The proto grammars are mutated by LPM, not AFL's byte-level havoc: `tools/ossfuzz/build_ossfuzz.sh` builds one AFL++ custom-mutator `.so` per grammar (`tools/ossfuzz/lpm_afl_mutator.cc`), and `tools/ossfuzz/run_ossfuzz_afl.sh` wires the matching `.so` into `afl-fuzz` via `AFL_CUSTOM_MUTATOR_LIBRARY` + `AFL_CUSTOM_MUTATOR_ONLY=1`.
 
-```bash
-docker run --rm -v "$(pwd)":/src/solidity-fuzzing -ti solidity-ossfuzz \
-    /src/solidity-fuzzing/scripts/build_ossfuzz.sh
-```
-
-**Never run `cmake`/`make` directly on the host to build anything under `build_ossfuzz/`.** It will link against the wrong libc++/toolchain and either fail or silently produce a broken fuzzer. If the docker image is missing, build it first:
+### Building fuzzers (build_afl/) — native AFL++
 
 ```bash
-docker build -t solidity-ossfuzz -f scripts/docker/Dockerfile.ubuntu.clang.ossfuzz .
+# Prereq: build the AFL++ toolchain once (afl-clang-fast++ + libAFLDriver.a):
+make -C build aflplusplus      # or: make -C AFLplusplus source-only NO_NYX=1
+
+tools/ossfuzz/build_ossfuzz.sh
 ```
 
-`scripts/build_ossfuzz.sh` regenerates `*.pb.{cc,h}` from the `.proto` files before building. The proto bindings are committed (so that LSP / IDE works) but are refreshed on every fuzz build.
+Prerequisites (Arch package names): `clang` + `llvm-dev` (to build AFL++'s LLVM mode), `protobuf` + `abseil` (system, libstdc++), `boost` (static, system), `cmake`, `ninja`, `make`, `git`, `protoc`, `ccache`. The script:
+
+1. builds `libprotobuf-mutator` static + PIC against the **system** protobuf into `deps_afl/` (skipped if `deps_afl/lib/libprotobuf-mutator.a` exists);
+2. regenerates `*.pb.{cc,h}` from the `.proto` files with the **system** `protoc` so they match the linked system libprotobuf — these are **git-ignored** (regenerated on every build, not committed);
+3. builds one LPM custom-mutator `.so` per grammar (plain `clang++` — the `.so` is loaded by `afl-fuzz` itself, so it must carry no AFL instrumentation);
+4. configures `build_afl/` with `afl-clang-fast{,++}` (`-DOSSFUZZ=ON -DLPM_PREFIX=deps_afl -DLIB_FUZZING_ENGINE=…/libAFLDriver.a`) and builds the `ossfuzz_proto` + `ossfuzz_abiv2` targets.
+
+`deps_afl/` and `build_afl/` are git-ignored. To force the LPM rebuild, delete `deps_afl/lib/libprotobuf-mutator.a`.
+
+> **Note:** `tools/ossfuzz/CMakeLists.txt` is AFL-only — configuring `OSSFUZZ` with anything other than `afl-clang-fast++` fails fast with a `FATAL_ERROR`. (The old libc++/libFuzzer build flavour has been removed.)
 
 ### Building debug runners and `solc` (build/) — host cmake
 
@@ -43,7 +50,7 @@ make -j$(nproc)
 - `solidity/` — git submodule; built as a subdirectory of the top-level `CMakeLists.txt` with `TESTS=OFF`. All fuzzers and runners link against the resulting `solidity`/`libsolc` libraries.
 - `evmone/` — git submodule; built as an `ExternalProject`. Runners `dlopen` `libevmone.so` at runtime; its directory is baked into the runner RPATH so `LD_LIBRARY_PATH` is not needed.
 - `tools/common/EVMHost.{cpp,h}` — fuzz-specific extensions of solidity's EVMHost (`m_subCallOutOfGas`, `m_contractCreationOrder`). Everything links against this copy, not the one in the solidity submodule.
-- `tools/ossfuzz/` — libFuzzer harnesses and their proto grammars. See `tools/ossfuzz/README.md` for the per-binary breakdown.
+- `tools/ossfuzz/` — the proto-fuzzer harnesses (run under AFL++ + LPM) and their proto grammars, plus `lpm_afl_mutator.cc` (the LPM→AFL custom-mutator bridge). See `tools/ossfuzz/README.md` for the per-binary breakdown.
 - `tools/property/` — fuzztest-based property tests. Two build modes (see top-level `CMakeLists.txt` for the cmake option):
   - **Property mode** (default, `build/` tree, any compiler) — each `FUZZ_TEST` runs as a gtest case with a ~1s random-sampling budget. Useful for CI smoke checks. `--fuzz=...` / `--fuzz_for=...` are no-ops here because the binary lacks coverage instrumentation.
   - **Fuzzing mode** (`build_fuzztest/` tree, clang only) — `cmake -DFUZZTEST_FUZZING_MODE_ENABLED=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..` applies `-fsanitize=fuzzer-no-link` + ASan + coverage flags to the whole tree (yul, solidity submodule, and the property target). The resulting binary supports `--fuzz=<Suite>.<Test> [--fuzz_for=<duration>]` for continuous coverage-guided fuzzing with mutator-driven input generation.
@@ -61,7 +68,7 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 - `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError` + `StackTooDeep*` are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
 - `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits three aliasing shapes: DIRECT (`root=root.children[i]`), VIA_POINTER (through a `Node storage p` local), GRANDCHILD (`root=root.children[i].children[j]`). Primitive field types vary across `uint8..256 / int256 / address / bool / bytes32` to stress storage packing. Non-differential — `test()` returns a bitmask of mismatching fields; harness asserts zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
 - `sol_roundtrip_ossfuzz` — identity-oracle fuzzer (`solRoundtripProto.proto` + `protoToSolRoundtrip.cpp` + `solRoundtripFuzzer.cpp`). Each proto is a list of probes; each probe picks a type T, an op, and a seed. Ops: ABI round-trip, storage↔memory round-trip, delete-default, integer cast ladder. Same bitmask oracle: any violated identity sets a bit; harness asserts zero. Catches codegen/encoder bugs that corrupt the same way on both codegens (so differential fuzzers miss them).
-- `stack_shuffler_invariance_property` (`tools/property/stackShufflerInvariance.cpp`) — fuzztest-based property/regression target asserting that `trace(stack, target, spill) == trace(stack, target, spill')` for any `spill' ⊇ spill` whose extras don't appear in `target.args` or `liveOut`. Two FUZZ_TESTs: `TraceStable` (base = ∅) and `TraceStableUnderSuperset` (general `base ⊆ augmented`). Domain mirrors the existing libFuzzer shuffler harness (V/PHI/LIT/JUNK slot kinds, target top + tail set + padding). Run continuously via the fuzz-mode build:
+- `stack_shuffler_invariance_property` (`tools/property/stackShufflerInvariance.cpp`) — fuzztest-based property/regression target asserting that `trace(stack, target, spill) == trace(stack, target, spill')` for any `spill' ⊇ spill` whose extras don't appear in `target.args` or `liveOut`. Two FUZZ_TESTs: `TraceStable` (base = ∅) and `TraceStableUnderSuperset` (general `base ⊆ augmented`). Domain mirrors the existing proto shuffler harness (V/PHI/LIT/JUNK slot kinds, target top + tail set + padding). Run continuously via the fuzz-mode build:
     ```
     mkdir build_fuzztest && cd build_fuzztest
     cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -84,7 +91,7 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 
 1. Convert the protobuf input to a source string.
 2. Call `runOnce()` twice with two different optimizer / viaIR settings.
-3. Compare `status_code`, `output_data`, logs, storage, transient storage. Mismatches are reported via `solAssert(…)` — which throws `langutil::InternalCompilerError`, so libFuzzer records the crash.
+3. Compare `status_code`, `output_data`, logs, storage, transient storage. Mismatches are reported via `solAssert(…)` — which throws `langutil::InternalCompilerError`, so the fuzzer records the crash.
 4. **Compile-path failures that are either known non-bugs or ICE are caught inside `runOnce` and surfaced as `EVMC_INTERNAL_ERROR`, which the caller skips.** These must never be caught at the outer scope — doing so would silently swallow real differential mismatches (they share the `InternalCompilerError` type with `solAssert`).
 
 ## Reproducing fuzzer findings
@@ -94,19 +101,19 @@ Crash inputs are raw protobuf; to inspect/debug, dump them to text first using e
 ```bash
 # Sol:
 PROTO_FUZZER_DUMP_PATH=bad.sol \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-<hash>
+  ./build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-<hash>
 ./build/tools/runners/sol_debug_runner bad.sol
 
 # Yul (also supports optimizer sequence dump):
 PROTO_FUZZER_DUMP_PATH=bad.yul PROTO_FUZZER_DUMP_SEQ_PATH=bad.seq \
-  ./build_ossfuzz/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-<hash>
+  ./build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-<hash>
 ./build/tools/runners/yul_debug_runner bad.yul \
   --optimizer-sequence "<from bad.seq>" \
   --optimizer-cleanup-sequence "<from bad.seq>"
 
 # Stack shuffler (dumps to a special .stack format):
 PROTO_FUZZER_DUMP_PATH=bad.stack \
-  ./build_ossfuzz/tools/ossfuzz/shuffler_proto_ossfuzz crash-<hash>
+  ./build_afl/tools/ossfuzz/shuffler_proto_ossfuzz crash-<hash>
 ./build/tools/shuffler-fuzzer/stackshuffler --verbose bad.stack
 ```
 
@@ -127,7 +134,7 @@ Both runners accept `--quiet` (used by delta debuggers) and `--output-dir` (writ
 ./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300
 # Or specify a non-default fuzzer binary:
 ./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone_viair 300 \
-  ./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
+  ./build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
 ```
 
 Wraps `check_sol_proto_files.py` — dumps N random corpus entries via the given fuzzer binary, compiles each with `./build/solidity/solc/solc`, and tallies language-feature coverage. Requires both build trees.

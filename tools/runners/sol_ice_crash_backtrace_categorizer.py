@@ -28,7 +28,7 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DUMPER = REPO_ROOT / "build_ossfuzz" / "tools" / "ossfuzz" / "sol_ice_ossfuzz"
+DEFAULT_DUMPER = REPO_ROOT / "build_afl" / "tools" / "ossfuzz" / "sol_ice_ossfuzz"
 DEFAULT_SOLC = REPO_ROOT / "build" / "solidity" / "solc" / "solc"
 
 ICE_MARKERS = (

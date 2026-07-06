@@ -24,7 +24,11 @@ fuzzer's own difference message.
 
 The fuzzer binary is inferred from the crash-dir name by stripping a leading
 "NNN-" prefix (so `488-sol_proto_ossfuzz_evmone_viair` -> that binary); override
-with --fuzzer. Exit-code meanings (both runners):
+with --fuzzer. NOTE: an AFL++ crash dir is `findings_<fuzzer>/default/crashes`,
+whose basename is just "crashes" — pass --fuzzer explicitly for those. Crash
+inputs are matched by both libFuzzer ("crash-*") and AFL++ ("id:*") naming, and
+the fuzzers now live in build_afl/ (was build_ossfuzz/). Exit-code meanings (both
+runners):
   0 = all match   1 = mismatch (differential bug)
   2 = compile fail 3 = internal compiler error
 """
@@ -38,11 +42,23 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-OSSFUZZ_DIR = Path("./build_ossfuzz/tools/ossfuzz")
+OSSFUZZ_DIR = Path("./build_afl/tools/ossfuzz")
 SOL_RUNNER = Path("./build/tools/runners/sol_debug_runner").resolve()
 YUL_RUNNER = Path("./build/tools/runners/yul_debug_runner").resolve()
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def is_crash_file(name: str) -> bool:
+    """True for a raw fuzzer crash input, not our generated artifacts.
+
+    Accepts both libFuzzer ("crash-<hash>") and AFL++ ("id:000000,sig:...")
+    naming. The "." guard excludes the per-crash .sol/.yul/.out/.dump.txt/.seq
+    files we write alongside, plus AFL's crashes/README.txt.
+    """
+    if "." in name:
+        return False
+    return name.startswith("crash-") or name.startswith("id:")
 
 # rc -> short verdict; both runners share this scheme (see --help / CLAUDE.md).
 VERDICT = {0: "OK", 1: "MISMATCH", 2: "COMPILE_FAIL", 3: "INTERNAL_ERR"}
@@ -250,8 +266,7 @@ def main():
             return 1
 
     crashes = sorted(f for f in crash_dir.iterdir()
-                     if f.is_file() and f.name.startswith("crash-")
-                     and "." not in f.name)
+                     if f.is_file() and is_crash_file(f.name))
     if args.limit is not None:
         crashes = crashes[:args.limit]
     total = len(crashes)
