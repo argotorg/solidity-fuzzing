@@ -8,6 +8,11 @@
 # sol_proto_ossfuzz_evmone. The corpus dir must hold at least one non-empty
 # seed. With --resume, AFL re-reads its own findings dir (afl-fuzz -i-) and
 # continues from the existing queue — no corpus dir needed.
+#
+# Set JOBS=<n> to fan out across n cores: one AFL master (-M) plus n-1
+# secondaries (-S), all syncing through the same findings dir, each in its own
+# tmux window (session "afl_<fuzzer>"). JOBS=1 (default) runs a single instance
+# in the foreground as before.
 set -eu
 
 ROOTDIR="$(realpath "$(dirname "$0")/../..")"
@@ -58,5 +63,32 @@ export AFL_SKIP_CPUFREQ=1
 # trim API, so just disable trimming; LPM keeps inputs minimal anyway.
 export AFL_DISABLE_TRIM=1
 
-exec "${ROOTDIR}/AFLplusplus/afl-fuzz" -i "$INPUT" -o "$FINDINGS" -m none -t 2000 \
-  -- "${ROOTDIR}/build_afl/tools/ossfuzz/${FUZZER}"
+AFL="${ROOTDIR}/AFLplusplus/afl-fuzz"
+BIN="${ROOTDIR}/build_afl/tools/ossfuzz/${FUZZER}"
+
+JOBS="${JOBS:-1}"
+if [ "$JOBS" -le 1 ]; then
+  exec "$AFL" -i "$INPUT" -o "$FINDINGS" -m none -t 2000 -- "$BIN"
+fi
+
+# Parallel: 1 master (-M) + (JOBS-1) secondaries (-S), all syncing through
+# $FINDINGS. Each runs in its own tmux window. AFL auto-binds each instance to a
+# free core. Re-export the mutator env inside each command so it survives even if
+# a tmux server with a stale environment is already running.
+command -v tmux >/dev/null || { echo "JOBS>1 needs tmux" >&2; exit 1; }
+ENVX="AFL_CUSTOM_MUTATOR_LIBRARY='$AFL_CUSTOM_MUTATOR_LIBRARY'"
+ENVX="$ENVX AFL_CUSTOM_MUTATOR_ONLY=1 AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1"
+SESSION="afl_${FUZZER}"
+
+tmux new-session -d -s "$SESSION" -n m00 \
+  "env $ENVX '$AFL' -i '$INPUT' -o '$FINDINGS' -M m00 -m none -t 2000 -- '$BIN'; exec ${SHELL:-/bin/sh}"
+for i in $(seq 1 $((JOBS - 1))); do
+  id=$(printf 's%02d' "$i")
+  tmux new-window -t "$SESSION" -n "$id" \
+    "env $ENVX '$AFL' -i '$INPUT' -o '$FINDINGS' -S '$id' -m none -t 2000 -- '$BIN'; exec ${SHELL:-/bin/sh}"
+done
+tmux select-window -t "$SESSION:m00"
+echo "launched $JOBS afl-fuzz instances (1 master + $((JOBS - 1)) secondaries) in tmux session '$SESSION'"
+echo "attach:  tmux attach -t $SESSION       (switch windows: Ctrl-b n / Ctrl-b p)"
+echo "status:  ${ROOTDIR}/AFLplusplus/afl-whatsup '$FINDINGS'"
+echo "stop:    tmux kill-session -t $SESSION"
