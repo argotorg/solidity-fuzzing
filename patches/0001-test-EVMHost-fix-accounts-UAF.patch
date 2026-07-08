@@ -1,8 +1,20 @@
 diff --git a/solidity/test/EVMHost.cpp b/solidity/test/EVMHost.cpp
-index c4045965d..95c7e7c78 100644
+index 15cb81c1e..2884c74da 100644
 --- a/solidity/test/EVMHost.cpp
 +++ b/solidity/test/EVMHost.cpp
-@@ -296,7 +296,12 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+@@ -241,6 +241,11 @@ bool EVMHost::selfdestruct(const evmc::address& _addr, const evmc::address& _ben
+ 
+ 	// NOTE: EIP-6780: The transfer of the entire account balance to the beneficiary should still happen
+ 	// after cancun.
++	// Pre-insert both keys so the three `accounts[]` evaluations in the call below
++	// (whose order is unspecified) cannot insert and thus cannot rehash; otherwise
++	// the references bound to `transfer`'s parameters could dangle.
++	accounts.try_emplace(_addr);
++	accounts.try_emplace(_beneficiary);
+ 	transfer(accounts[_addr], accounts[_beneficiary], convertFromEVMC(accounts[_addr].balance));
+ 
+ 	// Record self destructs. Clearing will be done in newTransactionFrame().
+@@ -295,7 +300,12 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
  	auto const stateBackup = accounts;
  
  	u256 value{convertFromEVMC(_message.value)};
@@ -16,7 +28,7 @@ index c4045965d..95c7e7c78 100644
  
  	evmc::bytes code;
  
-@@ -320,7 +325,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+@@ -321,7 +331,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
  		// TODO is the nonce incremented on failure, too?
  		// NOTE: nonce for creation from contracts starts at 1
  		// TODO: check if sender is an EOA and do not pre-increment
@@ -25,7 +37,7 @@ index c4045965d..95c7e7c78 100644
  
  		auto encodeRlpInteger = [](int value) -> bytes {
  			if (value == 0) {
-@@ -336,7 +341,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+@@ -337,7 +347,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
  			}
  		};
  
@@ -34,16 +46,16 @@ index c4045965d..95c7e7c78 100644
  
  		h160 createAddress(keccak256(
  			bytes{static_cast<uint8_t>(0xc0 + 21 + encodedNonce.size())} +
-@@ -383,7 +388,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+@@ -378,7 +388,7 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
  	else
  		code = accounts[message.code_address].code;
  
 -	auto& destination = accounts[message.recipient];
 +	accounts.try_emplace(message.recipient);
- 	if (message.kind == EVMC_CREATE || message.kind == EVMC_CREATE2 || message.kind == EVMC_EOFCREATE)
+ 	if (message.kind == EVMC_CREATE || message.kind == EVMC_CREATE2)
  		// Mark account as created if it is a CREATE or CREATE2 call
  		// TODO: Should we roll changes back on failure like we do for `accounts`?
-@@ -391,14 +396,16 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+@@ -386,14 +396,16 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
  
  	if (value != 0 && message.kind != EVMC_DELEGATECALL && message.kind != EVMC_CALLCODE)
  	{
@@ -62,8 +74,8 @@ index c4045965d..95c7e7c78 100644
  	}
  
  	// Populate the access list (enabled since Berlin).
-@@ -437,6 +444,10 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
- 			// TODO: Add proper codehash calculation for EOF.
+@@ -431,6 +443,10 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
+ 		{
  			m_totalCodeDepositGas += codeDepositGas;
  			result.create_address = message.recipient;
 +			// Re-look-up: `m_vm.execute(*this, ...)` above may have rehashed
