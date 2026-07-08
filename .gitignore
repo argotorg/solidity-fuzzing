@@ -35,3 +35,6 @@ fuzz-*.log
 /tools/ossfuzz/*.pb.cc
 /tools/ossfuzz/*.pb.h
 /__pycache__
+/corpus_sol
+/corpus_yul
+/team-meeting.txt
