@@ -123,7 +123,7 @@ inline Slot parseSlot(ParsedIdentifierTable& _table, std::string_view _token)
 		if (_token.starts_with("lit"))
 		{
 			if (auto const num = solidity::util::parseArithmetic<InstId::ValueType>(_token.substr(3)))
-				return _table.store.appendLiteral({0}, u256(*num));
+				return _table.store.appendLiteral({0}, u256(*num)).first;
 			throw std::runtime_error(fmt::format("Couldn't parse literal token: {}", _token));
 		}
 		if (_token.starts_with("v"))
@@ -199,7 +199,7 @@ struct ShuffleTestInput
 	TestStack::Data targetStackTailSetSlots{};
 	std::optional<size_t> targetStackSize;
 	bool allowSpilling = false;
-	SpilledVariables initialSpilledSet{};
+	spill::SpillSet initialSpilledSet{};
 	TestStack::Data initialSpilledSetSlots{};
 
 	bool valid() const
@@ -283,7 +283,7 @@ struct ShuffleTestInput
 			{
 				auto [liveness, slots] = parseLiveness(_table, value);
 				for (auto const& [slot, _]: liveness)
-					result.initialSpilledSet.spill(slot.value());
+					result.initialSpilledSet.add(slot.value());
 				result.initialSpilledSetSlots = std::move(slots);
 			}
 		}
@@ -314,7 +314,7 @@ public:
 		TestStack::Data const& _targetArgs,
 		TestStack::Data const& _targetTailSlots,
 		size_t _targetStackSize,
-		SpilledVariables const& _spillSet
+		spill::SpillSet const& _spillSet
 	):
 		m_out(_out),
 		m_table(_table),
@@ -414,7 +414,7 @@ private:
 	bool m_truncated = false;
 	TestStack::Data const& m_targetArgs;
 	TestStack::Data const& m_targetTail;
-	SpilledVariables const& m_spillSet;
+	spill::SpillSet const& m_spillSet;
 	size_t const m_targetStackSize;
 	size_t const m_targetTailSize;
 	std::string const m_tailSetStr;

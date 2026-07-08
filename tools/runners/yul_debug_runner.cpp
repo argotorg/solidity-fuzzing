@@ -332,7 +332,7 @@ static RunResult runYulOnce(
 
 	try
 	{
-		YulAssembler assembler{_version, std::nullopt, _settings, _yulSource, _viaSSACFG};
+		YulAssembler assembler{_version, _settings, _yulSource, _viaSSACFG};
 		assembler.parseAndOptimize();
 		result.optimizedIR = assembler.printIR();
 		// Write IR to disk immediately, before assembly which may OOM

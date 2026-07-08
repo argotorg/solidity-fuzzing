@@ -69,7 +69,7 @@ ConvertedInput convertProtoInput(ProtoInput const& _input)
 		{
 			InstId const instId =
 				kind == ProtoSlot::PHI ? store.appendPhi({0}) :
-				kind == ProtoSlot::LIT ? store.appendLiteral({0}, u256(id)) :
+				kind == ProtoSlot::LIT ? store.appendLiteral({0}, u256(id)).first :
 				store.appendBuiltinCall({0}, {}, {});
 			it = slotMemo.emplace(memoKey, instId).first;
 		}

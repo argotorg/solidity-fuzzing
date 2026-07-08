@@ -132,7 +132,7 @@ Allowed options)",
 		auto stackData = *testConfig.initial;
 		std::ostringstream traceOutput;
 		StackShufflerResult shuffleResult;
-		SpilledVariables spillSet = testConfig.initialSpilledSet;
+		spill::SpillSet spillSet = testConfig.initialSpilledSet;
 		// Tracks the kind of each spilled value (for rendering).
 		std::vector<StackSlot> spilledSlotList = testConfig.initialSpilledSetSlots;
 
@@ -153,7 +153,7 @@ Allowed options)",
 				);
 				if (result.status != StackShufflerResult::Status::StackTooDeep)
 					break;
-				spillSet.spill(result.culprit.value());
+				spillSet.add(result.culprit.value());
 				spilledSlotList.push_back(result.culprit);
 			}
 

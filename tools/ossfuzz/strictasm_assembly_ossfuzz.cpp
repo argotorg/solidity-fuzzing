@@ -38,7 +38,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size)
 	std::string input(reinterpret_cast<char const*>(_data), _size);
 	YulStack stack(
 		langutil::EVMVersion(),
-		std::nullopt,
 		solidity::frontend::OptimiserSettings::minimal(),
 		langutil::DebugInfoSelection::AllExceptExperimental()
 	);
