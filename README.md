@@ -68,24 +68,9 @@ tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 ```
 
 See [tools/ossfuzz](tools/ossfuzz/README.md) and
-[tools/afl](tools/afl/README.md) for the fuzzer lists and triage.
+[tools/afl](tools/afl/README.md) for the fuzzer lists, reproduction, and triage.
 
-## Reproduce a finding
 
-```bash
-# Dump source from a crash, then replay (debug runners live in build/):
-PROTO_FUZZER_DUMP_PATH=bad.sol \
-  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
-build/tools/runners/sol_debug_runner bad.sol        # 0 ok, 1 diff, 2 compile-fail, 3 ICE
-
-# Yul equivalent:
-PROTO_FUZZER_DUMP_PATH=bad.yul \
-  build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-file
-build/tools/runners/yul_debug_runner bad.yul
-
-# AFL .sol crash (the file embeds calldata) — needs --afl:
-build/tools/runners/sol_debug_runner --afl findings_*/default/crashes/id:...
-```
 
 ### AFL diff-runner regression tests
 
