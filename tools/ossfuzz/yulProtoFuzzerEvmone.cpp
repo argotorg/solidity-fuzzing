@@ -166,11 +166,11 @@ RunResult runYulOnce(
 		// Parse/analysis/codegen failure — skip this input.
 		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
 	}
-	/* catch (solidity::yul::YulAssertion const&) */
-	/* { */
-	/* 	// Parse/analysis assertion failure — skip this input. */
-	/* 	return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}}; */
-	/* } */
+	catch (solidity::yul::YulAssertion const&)
+	{
+		// Parse/analysis assertion failure — skip this input.
+		return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}};
+	}
 
 	// Objects already contain deployment logic (datacopy+return of runtime code),
 	// so deploy directly. Plain blocks need the deployCode wrapper.
