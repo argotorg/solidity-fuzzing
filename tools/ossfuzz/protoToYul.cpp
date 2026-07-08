@@ -2049,7 +2049,7 @@ void ProtoConverter::visit(Program const& _x)
 	m_inputSize = static_cast<unsigned>(_x.ByteSizeLong());
 
 	// Record EVM Version
-	m_evmVersion = evmVersionMapping(_x.ver());
+	m_evmVersion = EVMVersion::current();
 
 	// Create Calldata
 	m_calldata = createCalldata(_x.calldata());
