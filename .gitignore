@@ -38,3 +38,4 @@ fuzz-*.log
 /corpus_sol
 /corpus_yul
 /team-meeting.txt
+/seeds_sol_ice
