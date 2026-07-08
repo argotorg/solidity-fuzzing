@@ -103,4 +103,14 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	catch (evmasm::StackTooDeepException const&)
 	{
 	}
+	// Known non-bug: FixedPointType is not implemented in the frontend, but the
+	// type checker signals this via an InternalCompilerError rather than an
+	// UnimplementedFeatureError (see TypeChecker::visit(InlineAssembly)). Swallow
+	// only that specific message; any other InternalCompilerError still escapes.
+	catch (langutil::InternalCompilerError const& _e)
+	{
+		std::string const what = _e.what();
+		if (what.find("FixedPointType not implemented") == std::string::npos)
+			throw;
+	}
 }
