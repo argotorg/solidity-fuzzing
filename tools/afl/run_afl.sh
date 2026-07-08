@@ -12,6 +12,11 @@
 #
 # Environment overrides
 # ---------------------
+#   JOBS=<n>                      Fan out across n cores: 1 AFL master (-M) plus
+#                                 n-1 secondaries (-S), all syncing through the
+#                                 findings dir, each in its own tmux window
+#                                 (session "afl_diff"). Default 1 = single
+#                                 foreground instance (unchanged).
 #   HARNESS=path/to/binary        Override sol_afl_diff_runner location
 #                                 (default: build_afl/tools/afl/sol_afl_diff_runner).
 #   CORPUS=path/to/corpus_dir     Default: corpus_afl/
@@ -105,10 +110,44 @@ echo "Launching afl-fuzz against $HARNESS"
 echo "  Corpus:    $CORPUS"
 echo "  Findings:  $FINDINGS"
 echo "  Timeout:   ${AFL_TIMEOUT_MS}ms"
-exec env "${AFL_TS_ENV[@]}" \
-    "$AFL_FUZZ_BIN" \
-        -i "$CORPUS" \
-        -o "$FINDINGS" \
-        -t "$AFL_TIMEOUT_MS" \
-        -m none \
-        -- "$HARNESS"
+
+JOBS="${JOBS:-1}"
+if [[ "$JOBS" -le 1 ]]; then
+    exec env "${AFL_TS_ENV[@]}" \
+        "$AFL_FUZZ_BIN" \
+            -i "$CORPUS" \
+            -o "$FINDINGS" \
+            -t "$AFL_TIMEOUT_MS" \
+            -m none \
+            -- "$HARNESS"
+fi
+
+# Parallel: 1 master (-M) + (JOBS-1) secondaries (-S), all syncing through
+# $FINDINGS, each in its own tmux window. AFL auto-binds each instance to a free
+# core. Build a shell-quoted env prefix so the mutator/grammar vars survive
+# inside the tmux command strings even if a tmux server with a stale environment
+# is already running.
+command -v tmux >/dev/null || { echo "ERROR: JOBS>1 needs tmux" >&2; exit 1; }
+ENVX=""
+for kv in "${AFL_TS_ENV[@]}"; do ENVX+=" $(printf '%q' "$kv")"; done
+SESSION="afl_diff"
+
+run_one() {  # $1 = -M|-S, $2 = instance id, $3 = new-session|new-window
+    local role="$1" id="$2" mode="$3"
+    local cmd="env${ENVX} $(printf '%q' "$AFL_FUZZ_BIN") -i $(printf '%q' "$CORPUS") -o $(printf '%q' "$FINDINGS") $role $(printf '%q' "$id") -t $(printf '%q' "$AFL_TIMEOUT_MS") -m none -- $(printf '%q' "$HARNESS"); exec ${SHELL:-/bin/sh}"
+    if [[ "$mode" == new-session ]]; then
+        tmux new-session -d -s "$SESSION" -n "$id" "$cmd"
+    else
+        tmux new-window -t "$SESSION" -n "$id" "$cmd"
+    fi
+}
+
+run_one -M m00 new-session
+for ((i = 1; i < JOBS; i++)); do
+    run_one -S "$(printf 's%02d' "$i")" new-window
+done
+tmux select-window -t "$SESSION:m00"
+echo "launched $JOBS afl-fuzz instances (1 master + $((JOBS - 1)) secondaries) in tmux session '$SESSION'"
+echo "attach:  tmux attach -t $SESSION       (switch windows: Ctrl-b n / Ctrl-b p)"
+echo "status:  $REPO_ROOT/AFLplusplus/afl-whatsup $FINDINGS"
+echo "stop:    tmux kill-session -t $SESSION"
