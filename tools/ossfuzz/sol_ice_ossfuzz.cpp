@@ -26,6 +26,9 @@
 /// Only exceptions that denote *known non-bugs* are caught (unimplemented
 /// features, stack-too-deep). Everything else — notably `InternalCompilerError`
 /// and any boost assertion failure — escapes so libFuzzer records a crash.
+///
+/// -DFUZZER_MODE_SSACFG forces the experimental SSA-CFG backend (CLI:
+/// `--experimental --via-ssa-cfg`).
 
 #include <tools/ossfuzz/protoToSol2.h>
 #include <tools/ossfuzz/sol2Proto.pb.h>
@@ -70,7 +73,14 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	CompilerStack compiler;
 	compiler.setSources({{"test.sol", source}});
 	compiler.setEVMVersion(langutil::EVMVersion{});
+#ifdef FUZZER_MODE_SSACFG
+	// SSA-CFG requires via-IR + experimental mode; force both regardless of proto.
+	compiler.setExperimental(true);
+	compiler.setViaIR(true);
+	compiler.setViaSSACFG(true);
+#else
 	compiler.setViaIR(_input.via_ir());
+#endif
 	compiler.setOptimiserSettings(
 		_input.optimize() ? OptimiserSettings::standard() : OptimiserSettings::minimal()
 	);

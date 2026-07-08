@@ -128,6 +128,11 @@ if (OSSFUZZ)
     add_ossfuzz_target(sol_ice_ossfuzz
         SOURCES sol_ice_ossfuzz.cpp protoToSol2.cpp sol2Proto.pb.cc
         LIBS solidity libsolc ${FUZZ_PROTO_LIBS})
+    # ...and the same hunter driving the experimental SSA-CFG EVM backend
+    # (equivalent to solc `--experimental --via-ssa-cfg`), baked in at compile time.
+    add_ossfuzz_target(sol_ice_ossfuzz_ssacfg
+        SOURCES sol_ice_ossfuzz.cpp protoToSol2.cpp sol2Proto.pb.cc
+        LIBS solidity libsolc ${FUZZ_PROTO_LIBS} DEFINES FUZZER_MODE_SSACFG)
 
     # legacy non-differential sol fuzzer (older solProto grammar).
     add_ossfuzz_target(sol_proto_ossfuzz_nondiff
@@ -165,6 +170,7 @@ if (OSSFUZZ)
         sol_proto_ossfuzz_evmone
         sol_proto_ossfuzz_evmone_viair
         sol_ice_ossfuzz
+        sol_ice_ossfuzz_ssacfg
         yul_proto_ossfuzz_evmone
         yul_proto_ossfuzz_evmone_ssacfg
         yul_proto_ossfuzz_evmone_check_stack_alloc

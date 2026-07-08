@@ -44,7 +44,7 @@ fi
 
 # Map fuzzer -> grammar -> mutator .so.
 case "$FUZZER" in
-  sol_proto_ossfuzz_evmone*|sol_ice_ossfuzz) base=sol2Proto ;;
+  sol_proto_ossfuzz_evmone*|sol_ice_ossfuzz*) base=sol2Proto ;;
   yul_proto_ossfuzz_evmone*)                 base=yulProto ;;
   sol_proto_ossfuzz_nondiff)                 base=solProto ;;
   shuffler_proto_ossfuzz)                    base=shufflerProto ;;
