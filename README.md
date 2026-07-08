@@ -31,6 +31,7 @@ Apply the local solidity patches (EVMHost fixes; idempotent):
 
 ```bash
 for p in patches/*.patch; do
+  echo "Applying patch $p"
   git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
 done
 ```
