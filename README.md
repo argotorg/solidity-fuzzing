@@ -62,6 +62,7 @@ echo core | sudo tee /proc/sys/kernel/core_pattern   # one-time, AFL needs it
 # Protobuf fuzzers — afl-fuzz + the matching LPM grammar mutator:
 tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
 tools/ossfuzz/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone corpus_yul
+tools/ossfuzz/run_ossfuzz_afl.sh sol_ice_ossfuzz seeds_sol_ice
 
 # Differential .sol fuzzer (afl-ts AST mutator):
 tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
@@ -69,7 +70,6 @@ tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 
 See [tools/ossfuzz](tools/ossfuzz/README.md) and
 [tools/afl](tools/afl/README.md) for the fuzzer lists, reproduction, and triage.
-
 
 
 ### AFL diff-runner regression tests
