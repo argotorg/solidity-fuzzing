@@ -57,19 +57,49 @@ Non-differential / crash-only:
 
 ## Reproduce
 
-Dump the source, then replay with the debug runner (both in `build/`):
+Crash inputs are raw protobuf. Point the *fuzzer* at the crash file with a
+dump env var to write out the human-readable source, then replay that with
+the matching debug runner. Fuzzers live in `build_afl/`, runners in
+`build/` — you need both build trees (see the top-level CLAUDE.md).
+
+**Solidity** (`sol_proto_ossfuzz_evmone`, `sol_ice_ossfuzz`,
+`sol_recstruct_alias_ossfuzz`, `sol_roundtrip_ossfuzz`, …):
 
 ```bash
 PROTO_FUZZER_DUMP_PATH=bad.sol \
   build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
 build/tools/runners/sol_debug_runner bad.sol
-# yul: dump bad.yul the same way, then yul_debug_runner bad.yul
 ```
 
-Exit codes: 0 match, 1 differential mismatch, 2 compile fail, 3 ICE. The
-debug runners run all configs and print per-config bytecode, logs, and
-storage; `--output-dir` writes them. `shuffler_proto_ossfuzz` dumps a
-`.stack` file — replay with `stackshuffler` (see ../shuffler-fuzzer).
+**Yul** (`yul_proto_ossfuzz_evmone*`) — the optimizer step sequence is part
+of the input, so also dump it (`PROTO_FUZZER_DUMP_SEQ_PATH`) and feed it
+back. Without the sequences the runner uses solc defaults and may not
+reproduce:
+
+```bash
+PROTO_FUZZER_DUMP_PATH=bad.yul PROTO_FUZZER_DUMP_SEQ_PATH=bad.seq \
+  build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-file
+build/tools/runners/yul_debug_runner bad.yul \
+  --optimizer-sequence "<steps>" \
+  --optimizer-cleanup-sequence "<steps>"
+```
+
+Pass `--optimizer-sequence ""` for an explicitly empty sequence; omit the
+flag entirely to fall back to the solc default.
+
+Both runners exit **0** match, **1** differential mismatch, **2** compile
+fail, **3** ICE. They run every config and print per-config bytecode, logs,
+and storage. Common flags:
+
+- `-v`/`--verbose` — full logs + storage for all configs (not just counts)
+- `-q`/`--quiet` — one-line summary only (used by delta debuggers)
+- `--output-dir DIR` — write `.bytecode.hex` + `.log` per config
+- `--calldata HEX` — extra calldata appended after the selector
+- `sol` only: `--via-ir true|false`, `--afl` (replay `sol_afl_diff_runner`
+  inputs), `--timeout N` (external `timeout N solc …` for hang triage)
+
+`shuffler_proto_ossfuzz` instead dumps a `.stack` file — replay with
+`stackshuffler` (see ../shuffler-fuzzer).
 
 ## Corpus check
 
