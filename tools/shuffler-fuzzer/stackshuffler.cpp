@@ -153,8 +153,8 @@ Allowed options)",
 				);
 				if (result.status != StackShufflerResult::Status::StackTooDeep)
 					break;
-				spillSet.add(result.culprit.value());
-				spilledSlotList.push_back(result.culprit);
+				spillSet.add(result.spillingCandidate.value());
+				spilledSlotList.push_back(result.spillingCandidate);
 			}
 
 		// Final shuffle with the (possibly pre-populated) spill set, recording the trace.
@@ -193,7 +193,7 @@ Allowed options)",
 			std::cout << "Status: Admissible" << std::endl;
 			break;
 		case StackShufflerResult::Status::StackTooDeep:
-			std::cout << fmt::format("Status: StackTooDeep (culprit: {})", table.render(shuffleResult.culprit)) << std::endl;
+			std::cout << fmt::format("Status: StackTooDeep (culprit: {})", table.render(shuffleResult.spillingCandidate)) << std::endl;
 			break;
 		case StackShufflerResult::Status::MaxIterationsReached:
 			std::cout << "Status: MaxIterationsReached" << std::endl;
