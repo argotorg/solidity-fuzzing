@@ -9,10 +9,12 @@
 [submodule "tree-sitter-solidity"]
 	path = tree-sitter-solidity
 	url = https://github.com/JoranHonig/tree-sitter-solidity.git
+ 	ignore = untracked
 [submodule "afl-ts"]
 	path = afl-ts
 	url = https://github.com/msooseth/afl-ts.git
-	branch = region-aware
+	ref = ca7b02ffb18cbd2b1cac1103ff3ddcabba2c6cdc
+ 	ignore = untracked
 [submodule "AFLplusplus"]
 	path = AFLplusplus
 	url = https://github.com/AFLplusplus/AFLplusplus.git
