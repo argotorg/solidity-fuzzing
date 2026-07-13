@@ -91,6 +91,38 @@ set(EVMHOST_CPP ${CMAKE_SOURCE_DIR}/tools/common/EVMHost.cpp)
 # Path to TestCaseReader.cpp in the solidity submodule
 set(TESTCASEREADER_CPP ${CMAKE_SOURCE_DIR}/solidity/test/TestCaseReader.cpp)
 
+# --- evmc ABI consistency between solidity and evmone ---
+# EVMHost.cpp is compiled against solidity's vendored evmc headers but executes on evmone,
+# which vendors its own copy. Both must agree: EVMC_ABI_VERSION gates the struct layouts, and
+# the bump that added EVMC_AMSTERDAM also renumbered evmc_revision, so a stale evmone silently
+# reinterprets a revision as a different fork.
+#
+# The shared-library path catches this at runtime (evmc_load_and_configure compares abi_version),
+# but the AFL path calls evmc_create_evmone() directly and never consults the loader — so nothing
+# would catch it there. Fail at configure time instead, for both build trees.
+#
+# Keep the evmone submodule on the release solidity pins (solidity/scripts/install_evmone.ps1).
+set(SOLIDITY_EVMC_HEADER "${CMAKE_SOURCE_DIR}/solidity/test/evmc/evmc.h")
+set(EVMONE_EVMC_HEADER "${CMAKE_SOURCE_DIR}/evmone/evmc/include/evmc/evmc.h")
+if (EXISTS "${SOLIDITY_EVMC_HEADER}" AND EXISTS "${EVMONE_EVMC_HEADER}")
+    file(STRINGS "${SOLIDITY_EVMC_HEADER}" SOLIDITY_EVMC_ABI_LINE REGEX "EVMC_ABI_VERSION = [0-9]+")
+    file(STRINGS "${EVMONE_EVMC_HEADER}" EVMONE_EVMC_ABI_LINE REGEX "EVMC_ABI_VERSION = [0-9]+")
+    string(REGEX MATCH "[0-9]+" SOLIDITY_EVMC_ABI "${SOLIDITY_EVMC_ABI_LINE}")
+    string(REGEX MATCH "[0-9]+" EVMONE_EVMC_ABI "${EVMONE_EVMC_ABI_LINE}")
+
+    if (NOT SOLIDITY_EVMC_ABI OR NOT EVMONE_EVMC_ABI)
+        message(WARNING "Could not determine EVMC_ABI_VERSION from the evmc headers; skipping the consistency check.")
+    elseif (NOT SOLIDITY_EVMC_ABI EQUAL EVMONE_EVMC_ABI)
+        message(FATAL_ERROR
+            "evmc ABI mismatch: solidity expects ${SOLIDITY_EVMC_ABI}, evmone provides ${EVMONE_EVMC_ABI}.\n"
+            "The evmone submodule is out of sync with the solidity submodule. Bump evmone to the "
+            "release solidity pins (grep evmone in solidity/scripts/), e.g.:\n"
+            "    git -C evmone fetch --tags && git -C evmone checkout <tag> && git submodule update --init --recursive")
+    else()
+        message(STATUS "evmc ABI version ${SOLIDITY_EVMC_ABI}: solidity and evmone agree")
+    endif()
+endif()
+
 # --- Build evmone from submodule (or use user-provided path) ---
 # Default: build evmone as a shared library; runners dlopen libevmone.so at
 # runtime via evmc_load_and_configure (the runners' RPATH bakes in the lib

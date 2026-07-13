@@ -68,10 +68,26 @@ evmc::VM& EVMHost::getVM(std::string const& _path)
 #ifdef EVMONE_STATIC
 		// Statically-linked evmone: bypass the loader, call the factory
 		// directly. _path is ignored (kept so the signature is unchanged).
-		auto vm = evmc::VM{evmc_create_evmone()};
+		evmc_vm* rawVM = evmc_create_evmone();
+
+		// evmc_load_and_configure() performs this check on the shared-library path; calling the
+		// factory directly skips it. A mismatch means evmone was built against a different evmc
+		// than the one solidity vendors, so the two disagree on struct layouts and on the
+		// evmc_revision numbering — which would silently execute a different fork's rules.
+		if (rawVM && rawVM->abi_version != EVMC_ABI_VERSION)
+		{
+			std::cerr
+				<< "EVMC ABI version " << rawVM->abi_version << " of statically-linked evmone "
+				<< "mismatches the expected version " << EVMC_ABI_VERSION
+				<< ". The evmone submodule is out of sync with solidity." << std::endl;
+			rawVM->destroy(rawVM);
+			rawVM = nullptr;
+		}
+
+		auto vm = evmc::VM{rawVM};
 		if (vm && (vm.get_capabilities() & EVMC_CAPABILITY_EVM1))
 			vms[_path] = std::make_unique<evmc::VM>(std::move(vm));
-		else
+		else if (rawVM)
 			std::cerr << "Statically-linked evmone does not support EVM1" << std::endl;
 #else
 		evmc_loader_error_code errorCode = {};
