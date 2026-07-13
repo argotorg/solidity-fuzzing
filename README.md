@@ -27,7 +27,7 @@ cd solidity-fuzzing      # or: git submodule update --init --recursive
 Needs: gcc/g++ (C++20), clang/clang++, llvm-dev, cmake (>=3.13), make,
 ninja, boost (incl. static libs), protobuf + abseil, protoc, ccache, gdb.
 
-Apply the local solidity patches (EVMHost fixes; idempotent):
+Apply the local solidity patches (idempotent):
 
 ```bash
 for p in patches/*.patch; do
