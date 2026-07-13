@@ -6,6 +6,10 @@
 [submodule "evmone"]
 	path = evmone
 	url = https://github.com/ipsilon/evmone.git
+	# Must stay on the evmone release that solidity pins (see solidity/scripts/install_evmone.ps1):
+	# a mismatch means evmone's vendored evmc disagrees with solidity's on EVMC_ABI_VERSION and
+	# the evmc_revision numbering, which the EVMONE_STATIC fuzz path cannot detect.
+	ref = 1ea75472f771999a9430d35f382ca0117b495e41
 [submodule "tree-sitter-solidity"]
 	path = tree-sitter-solidity
 	url = https://github.com/JoranHonig/tree-sitter-solidity.git
