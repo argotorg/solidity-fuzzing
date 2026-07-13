@@ -68,6 +68,21 @@ tools/ossfuzz/run_ossfuzz_afl.sh sol_ice_ossfuzz seeds_sol_ice
 tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 ```
 
+## Run with ASAN to find bugs in the fuzzer engine
+
+The LPM grammar mutator runs *inside* afl-fuzz. If it (or protobuf) corrupts the
+heap, the worker dies with a bare `malloc(): invalid next size` and no stack.
+This variant rebuilds just the mutator `.so` with AddressSanitizer and preloads
+the runtime into afl-fuzz, so the faulting write aborts with a full trace.
+
+```bash
+tools/ossfuzz/run_ossfuzz_afl_asan.sh yul_proto_ossfuzz_evmone_ssacfg corpus_yul
+JOBS=8 tools/ossfuzz/run_ossfuzz_afl_asan.sh yul_proto_ossfuzz_evmone_ssacfg corpus_yul
+
+# reports land in <findings>/asan.<pid> (raw offsets — afl forces symbolize=0):
+tools/ossfuzz/symbolize_asan.sh findings_asan_*/asan.*
+```
+
 See [tools/ossfuzz](tools/ossfuzz/README.md) and
 [tools/afl](tools/afl/README.md) for the fuzzer lists, reproduction, and triage.
 
