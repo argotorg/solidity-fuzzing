@@ -45,7 +45,7 @@ build_lpm() {
   local src="${DEPS}/src/libprotobuf-mutator"
   local build="${DEPS}/build/libprotobuf-mutator"
   if [[ ! -d "${src}/.git" ]]; then
-    git clone --depth 1 https://github.com/google/libprotobuf-mutator.git "${src}"
+    git clone --branch "v1.5" --depth 1 https://github.com/google/libprotobuf-mutator.git "${src}"
   fi
   cmake -S "${src}" -B "${build}" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 \
