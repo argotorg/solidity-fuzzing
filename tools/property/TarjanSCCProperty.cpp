@@ -6,7 +6,7 @@
  *   3. Reverse-topological order: for every edge u -> v that crosses SCC boundaries, u's SCC is emitted after v's.
  */
 
-#include <libyul/backends/evm/ssa/util/TarjanSCC.h>
+#include <libsolutil/TarjanSCC.h>
 
 #include <fuzztest/fuzztest.h>
 #include <gtest/gtest.h>
@@ -30,7 +30,7 @@ struct Edge
 constexpr std::uint32_t kMaxNodes = 128;
 constexpr std::uint32_t kMaxEdges = 256;
 
-using solidity::yul::ssa::util::computeStronglyConnectedComponents;
+using solidity::util::computeStronglyConnectedComponents;
 
 }
 
