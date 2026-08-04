@@ -1,15 +1,12 @@
 [submodule "solidity"]
 	path = solidity
 	url = https://github.com/argotorg/solidity.git
-	ref = 960c6e969dd3b9133d06cddcd958698ac6d23aea
-	branch = develop
 [submodule "evmone"]
 	path = evmone
 	url = https://github.com/ipsilon/evmone.git
 	# Must stay on the evmone release that solidity pins (see solidity/scripts/install_evmone.ps1):
 	# a mismatch means evmone's vendored evmc disagrees with solidity's on EVMC_ABI_VERSION and
 	# the evmc_revision numbering, which the EVMONE_STATIC fuzz path cannot detect.
-	ref = 1ea75472f771999a9430d35f382ca0117b495e41
 [submodule "tree-sitter-solidity"]
 	path = tree-sitter-solidity
 	url = https://github.com/JoranHonig/tree-sitter-solidity.git
@@ -17,16 +14,13 @@
 [submodule "afl-ts"]
 	path = afl-ts
 	url = https://github.com/msooseth/afl-ts.git
-	ref = ca7b02ffb18cbd2b1cac1103ff3ddcabba2c6cdc
  	ignore = untracked
 [submodule "AFLplusplus"]
 	path = AFLplusplus
 	url = https://github.com/AFLplusplus/AFLplusplus.git
- 	ref = 011cd189801830253c66ecd3cd6919ec01b46c34
 [submodule "tsgen"]
 	path = tsgen
 	url = https://github.com/jubnzv/tsgen.git
 [submodule "tree-sitter"]
 	path = tree-sitter
 	url = https://github.com/tree-sitter/tree-sitter.git
-	ref = 048fe686cb1fde267243739b8bdbec8fc3a55272
