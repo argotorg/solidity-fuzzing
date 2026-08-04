@@ -21,8 +21,8 @@
  * Flow per fuzzing iteration:
  *   1. Mutator produces a ShuffleInput protobuf.
  *   2. protoToShuffler projects it onto a precondition-satisfying input.
- *   3. We run StackShuffler::shuffle() with a recording callback that captures
- *      every emitted SWAP/DUP/PUSH/POP as a structured op.
+ *   3. We run StackShuffler::shuffle(), which returns the trace of emitted
+ *      SWAP/DUP/PUSH/POP/LOAD/STORE ops.
  *   4. Replay those ops from a fresh copy of the initial stack, independently,
  *      and verify:
  *        (a) replay ends in the same data state the shuffler reported, and
@@ -42,13 +42,14 @@
  *
  * Oracle: the independent replay + admissibility check catches bugs that the
  * shuffler's own internal `yulAssert(state.admissible())` might miss —
- * specifically, divergence between m_data and the emitted callback stream, or
+ * specifically, divergence between m_data and the emitted trace, or
  * admissibility logic that disagrees with the spec.
  */
 
 #include <tools/ossfuzz/protoToShuffler.h>
 #include <tools/ossfuzz/shufflerProto.pb.h>
 
+#include <libyul/backends/evm/ssa/ShuffleTrace.h>
 #include <libyul/backends/evm/ssa/Stack.h>
 #include <libyul/backends/evm/ssa/StackShuffler.h>
 
@@ -73,76 +74,47 @@ using ::solidity::yul::test::shuffler_fuzzer::ShuffleInput;
 namespace
 {
 
-/// Structured record of a single shuffler-emitted opcode.
-///
-/// The shuffler callback receives typed info (StackDepth / StackSlot) per op —
-/// we keep it typed here too, rather than formatting to a string and re-parsing,
-/// so the replay oracle is free of format-level ambiguity.
-struct Op
-{
-	enum class Kind { Swap, Dup, Push, Pop };
-	Kind kind;
-	std::size_t depth = 0; // Swap/Dup only (1..16)
-	StackSlot slot{};      // Push only
-};
-
-/// Stack callback that records every emission into a vector<Op>. Satisfies
-/// StackManipulationCallbackConcept so it can be templated into Stack<>.
-struct RecordingCallbacks
-{
-	std::vector<Op>* ops;
-
-	void swap(StackDepth _depth)
-	{
-		ops->push_back({Op::Kind::Swap, _depth.value, {}});
-	}
-	void dup(StackDepth _depth)
-	{
-		ops->push_back({Op::Kind::Dup, _depth.value, {}});
-	}
-	void push(StackSlot const& _slot)
-	{
-		ops->push_back({Op::Kind::Push, 0, _slot});
-	}
-	void pop()
-	{
-		ops->push_back({Op::Kind::Pop, 0, {}});
-	}
-};
-static_assert(StackManipulationCallbackConcept<RecordingCallbacks>);
-using RecStack = Stack<RecordingCallbacks>;
-
-/// Replays a sequence of ops against a fresh copy of _initial, returning the
-/// final stack state. Each op is validated against Stack's EVM reachability
-/// rules (depth 1..16 for SWAP/DUP, freely-generatable only for PUSH) and any
-/// violation aborts via solAssert — these would indicate the shuffler emitted
-/// an invalid opcode, which is a bug.
-StackData replayOps(StackData const& _initial, std::vector<Op> const& _ops)
+/// Replays a shuffle trace against a fresh copy of _initial, returning the
+/// final stack state. Deliberately does not use ssa::replay() — an independent
+/// implementation is what makes this an oracle. Each op is validated against
+/// Stack's EVM reachability rules (depth 1..16 for SWAP/DUP, freely-generatable
+/// only for PUSH) and any violation aborts via solAssert — these would indicate
+/// the shuffler emitted an invalid opcode, which is a bug.
+StackData replayOps(StackData const& _initial, ShuffleTrace const& _trace)
 {
 	static constexpr std::size_t reachable = 16;
 	StackData s = _initial;
-	for (auto const& op: _ops)
+	for (auto const& op: _trace)
 	{
+		std::size_t const depth = op.depth;
 		switch (op.kind)
 		{
-		case Op::Kind::Swap:
-			solAssert(op.depth >= 1 && op.depth <= reachable, "shuffler emitted SWAP out of range");
-			solAssert(s.size() > op.depth, "shuffler emitted SWAP deeper than stack");
-			std::swap(s[s.size() - 1 - op.depth], s.back());
+		case ShuffleOp::Kind::Swap:
+			solAssert(depth >= 1 && depth <= reachable, "shuffler emitted SWAP out of range");
+			solAssert(s.size() > depth, "shuffler emitted SWAP deeper than stack");
+			std::swap(s[s.size() - 1 - depth], s.back());
 			break;
-		case Op::Kind::Dup:
-			solAssert(op.depth >= 1 && op.depth <= reachable, "shuffler emitted DUP out of range");
-			solAssert(s.size() >= op.depth, "shuffler emitted DUP deeper than stack");
-			s.push_back(s[s.size() - op.depth]);
+		case ShuffleOp::Kind::Dup:
+			solAssert(depth >= 1 && depth <= reachable, "shuffler emitted DUP out of range");
+			solAssert(s.size() >= depth, "shuffler emitted DUP deeper than stack");
+			s.push_back(s[s.size() - depth]);
 			break;
-		case Op::Kind::Push:
+		case ShuffleOp::Kind::Push:
 			solAssert(
-				RecStack::canBeFreelyGenerated(op.slot),
+				canBeFreelyGenerated(op.slot),
 				"shuffler PUSHed a slot that cannot be freely generated"
 			);
 			s.push_back(op.slot);
 			break;
-		case Op::Kind::Pop:
+		case ShuffleOp::Kind::Load:
+			solAssert(op.slot.isValue() && !op.slot.isLiteralValue(), "shuffler LOADed a non-spillable slot");
+			s.push_back(op.slot);
+			break;
+		case ShuffleOp::Kind::Store:
+			solAssert(!s.empty() && s.back() == op.slot, "shuffler emitted STORE not consuming its value from the top");
+			s.pop_back();
+			break;
+		case ShuffleOp::Kind::Pop:
 			solAssert(!s.empty(), "shuffler emitted POP on empty stack");
 			s.pop_back();
 			break;
@@ -250,18 +222,14 @@ DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
 	if (converted.targetTail.size() > converted.targetStackSize - converted.targetTop.size())
 		return;
 
-	std::vector<Op> ops;
-	ops.reserve(128);
 	StackData stackData = converted.initial;
-	RecordingCallbacks callbacks{&ops};
-	RecStack stack(stackData, callbacks);
 
 	// shuffle() returns a status rather than throwing for the expected give-up
 	// outcomes. A Status::StackTooDeep is an honest give-up and is silenced by
 	// default; MaxIterationsReached (and the never-expected Continue) is a bug.
 	// Precondition violations inside shuffle() still throw and escape as crashes.
-	StackShufflerResult const result = StackShuffler<RecordingCallbacks>::shuffle(
-		stack,
+	StackShufflerResult const result = StackShuffler::shuffle(
+		stackData,
 		converted.targetTop,
 		converted.targetTail,
 		converted.targetStackSize
@@ -281,8 +249,8 @@ DEFINE_PROTO_FUZZER(ShuffleInput const& _input)
 
 	// --- Oracle 1: replay the emitted opcodes and check we end up where the
 	//     shuffler's internal m_data ended up. Catches any drift between the
-	//     callback stream and Stack's internal bookkeeping.
-	StackData replayed = replayOps(converted.initial, ops);
+	//     recorded trace and Stack's internal bookkeeping.
+	StackData replayed = replayOps(converted.initial, result.trace);
 	solAssert(
 		replayed == stackData,
 		"Replay of shuffler-emitted opcodes diverges from shuffler's internal stack"

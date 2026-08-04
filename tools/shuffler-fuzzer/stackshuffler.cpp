@@ -136,28 +136,33 @@ Allowed options)",
 		// Tracks the kind of each spilled value (for rendering).
 		std::vector<StackSlot> spilledSlotList = testConfig.initialSpilledSetSlots;
 
-		// When spilling is allowed, run the shuffler repeatedly without recording to determine
-		// the final spill set. Each iteration starts from the initial stack and adds the culprit
-		// of a recoverable StackTooDeep to the spill set.
+		// When spilling is allowed, run the shuffler with spill discovery (without recording) to
+		// determine the final spill set, then render the values discovered on top of the initial set.
 		if (testConfig.allowSpilling)
-			while (true)
-			{
-				auto scratch = *testConfig.initial;
-				Stack<> stack(scratch, {});
-				auto const result = StackShuffler<NoOpStackManipulationCallbacks>::shuffle(
-					stack,
-					*testConfig.targetStackTop,
-					testConfig.targetStackTailSet,
-					*testConfig.targetStackSize,
-					&spillSet
-				);
-				if (result.status != StackShufflerResult::Status::StackTooDeep)
-					break;
-				spillSet.add(result.spillingCandidate.value());
-				spilledSlotList.push_back(result.spillingCandidate);
-			}
+		{
+			auto scratch = *testConfig.initial;
+			shuffleResult = StackShuffler::shuffleWithSpillDiscovery(
+				scratch,
+				*testConfig.targetStackTop,
+				testConfig.targetStackTailSet,
+				*testConfig.targetStackSize,
+				spillSet
+			);
+			for (InstId const value: spillSet.spilledValues())
+				if (!testConfig.initialSpilledSet.isSpilled(value))
+					spilledSlotList.push_back(StackSlot::makeValue(table.store, value));
+		}
 
-		// Final shuffle with the (possibly pre-populated) spill set, recording the trace.
+		// Final shuffle with the (possibly pre-populated) spill set; the result carries the recorded trace.
+		shuffleResult = StackShuffler::shuffle(
+			stackData,
+			*testConfig.targetStackTop,
+			testConfig.targetStackTailSet,
+			*testConfig.targetStackSize,
+			&spillSet
+		);
+
+		// Reconstruct the intermediate stack states by replaying the trace on top of the initial stack.
 		{
 			TraceRecorder trace(
 				traceOutput,
@@ -168,17 +173,13 @@ Allowed options)",
 				spillSet
 			);
 			trace.record("(initial)", *testConfig.initial);
-			TestStack stack(stackData, {.table = table, .hook = [&](std::string const& op)
+			StackData replayData = *testConfig.initial;
+			for (ShuffleOp const& op: shuffleResult.trace)
 			{
-				trace.record(op, stackData);
-			}});
-			shuffleResult = StackShuffler<StackManipulationCallbacks>::shuffle(
-				stack,
-				*testConfig.targetStackTop,
-				testConfig.targetStackTailSet,
-				*testConfig.targetStackSize,
-				&spillSet
-			);
+				apply(replayData, op);
+				trace.record(render(table, op), replayData);
+			}
+			yulAssert(replayData == stackData, "replayed trace must reproduce the shuffled stack");
 			if (shuffleResult.status == StackShufflerResult::Status::MaxIterationsReached)
 				trace.truncate(30);
 			// TraceRecorder destructor fires here, writing the trace table to traceOutput

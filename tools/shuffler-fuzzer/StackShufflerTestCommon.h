@@ -26,6 +26,7 @@
 
 #include <libyul/backends/evm/ssa/InstructionStore.h>
 #include <libyul/backends/evm/ssa/SSACFG.h>
+#include <libyul/backends/evm/ssa/ShuffleTrace.h>
 #include <libyul/backends/evm/ssa/Stack.h>
 #include <libyul/backends/evm/ssa/StackShuffler.h>
 #include <libyul/backends/evm/ssa/StackSlotLiveness.h>
@@ -77,17 +78,26 @@ struct ParsedIdentifierTable
 	}
 };
 
-struct StackManipulationCallbacks
+/// Renders a recorded operation like the corresponding EVM instruction, with slots rendered through the
+/// identifier table. A spill reload renders as a plain PUSH, matching the assembly's single push-like materialization of a slot.
+inline std::string render(ParsedIdentifierTable const& _table, ShuffleOp const& _op)
 {
-	void swap(StackDepth const _depth) const { hook(fmt::format("SWAP{}", _depth.value)); }
-	void dup(StackDepth const _depth) const { hook(fmt::format("DUP{}", _depth.value)); }
-	void push(Slot const& _slot) const { hook(fmt::format("PUSH {}", table.render(_slot))); }
-	void pop() const { hook("POP"); }
-
-	ParsedIdentifierTable const& table;
-	std::function<void(std::string const&)> hook;
-};
-using TestStack = Stack<StackManipulationCallbacks>;
+	switch (_op.kind)
+	{
+	case ShuffleOp::Kind::Swap:
+		return fmt::format("SWAP{}", _op.depth);
+	case ShuffleOp::Kind::Dup:
+		return fmt::format("DUP{}", _op.depth);
+	case ShuffleOp::Kind::Pop:
+		return "POP";
+	case ShuffleOp::Kind::Push:
+	case ShuffleOp::Kind::Load:
+		return fmt::format("PUSH {}", _table.render(_op.slot));
+	case ShuffleOp::Kind::Store:
+		return fmt::format("STORE {}", _table.render(_op.slot));
+	}
+	solidity::util::unreachable();
+}
 
 /// removes leading and trailing whitespace from a string view
 inline std::string_view trim(std::string_view s)
@@ -147,9 +157,9 @@ inline Slot parseSlot(ParsedIdentifierTable& _table, std::string_view _token)
 }
 
 /// Parse a string like "[v172, phi109, lit7, JUNK]" into Stack::Data
-inline TestStack::Data parseSlots(ParsedIdentifierTable& _table, std::string_view _input, char const brackBegin = '[', char const brackEnd = ']')
+inline StackData parseSlots(ParsedIdentifierTable& _table, std::string_view _input, char const brackBegin = '[', char const brackEnd = ']')
 {
-	TestStack::Data result;
+	StackData result;
 
 	// trim and remove brackets
 	{
@@ -178,7 +188,7 @@ inline TestStack::Data parseSlots(ParsedIdentifierTable& _table, std::string_vie
 /// Parse liveness like "{phi109, phi150, v172}"
 /// Returns a StackSlotLiveness with reference count 1 for each value, plus the parsed slots
 /// (handy for printing).
-inline std::pair<StackSlotLiveness, TestStack::Data> parseLiveness(ParsedIdentifierTable& _table, std::string_view _input)
+inline std::pair<StackSlotLiveness, StackData> parseLiveness(ParsedIdentifierTable& _table, std::string_view _input)
 {
 	auto const slots = parseSlots(_table, _input, '{', '}');
 	StackSlotLiveness::Entries entries;
@@ -193,14 +203,14 @@ inline std::pair<StackSlotLiveness, TestStack::Data> parseLiveness(ParsedIdentif
 
 struct ShuffleTestInput
 {
-	std::optional<TestStack::Data> initial;
-	std::optional<TestStack::Data> targetStackTop;
+	std::optional<StackData> initial;
+	std::optional<StackData> targetStackTop;
 	StackSlotLiveness targetStackTailSet{};
-	TestStack::Data targetStackTailSetSlots{};
+	StackData targetStackTailSetSlots{};
 	std::optional<size_t> targetStackSize;
 	bool allowSpilling = false;
 	spill::SpillSet initialSpilledSet{};
-	TestStack::Data initialSpilledSetSlots{};
+	StackData initialSpilledSetSlots{};
 
 	bool valid() const
 	{
@@ -311,8 +321,8 @@ public:
 	TraceRecorder(
 		std::ostream& _out,
 		ParsedIdentifierTable const& _table,
-		TestStack::Data const& _targetArgs,
-		TestStack::Data const& _targetTailSlots,
+		StackData const& _targetArgs,
+		StackData const& _targetTailSlots,
 		size_t _targetStackSize,
 		spill::SpillSet const& _spillSet
 	):
@@ -350,7 +360,7 @@ public:
 		)
 	{}
 
-	void record(std::string const& _operation, TestStack::Data const& _stack)
+	void record(std::string const& _operation, StackData const& _stack)
 	{
 		m_entries.push_back(TraceEntry{_operation, _stack});
 	}
@@ -405,15 +415,15 @@ public:
 private:
 	struct TraceEntry {
 		std::string operation;
-		TestStack::Data stackAfter;
+		StackData stackAfter;
 	};
 
 	std::ostream& m_out;
 	ParsedIdentifierTable const& m_table;
 	std::vector<TraceEntry> m_entries;
 	bool m_truncated = false;
-	TestStack::Data const& m_targetArgs;
-	TestStack::Data const& m_targetTail;
+	StackData const& m_targetArgs;
+	StackData const& m_targetTail;
 	spill::SpillSet const& m_spillSet;
 	size_t const m_targetStackSize;
 	size_t const m_targetTailSize;
