@@ -13,9 +13,14 @@ For each crash-* input file given on the command line:
      *.backtrace next to the inputs, compute a signature for each, and print
      the unique buckets.
 
+Arguments may be individual crash files or whole crash directories; several
+fuzzer instances can be categorized in one go. Files are processed
+concurrently; see -j.
+
 Usage:
-    ./tools/runners/sol_ice_crash_backtrace_categorizer.py <crash> [<crash> ...]
-    ./tools/runners/sol_ice_crash_backtrace_categorizer.py --summary-only [dir ...]
+    ./sol_ice_crash_backtrace_categorizer.py [-j N] <crash|dir> ...
+    ./sol_ice_crash_backtrace_categorizer.py -j16 results/643-*/findings/*/crashes
+    ./sol_ice_crash_backtrace_categorizer.py --summary-only [dir ...]
 """
 
 import argparse
@@ -26,11 +31,14 @@ import signal
 import subprocess
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_DUMPER = REPO_ROOT / "build_afl" / "tools" / "ossfuzz" / "sol_ice_ossfuzz"
 DEFAULT_SOLC = REPO_ROOT / "build" / "solidity" / "solc" / "solc"
+DEFAULT_JOBS = min(8, os.cpu_count() or 1)
+MAX_EXAMPLES = 3
 
 ICE_MARKERS = (
     "Internal compiler error",
@@ -52,6 +60,21 @@ STDERR_SPLIT_RE = re.compile(r"^=== STDERR ===$", re.MULTILINE)
 def is_crash_input(p: Path) -> bool:
     """Reject our own artifacts and AFL's README, so `crashes/*` stays usable."""
     return not p.name.endswith((".sol", ".backtrace", ".output")) and p.name != "README.txt"
+
+
+def collect_inputs(paths: list[Path]) -> tuple[list[Path], int]:
+    """Expand any directory argument into the crash files it holds. Returns (inputs, ignored count)."""
+    inputs: list[Path] = []
+    ignored = 0
+    for p in paths:
+        for c in sorted(p.iterdir()) if p.is_dir() else [p]:
+            if p.is_dir() and not c.is_file():
+                continue
+            if is_crash_input(c):
+                inputs.append(c)
+            else:
+                ignored += 1
+    return inputs, ignored
 
 
 def run_limited(cmd, timeout: int, **kwargs) -> subprocess.CompletedProcess:
@@ -132,36 +155,30 @@ def run_gdb(solc: Path, sol_in: Path, timeout: int):
     return (got_signal or got_ice), report, result.stderr
 
 
-def process(crash: Path, dumper: Path, solc: Path, timeout: int) -> bool:
+def process(crash: Path, dumper: Path, solc: Path, timeout: int) -> tuple[bool, str]:
+    """Returns (captured, one-line status). Caller does the printing — this runs on a worker thread."""
     if not crash.is_file():
-        print(f"SKIP: {crash} is not a regular file", file=sys.stderr)
-        return False
+        return False, f"SKIP {crash.name}: not a regular file"
 
     sol_out = Path(str(crash) + ".sol")
     backtrace_out = Path(str(crash) + ".backtrace")
     output_out = Path(str(crash) + ".output")
 
-    print(f"[{crash.name}] dumping -> {sol_out.name}")
     dump_sol(dumper, crash, sol_out, timeout)
     if not sol_out.is_file() or sol_out.stat().st_size == 0:
-        print(f"  ERROR: failed to produce {sol_out.name}", file=sys.stderr)
-        if sol_out.exists():
-            sol_out.unlink()
-        return False
+        sol_out.unlink(missing_ok=True)
+        return False, f"FAIL {crash.name}: could not dump .sol"
 
-    print(f"[{crash.name}] running solc under gdb")
     crashed, report, solc_stderr = run_gdb(solc, sol_out, timeout)
     if not crashed:
-        print(f"  ERROR: {crash.name} did NOT crash solc — discarding artifacts", file=sys.stderr)
         sol_out.unlink(missing_ok=True)
         backtrace_out.unlink(missing_ok=True)
         output_out.unlink(missing_ok=True)
-        return False
+        return False, f"MISS {crash.name}: did not crash solc — artifacts discarded"
 
     backtrace_out.write_text(report)
     output_out.write_text(solc_stderr)
-    print(f"[{crash.name}] crash captured -> {backtrace_out.name}, {output_out.name}")
-    return True
+    return True, f"OK   {crash.name}"
 
 
 def extract_solc_stderr(backtrace_text: str) -> str:
@@ -245,7 +262,9 @@ def summarize(dirs: list[Path]) -> int:
             print(f"  WARN: cannot read {bt.name}: {e}", file=sys.stderr)
             continue
         sig = compute_signature(text)
-        stem = bt.name.removesuffix(".backtrace")
+        # Crash names repeat across fuzzer instances, so keep the path when several dirs are in play.
+        name = bt.name if len(dirs) == 1 else str(bt)
+        stem = name.removesuffix(".backtrace")
         buckets[sig].append(stem)
 
     lines = []
@@ -255,8 +274,11 @@ def summarize(dirs: list[Path]) -> int:
         lines.append("")
         lines.append(f"[{len(members)}] {sig}")
         lines.append(f"    representative: {members[0]}")
-        if len(members) > 1:
-            lines.append(f"    others ({len(members) - 1}): " + ", ".join(members[1:]))
+        others = members[1:MAX_EXAMPLES]
+        if others:
+            hidden = len(members) - 1 - len(others)
+            suffix = f" (+{hidden} more)" if hidden else ""
+            lines.append("    others: " + ", ".join(others) + suffix)
 
     text = "\n".join(lines) + "\n"
     print(text)
@@ -269,13 +291,15 @@ def summarize(dirs: list[Path]) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("crashes", nargs="*",
-                        help="crash input files (or, with --summary-only, directories)")
+                        help="crash input files and/or directories of them")
     parser.add_argument("--dumper", default=str(DEFAULT_DUMPER),
                         help=f"Path to sol_ice_ossfuzz (default: {DEFAULT_DUMPER})")
     parser.add_argument("--solc", default=str(DEFAULT_SOLC),
                         help=f"Path to solc (default: {DEFAULT_SOLC})")
     parser.add_argument("--timeout", type=int, default=120,
                         help="Per-file gdb timeout in seconds (default: 120)")
+    parser.add_argument("-j", "--jobs", type=int, default=DEFAULT_JOBS,
+                        help=f"Crash files to process concurrently (default: {DEFAULT_JOBS})")
     parser.add_argument("--summary-only", action="store_true",
                         help="Skip processing; just summarize existing *.backtrace files in the given dirs (default: cwd)")
     parser.add_argument("--no-summary", action="store_true",
@@ -290,11 +314,9 @@ def main() -> int:
                 return 2
         return summarize(dirs)
 
-    crashes = [Path(c) for c in args.crashes]
-    ignored = [c for c in crashes if not is_crash_input(c)]
-    crashes = [c for c in crashes if is_crash_input(c)]
+    crashes, ignored = collect_inputs([Path(c) for c in args.crashes])
     if ignored:
-        print(f"Ignoring {len(ignored)} non-input file(s) (own output / README)")
+        print(f"Ignoring {ignored} non-input file(s) (own output / README)")
 
     if not crashes:
         print("ERROR: no crash files given (use --summary-only to skip processing)", file=sys.stderr)
@@ -312,12 +334,23 @@ def main() -> int:
     if shutil.which("gdb") is None:
         print("ERROR: gdb not found on PATH", file=sys.stderr)
         return 2
+    if args.jobs < 1:
+        print("ERROR: --jobs must be >= 1", file=sys.stderr)
+        return 2
 
     ok = 0
-    for c in crashes:
-        if process(c, dumper, solc, args.timeout):
-            ok += 1
-    print(f"Processed {ok}/{len(crashes)} crash files")
+    total = len(crashes)
+    print(f"Processing {total} crash files with {args.jobs} thread(s)")
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        futures = {pool.submit(process, c, dumper, solc, args.timeout): c for c in crashes}
+        for n, fut in enumerate(as_completed(futures), 1):
+            try:
+                captured, status = fut.result()
+            except Exception as e:
+                captured, status = False, f"FAIL {futures[fut].name}: {e!r}"
+            ok += captured
+            print(f"[{n}/{total}] {status}", flush=True)
+    print(f"Processed {ok}/{total} crash files")
 
     if not args.no_summary:
         print()

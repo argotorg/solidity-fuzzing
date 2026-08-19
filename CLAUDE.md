@@ -54,7 +54,8 @@ make -j$(nproc)
 - `tools/property/` — fuzztest-based property tests. Two build modes (see top-level `CMakeLists.txt` for the cmake option):
   - **Property mode** (default, `build/` tree, any compiler) — each `FUZZ_TEST` runs as a gtest case with a ~1s random-sampling budget. Useful for CI smoke checks. `--fuzz=...` / `--fuzz_for=...` are no-ops here because the binary lacks coverage instrumentation.
   - **Fuzzing mode** (`build_fuzztest/` tree, clang only) — `cmake -DFUZZTEST_FUZZING_MODE_ENABLED=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..` applies `-fsanitize=fuzzer-no-link` + ASan + coverage flags to the whole tree (yul, solidity submodule, and the property target). The resulting binary supports `--fuzz=<Suite>.<Test> [--fuzz_for=<duration>]` for continuous coverage-guided fuzzing with mutator-driven input generation.
-- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `sol_crash_backtrace.py`, `check_diversity_and_errors.sh`).
+- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `check_diversity_and_errors.sh`). Crash-corpus categorizers live at the repo root: `yul_crash_categorizer.py`, `sol_ice_crash_backtrace_categorizer.py`.
+- Root `run_*.py` + `sol_ice_crash_backtrace_categorizer.py` — crash/hang replay drivers over a findings dir: `run_sol_crashes.py` (differential sol+yul fuzzers, via the debug runners), `run_ice_crashes.py` and `sol_ice_crash_backtrace_categorizer.py` (both replay `sol_ice_ossfuzz` crashes through solc+gdb and bucket by backtrace signature), `run_afl_crashes.py`, `run_afl_hangs.py`, `rerender_afl_hangs.py`.
 - `tools/shuffler-fuzzer/` — standalone `stackshuffler` CLI.
 - `tools/afl/` — AFL-specific harnesses.
 - `cmake/` — overrides for `fmtlib`, `nlohmann-json`, `range-v3`, submodules. Prepended to `CMAKE_MODULE_PATH` because solidity's cmake modules use `CMAKE_SOURCE_DIR`, which points at *us* when built as a subdir.

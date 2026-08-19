@@ -86,6 +86,15 @@ tools/ossfuzz/symbolize_asan.sh findings_asan_*/asan.*
 See [tools/ossfuzz](tools/ossfuzz/README.md) and
 [tools/afl](tools/afl/README.md) for the fuzzer lists, reproduction, and triage.
 
+## Triage
+
+```bash
+# yul: group a crash corpus by harness assertion + normalized-source shape
+./yul_crash_categorizer.py results/639-yul_proto_ossfuzz_evmone_ssacfg/findings
+# sol ICE: gdb-backtrace each crash and group by throw site
+./sol_ice_crash_backtrace_categorizer.py results/643-sol_ice_ossfuzz/findings
+```
+
 
 ### AFL diff-runner regression tests
 
