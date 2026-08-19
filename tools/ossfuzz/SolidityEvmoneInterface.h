@@ -40,6 +40,11 @@ struct CompilerOutput
 	/// Used by the differential harnesses to mask internal-function-pointer
 	/// bytes that legitimately differ across optimiser/codegen configs.
 	Json storageLayout;
+	/// Storage layout of *every* contract in the compilation unit, keyed by
+	/// keccak256 of its runtime bytecode. Lets the differential harnesses find
+	/// the right layout for contracts the main one deploys via `new`, which
+	/// need masking just as much as the main contract itself.
+	std::map<util::h256, Json> storageLayoutByRuntimeCode;
 };
 
 struct CompilerInput

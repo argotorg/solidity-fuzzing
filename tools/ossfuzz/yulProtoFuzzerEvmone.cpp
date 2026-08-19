@@ -392,13 +392,9 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	// Compare output, logs, and storage when both succeeded
 	if (runA.result.status_code == EVMC_SUCCESS && runB.result.status_code == EVMC_SUCCESS)
 	{
+		solAssert(outputEqual(runA, runB), modeLabel + " output differs");
 		solAssert(
-			runA.result.output_size == runB.result.output_size &&
-			std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-			modeLabel + " output differs"
-		);
-		solAssert(
-			logsEqual(runA.logs, runB.logs),
+			logsEqual(runA.logs, runA.contractCreationOrder, runB.logs, runB.contractCreationOrder),
 			modeLabel + " logs differ"
 		);
 		// No internal-function-pointer mask here: Yul has no Solidity-style
@@ -416,11 +412,5 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 
 	// Compare revert data when both reverted
 	if (runA.result.status_code == EVMC_REVERT && runB.result.status_code == EVMC_REVERT)
-	{
-		solAssert(
-			runA.result.output_size == runB.result.output_size &&
-			std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-			modeLabel + " revert data differs"
-		);
-	}
+		solAssert(outputEqual(runA, runB), modeLabel + " revert data differs");
 }

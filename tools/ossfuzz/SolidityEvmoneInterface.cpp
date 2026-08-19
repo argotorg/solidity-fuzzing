@@ -63,7 +63,15 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 		evmasm::LinkerObject obj = m_compiler.object(contractName);
 		Json methodIdentifiers = m_compiler.interfaceSymbols(contractName)["methods"];
 		Json storageLayout = m_compiler.storageLayout(contractName);
-		return CompilerOutput{obj.bytecode, methodIdentifiers, storageLayout};
+
+		std::map<util::h256, Json> layoutByRuntimeCode;
+		for (std::string const& name: m_compiler.contractNames())
+		{
+			solidity::bytes const& runtimeCode = m_compiler.runtimeObject(name).bytecode;
+			if (!runtimeCode.empty())
+				layoutByRuntimeCode.emplace(util::keccak256(runtimeCode), m_compiler.storageLayout(name));
+		}
+		return CompilerOutput{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
 	}
 }
 

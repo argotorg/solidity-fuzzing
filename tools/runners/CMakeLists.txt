@@ -2,6 +2,7 @@ add_executable(sol_debug_runner
     sol_debug_runner.cpp
     ${EVMHOST_CPP}
     ../ossfuzz/SolidityEvmoneInterface.cpp
+    ../ossfuzz/FuzzerDiffCommon.cpp
 )
 target_link_libraries(sol_debug_runner PRIVATE evmc solidity libsolc Boost::boost Boost::program_options)
 

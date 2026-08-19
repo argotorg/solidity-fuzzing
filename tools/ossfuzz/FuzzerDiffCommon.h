@@ -28,6 +28,7 @@
 #include <tools/common/EVMHost.h>
 
 #include <libsolidity/interface/OptimiserSettings.h>
+#include <libsolutil/FixedHash.h>
 #include <libsolutil/JSON.h>
 
 #include <test/evmc/mocked_host.hpp>
@@ -56,19 +57,47 @@ struct RunResult
 	std::map<evmc::address, TransientStorageMap> transientStorage;
 	/// Contract creation order: addresses in the order they were deployed (CREATE/CREATE2).
 	std::vector<evmc::address> contractCreationOrder;
-	/// solc storage-layout JSON for the *main* compiled contract (the one
-	/// at contractCreationOrder[0]). Used to mask internal-function-pointer
-	/// fields whose encoding is not portable across optimiser/codegen modes.
-	/// Empty if compilation didn't run or the layout was unavailable.
-	solidity::Json mainContractStorageLayout;
+	/// solc storage-layout JSON for every contract in the compilation unit,
+	/// keyed by keccak256 of its runtime bytecode. Used to mask internal-
+	/// function-pointer fields whose encoding is not portable across
+	/// optimiser/codegen modes. Empty if compilation didn't run.
+	std::map<solidity::util::h256, solidity::Json> storageLayouts;
+	/// keccak256 of the deployed runtime code of every account that holds
+	/// storage, so each account can be matched to its layout above.
+	std::map<evmc::address, solidity::util::h256> accountCodeHashes;
 };
+
+/// Replace every occurrence of a deployed contract address with a placeholder
+/// derived from its index in @p _creationOrder. A CREATE2 address depends on
+/// the init code hash, so a contract that returns or logs `address(new X{salt:
+/// ...}())` produces different bytes under every optimiser/codegen config even
+/// though nothing is wrong. Storage accounts are already matched by creation
+/// order; this does the same for addresses embedded *inside* compared bytes.
+solidity::bytes normalizeCreatedAddresses(
+	uint8_t const* _data,
+	size_t _size,
+	std::vector<evmc::address> const& _creationOrder
+);
+
+/// Compare two byte strings, normalizing deployed contract addresses first
+/// (see normalizeCreatedAddresses).
+bool outputEqual(
+	uint8_t const* _dataA, size_t _sizeA, std::vector<evmc::address> const& _creationOrderA,
+	uint8_t const* _dataB, size_t _sizeB, std::vector<evmc::address> const& _creationOrderB
+);
+
+/// Compare the return/revert data of two runs.
+bool outputEqual(RunResult const& _a, RunResult const& _b);
 
 /// Compare two log records for equality (ignoring creator address,
 /// which differs across optimization levels because different bytecodes
-/// produce different CREATE/CREATE2 addresses).
+/// produce different CREATE/CREATE2 addresses). Deployed contract addresses
+/// inside the log data are normalized by creation order.
 bool logsEqual(
 	std::vector<evmc::MockedHost::log_record> const& _a,
-	std::vector<evmc::MockedHost::log_record> const& _b
+	std::vector<evmc::address> const& _creationOrderA,
+	std::vector<evmc::MockedHost::log_record> const& _b,
+	std::vector<evmc::address> const& _creationOrderB
 );
 
 /// Filter out storage entries where current value is zero.
@@ -85,7 +114,8 @@ std::map<evmc::address, TransientStorageMap> filterZeroTransientStorage(
 
 /// Build a map from creation-order index to non-zero storage content.
 /// Accounts not found in creationOrder (e.g. precompiles, sender) are
-/// assigned indices starting after the last creation-order entry.
+/// assigned indices starting after the last creation-order entry. Deployed
+/// contract addresses stored inside slot values are normalized too.
 std::map<size_t, StorageMap> normalizeStorageByCreationOrder(
 	std::map<evmc::address, StorageMap> const& _storage,
 	std::vector<evmc::address> const& _creationOrder
@@ -155,14 +185,13 @@ struct StorageMaskResult
 /// and emit a mask range for every internal-function-pointer field. Covers
 /// inplace storage (top-level state vars, struct members, struct-of-struct,
 /// inplace static arrays) and dynamic arrays: for the latter the runtime
-/// length is read from @p _storage at the main contract (the account at
-/// @p _creationOrder.front()) and the data slot is derived via keccak256.
+/// length is read from @p _accountStorage — the storage of the very account
+/// this layout describes — and the data slot is derived via keccak256.
 /// Mappings cannot be enumerated — if an internal fp is reachable through one,
 /// the result is flagged @a unmaskable.
 StorageMaskResult internalFunctionPointerMasks(
 	solidity::Json const& _storageLayout,
-	std::map<evmc::address, StorageMap> const& _storage,
-	std::vector<evmc::address> const& _creationOrder
+	StorageMap const& _accountStorage
 );
 
 /// Apply @p _masks to the storage at @p _address in @p _storage: zero out the
@@ -174,6 +203,20 @@ void applyStorageMasks(
 	std::map<evmc::address, StorageMap>& _storage,
 	evmc::address const& _address,
 	std::vector<StorageSlotMask> const& _masks
+);
+
+/// Mask internal-function-pointer bytes in @p _storage for *every* account,
+/// not just the main contract: a contract deployed via `new` carries the same
+/// non-portable encoding and needs the same treatment. Each account is matched
+/// to its layout through the keccak256 of its deployed runtime code.
+/// @returns false when some internal fp could not be masked — an account whose
+/// code we cannot match to a layout, or a fp reachable only through a mapping
+/// or an implausibly long array. The caller should then skip the storage
+/// comparison entirely rather than report a false positive.
+bool maskInternalFunctionPointers(
+	std::map<evmc::address, StorageMap>& _storage,
+	std::map<solidity::util::h256, solidity::Json> const& _layoutByRuntimeCode,
+	std::map<evmc::address, solidity::util::h256> const& _accountCodeHashes
 );
 
 }

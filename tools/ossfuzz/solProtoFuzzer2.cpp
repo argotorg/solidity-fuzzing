@@ -146,15 +146,20 @@ static RunResult runOnce(
 
 	std::vector<evmc::address> contractCreationOrder = hostContext.m_contractCreationOrder;
 
-	// Storage layout for the main contract — used by the diff check below to
-	// mask internal-function-pointer bytes (legacy stores PCs, IR stores IDs;
-	// see TODO.md → "differential storage compare must mask internal-function-
-	// pointer slots").
-	Json storageLayout;
-	if (auto const& mainOut = evmoneUtil.mainContractOutput(); mainOut.has_value())
-		storageLayout = mainOut->storageLayout;
+	std::map<evmc::address, h256> accountCodeHashes;
+	for (auto const& [addr, account] : hostContext.accounts)
+		if (!account.code.empty())
+			accountCodeHashes[addr] = keccak256(bytes(account.code.begin(), account.code.end()));
 
-	return RunResult{std::move(result), subCallOOG, std::move(logs), std::move(storage), std::move(transientStorage), std::move(contractCreationOrder), std::move(storageLayout)};
+	// Storage layouts for every contract in the unit — used by the diff check
+	// below to mask internal-function-pointer bytes (legacy stores PCs, IR
+	// stores IDs; see TODO.md → "differential storage compare must mask
+	// internal-function-pointer slots").
+	std::map<h256, Json> storageLayouts;
+	if (auto const& mainOut = evmoneUtil.mainContractOutput(); mainOut.has_value())
+		storageLayouts = mainOut->storageLayoutByRuntimeCode;
+
+	return RunResult{std::move(result), subCallOOG, std::move(logs), std::move(storage), std::move(transientStorage), std::move(contractCreationOrder), std::move(storageLayouts), std::move(accountCodeHashes)};
 }
 
 DEFINE_PROTO_FUZZER(Program const& _input)
@@ -285,32 +290,24 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		// Compare output/logs/storage when both succeeded
 		if (runA.result.status_code == EVMC_SUCCESS && runB.result.status_code == EVMC_SUCCESS)
 		{
+			solAssert(outputEqual(runA, runB), modeLabel + ": output differs");
 			solAssert(
-				runA.result.output_size == runB.result.output_size &&
-				std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-				modeLabel + ": output differs"
-			);
-			solAssert(
-				logsEqual(runA.logs, runB.logs),
+				logsEqual(runA.logs, runA.contractCreationOrder, runB.logs, runB.contractCreationOrder),
 				modeLabel + ": logs differ"
 			);
 			// Internal function pointers don't have a portable storage encoding
 			// (legacy: code offsets, IR: function IDs; offsets also shift with
-			// the optimiser). Mask those bytes before comparing. Masks are
-			// computed per run because dynamic-array masks depend on the array
-			// length read from that run's storage. If an internal fp is
-			// reachable only through a mapping (unenumerable keys), skip the
-			// storage comparison rather than risk a false positive.
-			auto fpMasksA = internalFunctionPointerMasks(
-				runA.mainContractStorageLayout, runA.storage, runA.contractCreationOrder);
-			auto fpMasksB = internalFunctionPointerMasks(
-				runB.mainContractStorageLayout, runB.storage, runB.contractCreationOrder);
-			if (!fpMasksA.unmaskable && !fpMasksB.unmaskable)
+			// the optimiser). Mask those bytes before comparing, in every
+			// deployed account. Masks are computed per run and per account
+			// because dynamic-array masks depend on the array length read from
+			// that account's storage. If an internal fp cannot be masked, skip
+			// the storage comparison rather than risk a false positive.
+			bool maskedA = maskInternalFunctionPointers(
+				runA.storage, runA.storageLayouts, runA.accountCodeHashes);
+			bool maskedB = maskInternalFunctionPointers(
+				runB.storage, runB.storageLayouts, runB.accountCodeHashes);
+			if (maskedA && maskedB)
 			{
-				if (!runA.contractCreationOrder.empty())
-					applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasksA.masks);
-				if (!runB.contractCreationOrder.empty())
-					applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasksB.masks);
 				solAssert(
 					storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
 					modeLabel + ": storage differs"
@@ -324,12 +321,6 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 
 		// Compare revert data when both reverted
 		if (runA.result.status_code == EVMC_REVERT && runB.result.status_code == EVMC_REVERT)
-		{
-			solAssert(
-				runA.result.output_size == runB.result.output_size &&
-				std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-				modeLabel + ": revert data differs"
-			);
-		}
+			solAssert(outputEqual(runA, runB), modeLabel + ": revert data differs");
 	}
 }

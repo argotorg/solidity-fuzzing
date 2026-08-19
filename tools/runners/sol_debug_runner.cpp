@@ -29,6 +29,7 @@
  * on a contract called `C`.
  */
 
+#include <tools/ossfuzz/FuzzerDiffCommon.h>
 #include <tools/ossfuzz/SolidityEvmoneInterface.h>
 #include <tools/common/EVMHost.h>
 
@@ -73,10 +74,8 @@ static constexpr char const* RESET = "\033[0m";
 
 static constexpr int64_t s_gasLimit = 1000000;
 
-using TransientStorageMap = std::unordered_map<evmc::bytes32, evmc::bytes32>;
-
 /// Result of a single compile-deploy-execute run.
-struct RunResult
+struct ConfigRunResult
 {
 	bool compilationFailed = false;
 	bool internalError = false;  // Internal compiler error (assertion failure, etc.)
@@ -93,9 +92,11 @@ struct RunResult
 	/// Contract creation order: addresses in the order they were deployed (CREATE/CREATE2).
 	/// Index 0 is the main "C" contract, index 1+ are sub-contracts deployed during execution.
 	std::vector<evmc::address> contractCreationOrder;
-	/// Storage layout for the main contract — used to mask internal-function-
-	/// pointer fields in the differential check (see TODO.md).
-	Json mainContractStorageLayout;
+	/// Storage layout of every contract in the unit, keyed by keccak256 of its
+	/// runtime bytecode, plus the code hash of each account that has one — used
+	/// to mask internal-function-pointer fields in the differential check.
+	std::map<h256, Json> storageLayouts;
+	std::map<evmc::address, h256> accountCodeHashes;
 };
 
 static std::string statusCodeToString(evmc_status_code _code)
@@ -220,7 +221,7 @@ static void printOptimizerSequences(
 	_out << std::endl;
 }
 
-static RunResult runOnce(
+static ConfigRunResult runOnce(
 	evmc::VM& _vm,
 	EVMVersion _version,
 	StringMap const& _source,
@@ -232,7 +233,7 @@ static RunResult runOnce(
 	bool _quiet = false
 )
 {
-	RunResult result;
+	ConfigRunResult result;
 	EVMHost hostContext(_version, _vm);
 	// Give the sender initial balance (matching fuzzer)
 	hostContext.accounts[hostContext.tx_context.tx_origin].set_balance(0xffffffff);
@@ -265,7 +266,7 @@ static RunResult runOnce(
 		if (compOutput.has_value() && !compOutput->byteCode.empty())
 		{
 			result.bytecode = compOutput->byteCode;
-			result.mainContractStorageLayout = compOutput->storageLayout;
+			result.storageLayouts = compOutput->storageLayoutByRuntimeCode;
 			actualContractName = contractName.empty()
 				? compiler.lastContractName()
 				: contractName;
@@ -343,413 +344,14 @@ static RunResult runOnce(
 	// Capture contract creation order
 	result.contractCreationOrder = hostContext.m_contractCreationOrder;
 
+	for (auto const& [addr, account] : hostContext.accounts)
+		if (!account.code.empty())
+			result.accountCodeHashes[addr] = keccak256(bytes(account.code.begin(), account.code.end()));
+
 	return result;
 }
 
-/// Compare logs ignoring creator address (which differs across optimization
-/// levels because different bytecodes produce different CREATE/CREATE2 addresses).
-static bool logsEqual(
-	std::vector<evmc::MockedHost::log_record> const& _a,
-	std::vector<evmc::MockedHost::log_record> const& _b
-)
-{
-	if (_a.size() != _b.size())
-		return false;
-	for (size_t i = 0; i < _a.size(); i++)
-		if (_a[i].data != _b[i].data || _a[i].topics != _b[i].topics)
-			return false;
-	return true;
-}
-
-/// Filter out storage entries where current value is zero.
-/// In the EVM, an unwritten slot reads as zero, so a slot explicitly
-/// set to zero is semantically identical to one that was never written.
-static std::map<evmc::address, StorageMap> filterZeroStorage(
-	std::map<evmc::address, StorageMap> const& _storage
-)
-{
-	static constexpr evmc::bytes32 zero{};
-	std::map<evmc::address, StorageMap> filtered;
-	for (auto const& [addr, storageMap] : _storage)
-	{
-		StorageMap nonZero;
-		for (auto const& [key, val] : storageMap)
-			if (val.current != zero)
-				nonZero[key] = val;
-		if (!nonZero.empty())
-			filtered[addr] = std::move(nonZero);
-	}
-	return filtered;
-}
-
-/// Build a map from creation-order index to non-zero storage content.
-/// Addresses that don't appear in creationOrder (e.g. precompiles, sender) are
-/// assigned indices starting after the last creation-order entry.
-static std::map<size_t, StorageMap> normalizeStorageByCreationOrder(
-	std::map<evmc::address, StorageMap> const& _storage,
-	std::vector<evmc::address> const& _creationOrder
-)
-{
-	auto filtered = filterZeroStorage(_storage);
-	std::map<size_t, StorageMap> result;
-	size_t unknownIdx = _creationOrder.size();
-	for (auto const& [addr, storageMap] : filtered)
-	{
-		auto it = std::find(_creationOrder.begin(), _creationOrder.end(), addr);
-		size_t idx = (it != _creationOrder.end())
-			? static_cast<size_t>(std::distance(_creationOrder.begin(), it))
-			: unknownIdx++;
-		result[idx] = storageMap;
-	}
-	return result;
-}
-
-/// Compare storage maps for equality (comparing current values only).
-/// Accounts are matched by CONTRACT CREATION ORDER (not by address), so that
-/// different bytecodes producing different CREATE/CREATE2 addresses don't cause
-/// false positives. Slots with value zero are filtered out (equivalent to unwritten).
-static bool storageEqual(
-	std::map<evmc::address, StorageMap> const& _a,
-	std::vector<evmc::address> const& _creationOrderA,
-	std::map<evmc::address, StorageMap> const& _b,
-	std::vector<evmc::address> const& _creationOrderB
-)
-{
-	auto normA = normalizeStorageByCreationOrder(_a, _creationOrderA);
-	auto normB = normalizeStorageByCreationOrder(_b, _creationOrderB);
-	if (normA.size() != normB.size())
-		return false;
-	for (auto const& [idx, storageA] : normA)
-	{
-		auto jt = normB.find(idx);
-		if (jt == normB.end())
-			return false;
-		auto const& storageB = jt->second;
-		if (storageA.size() != storageB.size())
-			return false;
-		for (auto const& [key, valA] : storageA)
-		{
-			auto kt = storageB.find(key);
-			if (kt == storageB.end())
-				return false;
-			if (valA.current != kt->second.current)
-				return false;
-		}
-	}
-	return true;
-}
-
-/// Byte range within a single slot to ignore when comparing storage. Used
-/// for internal-function-pointer fields whose encoding is not portable
-/// across optimiser/codegen configs. Duplicated locally to keep this runner
-/// self-contained — see equivalent helpers in tools/ossfuzz/FuzzerDiffCommon
-/// (the runner avoids including that header to keep its own RunResult and
-/// duplicated storageEqual independent). Keep the two copies in sync.
-struct StorageSlotMask
-{
-	u256 slot;
-	unsigned offset;  ///< 0..31, byte offset within the slot
-	unsigned length;  ///< number of bytes to mask
-};
-
-/// Result of analysing a storage layout: byte ranges to zero before comparison,
-/// plus a flag set when an internal fp is reachable only through storage we
-/// cannot address (a mapping value, or an implausibly long dynamic array).
-struct StorageMaskResult
-{
-	std::vector<StorageSlotMask> masks;
-	bool unmaskable = false;
-};
-
-namespace
-{
-constexpr char const kInternalFunctionPrefix[] = "t_function_internal_";
-constexpr uint64_t kMaxMaskedArrayElements = 4096;
-constexpr unsigned kMaxWalkDepth = 64;
-
-bool isInternalFunctionType(std::string const& _typeKey)
-{
-	return _typeKey.compare(0, sizeof(kInternalFunctionPrefix) - 1, kInternalFunctionPrefix) == 0;
-}
-
-unsigned typeNumberOfBytes(Json const& _types, std::string const& _typeKey)
-{
-	if (auto it = _types.find(_typeKey); it != _types.end())
-		if (auto nb = it->find("numberOfBytes"); nb != it->end() && nb->is_string())
-			return static_cast<unsigned>(std::stoul(nb->get<std::string>()));
-	return 0;
-}
-
-/// Does @p _typeKey contain an internal-function-pointer anywhere in its tree?
-bool typeContainsInternalFunction(Json const& _types, std::string const& _typeKey, unsigned _depth = 0)
-{
-	if (isInternalFunctionType(_typeKey))
-		return true;
-	if (_depth > kMaxWalkDepth)
-		return false;
-	auto it = _types.find(_typeKey);
-	if (it == _types.end())
-		return false;
-	if (auto base = it->find("base"); base != it->end() && base->is_string())
-		if (typeContainsInternalFunction(_types, base->get<std::string>(), _depth + 1))
-			return true;
-	if (auto value = it->find("value"); value != it->end() && value->is_string())
-		if (typeContainsInternalFunction(_types, value->get<std::string>(), _depth + 1))
-			return true;
-	if (auto members = it->find("members"); members != it->end() && members->is_array())
-		for (auto const& m: *members)
-			if (typeContainsInternalFunction(_types, m.at("type").get<std::string>(), _depth + 1))
-				return true;
-	return false;
-}
-
-struct WalkContext
-{
-	Json const& types;
-	StorageMap const& storage;
-	std::vector<StorageSlotMask>& out;
-	bool& unmaskable;
-};
-
-u256 readArrayLength(StorageMap const& _storage, u256 const& _slot)
-{
-	evmc::bytes32 key = EVMHost::convertToEVMC(h256(_slot));
-	auto it = _storage.find(key);
-	if (it == _storage.end())
-		return 0;
-	return u256(EVMHost::convertFromEVMC(it->second.current));
-}
-
-void walkLayoutType(WalkContext& _ctx, std::string const& _typeKey, u256 const& _slot, unsigned _offset, unsigned _depth);
-
-void walkArrayElements(
-	WalkContext& _ctx,
-	std::string const& _elemTypeKey,
-	u256 const& _dataSlot,
-	uint64_t _count,
-	unsigned _depth
-)
-{
-	unsigned elemBytes = typeNumberOfBytes(_ctx.types, _elemTypeKey);
-	if (elemBytes == 0 || elemBytes > 32)
-		return;
-	if (elemBytes <= 16)
-	{
-		unsigned perSlot = 32u / elemBytes;
-		for (uint64_t i = 0; i < _count; ++i)
-			walkLayoutType(
-				_ctx,
-				_elemTypeKey,
-				_dataSlot + (i / perSlot),
-				static_cast<unsigned>((i % perSlot) * elemBytes),
-				_depth + 1
-			);
-	}
-	else
-		for (uint64_t i = 0; i < _count; ++i)
-			walkLayoutType(_ctx, _elemTypeKey, _dataSlot + i, 0, _depth + 1);
-}
-
-void walkLayoutType(WalkContext& _ctx, std::string const& _typeKey, u256 const& _slot, unsigned _offset, unsigned _depth)
-{
-	if (_depth > kMaxWalkDepth)
-		return;
-
-	if (isInternalFunctionType(_typeKey))
-	{
-		unsigned length = typeNumberOfBytes(_ctx.types, _typeKey);
-		if (length == 0)
-			length = 8;
-		_ctx.out.push_back({_slot, _offset, length});
-		return;
-	}
-
-	auto typeIt = _ctx.types.find(_typeKey);
-	if (typeIt == _ctx.types.end())
-		return;
-	Json const& typeInfo = *typeIt;
-
-	auto encIt = typeInfo.find("encoding");
-	std::string encoding =
-		(encIt != typeInfo.end() && encIt->is_string()) ? encIt->get<std::string>() : std::string{};
-
-	if (encoding == "mapping")
-	{
-		// Mapping values live at keccak(key . slot) — runtime keys unknown.
-		if (auto v = typeInfo.find("value"); v != typeInfo.end() && v->is_string())
-			if (typeContainsInternalFunction(_ctx.types, v->get<std::string>()))
-				_ctx.unmaskable = true;
-		return;
-	}
-
-	if (encoding == "bytes")
-		return;
-
-	if (encoding == "dynamic_array")
-	{
-		auto baseIt = typeInfo.find("base");
-		if (baseIt == typeInfo.end() || !baseIt->is_string())
-			return;
-		std::string baseKey = baseIt->get<std::string>();
-		if (!typeContainsInternalFunction(_ctx.types, baseKey))
-			return;
-		u256 len = readArrayLength(_ctx.storage, _slot);
-		if (len > kMaxMaskedArrayElements)
-		{
-			_ctx.unmaskable = true;
-			return;
-		}
-		// Element data lives at keccak256 of the big-endian 32-byte slot number.
-		u256 dataSlot(keccak256(h256(_slot)));
-		walkArrayElements(_ctx, baseKey, dataSlot, static_cast<uint64_t>(len), _depth);
-		return;
-	}
-
-	// encoding == "inplace" (or unspecified): struct, static array, or value.
-	if (auto membersIt = typeInfo.find("members"); membersIt != typeInfo.end() && membersIt->is_array())
-	{
-		for (auto const& member: *membersIt)
-		{
-			std::string mTypeKey = member.at("type").get<std::string>();
-			u256 mSlotRel(member.at("slot").get<std::string>());
-			unsigned mOffset = member.at("offset").get<unsigned>();
-			walkLayoutType(_ctx, mTypeKey, _slot + mSlotRel, mOffset, _depth + 1);
-		}
-		return;
-	}
-
-	if (auto baseIt = typeInfo.find("base"); baseIt != typeInfo.end() && baseIt->is_string())
-	{
-		// Inplace static array; begins at offset 0 of its own slot. Over-count
-		// from arrayBytes/elemBytes only masks guaranteed-zero trailing padding.
-		std::string baseKey = baseIt->get<std::string>();
-		if (!typeContainsInternalFunction(_ctx.types, baseKey))
-			return;
-		unsigned arrayBytes = typeNumberOfBytes(_ctx.types, _typeKey);
-		unsigned elemBytes = typeNumberOfBytes(_ctx.types, baseKey);
-		if (arrayBytes == 0 || elemBytes == 0)
-			return;
-		walkArrayElements(_ctx, baseKey, _slot, arrayBytes / elemBytes, _depth);
-		return;
-	}
-}
-}
-
-static StorageMaskResult internalFunctionPointerMasks(
-	Json const& _layout,
-	std::map<evmc::address, StorageMap> const& _storage,
-	std::vector<evmc::address> const& _creationOrder
-)
-{
-	StorageMaskResult result;
-	if (!_layout.is_object())
-		return result;
-	auto storageIt = _layout.find("storage");
-	auto typesIt = _layout.find("types");
-	if (storageIt == _layout.end() || !storageIt->is_array() ||
-		typesIt == _layout.end() || !typesIt->is_object())
-		return result;
-
-	static StorageMap const emptyStorage;
-	StorageMap const* mainStorage = &emptyStorage;
-	if (!_creationOrder.empty())
-		if (auto it = _storage.find(_creationOrder.front()); it != _storage.end())
-			mainStorage = &it->second;
-
-	WalkContext ctx{*typesIt, *mainStorage, result.masks, result.unmaskable};
-	for (auto const& var: *storageIt)
-	{
-		std::string typeKey = var.at("type").get<std::string>();
-		u256 slot(var.at("slot").get<std::string>());
-		unsigned offset = var.at("offset").get<unsigned>();
-		walkLayoutType(ctx, typeKey, slot, offset, 0);
-	}
-	return result;
-}
-
-static void applyStorageMasks(
-	std::map<evmc::address, StorageMap>& _storage,
-	evmc::address const& _address,
-	std::vector<StorageSlotMask> const& _masks
-)
-{
-	if (_masks.empty())
-		return;
-	auto accIt = _storage.find(_address);
-	if (accIt == _storage.end())
-		return;
-	StorageMap& slots = accIt->second;
-	static constexpr evmc::bytes32 zero{};
-	for (auto const& mask: _masks)
-	{
-		if (mask.length == 0 || mask.length > 32 || mask.offset >= 32 || mask.offset + mask.length > 32)
-			continue;
-		// First item in a slot is stored lower-order aligned; in big-endian
-		// bytes32 layout the byte at offset O is at index 31-O.
-		evmc::bytes32 key = EVMHost::convertToEVMC(h256(mask.slot));
-		auto slotIt = slots.find(key);
-		if (slotIt == slots.end())
-			continue;
-		evmc::bytes32& current = slotIt->second.current;
-		unsigned const hi = 32 - mask.offset;
-		unsigned const lo = hi - mask.length;
-		for (unsigned i = lo; i < hi; ++i)
-			current.bytes[i] = 0;
-		if (current == zero)
-			slots.erase(slotIt);
-	}
-}
-
-/// Filter out transient storage entries where value is zero.
-static std::map<evmc::address, TransientStorageMap> filterZeroTransientStorage(
-	std::map<evmc::address, TransientStorageMap> const& _storage
-)
-{
-	static constexpr evmc::bytes32 zero{};
-	std::map<evmc::address, TransientStorageMap> filtered;
-	for (auto const& [addr, storageMap] : _storage)
-	{
-		TransientStorageMap nonZero;
-		for (auto const& [key, val] : storageMap)
-			if (val != zero)
-				nonZero[key] = val;
-		if (!nonZero.empty())
-			filtered[addr] = std::move(nonZero);
-	}
-	return filtered;
-}
-
-/// Compare transient storage maps positionally.
-static bool transientStorageEqual(
-	std::map<evmc::address, TransientStorageMap> const& _a,
-	std::map<evmc::address, TransientStorageMap> const& _b
-)
-{
-	auto filtA = filterZeroTransientStorage(_a);
-	auto filtB = filterZeroTransientStorage(_b);
-	if (filtA.size() != filtB.size())
-		return false;
-	auto itA = filtA.begin();
-	auto itB = filtB.begin();
-	for (; itA != filtA.end(); ++itA, ++itB)
-	{
-		auto const& storageA = itA->second;
-		auto const& storageB = itB->second;
-		if (storageA.size() != storageB.size())
-			return false;
-		for (auto const& [key, valA] : storageA)
-		{
-			auto jt = storageB.find(key);
-			if (jt == storageB.end())
-				return false;
-			if (valA != jt->second)
-				return false;
-		}
-	}
-	return true;
-}
-
-static void printRunResult(std::string const& _label, RunResult const& _run, std::ostream& _out)
+static void printRunResult(std::string const& _label, ConfigRunResult const& _run, std::ostream& _out)
 {
 	_out << YELLOW << "=== " << _label << " ===" << RESET << std::endl;
 
@@ -800,9 +402,9 @@ static void printRunResult(std::string const& _label, RunResult const& _run, std
 /// @returns true if a mismatch was found.
 static bool compareRuns(
 	std::string const& _labelA,
-	RunResult const& _a,
+	ConfigRunResult const& _a,
 	std::string const& _labelB,
-	RunResult const& _b,
+	ConfigRunResult const& _b,
 	bool _quiet = false
 )
 {
@@ -842,40 +444,36 @@ static bool compareRuns(
 
 	if (_a.statusCode == EVMC_SUCCESS && _b.statusCode == EVMC_SUCCESS)
 	{
-		// Output
-		bool outputMatch = (_a.output.size() == _b.output.size() &&
-			std::memcmp(_a.output.data(), _b.output.data(), _a.output.size()) == 0);
+		// Output and logs, with deployed-contract addresses normalized by
+		// creation order (a CREATE2 address depends on the init code, so it
+		// legitimately differs across configs).
+		bool outputMatch = outputEqual(
+			_a.output.data(), _a.output.size(), _a.contractCreationOrder,
+			_b.output.data(), _b.output.size(), _b.contractCreationOrder
+		);
 		if (!gasRelated && !outputMatch) mismatch = true;
 
-		// Logs
-		bool logsMatch = logsEqual(_a.logs, _b.logs);
+		bool logsMatch = logsEqual(_a.logs, _a.contractCreationOrder, _b.logs, _b.contractCreationOrder);
 		if (!gasRelated && !logsMatch) mismatch = true;
 
 		// Storage (compare by creation order to handle differing CREATE2 addresses).
 		// Mask internal-function-pointer bytes first — their encoding is not
 		// portable across optimiser/codegen modes (see TODO.md). Masks are
-		// computed per run because dynamic-array masks depend on the array
-		// length read from that run's storage.
+		// computed per run and per account because dynamic-array masks depend
+		// on the array length read from that account's storage.
 		auto storageA = _a.storage;
 		auto storageB = _b.storage;
-		auto fpMasksA = internalFunctionPointerMasks(_a.mainContractStorageLayout, _a.storage, _a.contractCreationOrder);
-		auto fpMasksB = internalFunctionPointerMasks(_b.mainContractStorageLayout, _b.storage, _b.contractCreationOrder);
-		// If an internal fp is reachable only through a mapping (unenumerable
-		// keys), the storage comparison is unreliable — skip it (treat as match).
-		bool storageUnmaskable = fpMasksA.unmaskable || fpMasksB.unmaskable;
-		bool storageMatch = true;
-		if (!storageUnmaskable)
-		{
-			if (!_a.contractCreationOrder.empty())
-				applyStorageMasks(storageA, _a.contractCreationOrder.front(), fpMasksA.masks);
-			if (!_b.contractCreationOrder.empty())
-				applyStorageMasks(storageB, _b.contractCreationOrder.front(), fpMasksB.masks);
-			storageMatch = storageEqual(storageA, _a.contractCreationOrder, storageB, _b.contractCreationOrder);
-		}
+		bool storageUnmaskable =
+			!maskInternalFunctionPointers(storageA, _a.storageLayouts, _a.accountCodeHashes) ||
+			!maskInternalFunctionPointers(storageB, _b.storageLayouts, _b.accountCodeHashes);
+		bool storageMatch = storageUnmaskable
+			|| storageEqual(storageA, _a.contractCreationOrder, storageB, _b.contractCreationOrder);
 		if (!gasRelated && !storageMatch) mismatch = true;
 
-		// Transient storage
-		bool transientMatch = transientStorageEqual(_a.transientStorage, _b.transientStorage);
+		bool transientMatch = transientStorageEqual(
+			_a.transientStorage, _a.contractCreationOrder,
+			_b.transientStorage, _b.contractCreationOrder
+		);
 		if (!gasRelated && !transientMatch) mismatch = true;
 
 		if (!_quiet)
@@ -884,7 +482,7 @@ static bool compareRuns(
 			std::cout << "  Logs:      " << (gasRelated ? OOG_STR : matchStr(logsMatch)) << std::endl;
 			std::cout << "  Storage:   "
 				<< (gasRelated ? OOG_STR
-					: storageUnmaskable ? "SKIPPED (internal fp via mapping)"
+					: storageUnmaskable ? "SKIPPED (unmaskable internal fp)"
 					: matchStr(storageMatch)) << std::endl;
 			std::cout << "  Transient: " << (gasRelated ? OOG_STR : matchStr(transientMatch)) << std::endl;
 		}
@@ -893,8 +491,10 @@ static bool compareRuns(
 	// Compare revert data when both reverted
 	if (_a.statusCode == EVMC_REVERT && _b.statusCode == EVMC_REVERT)
 	{
-		bool revertMatch = (_a.output.size() == _b.output.size() &&
-			std::memcmp(_a.output.data(), _b.output.data(), _a.output.size()) == 0);
+		bool revertMatch = outputEqual(
+			_a.output.data(), _a.output.size(), _a.contractCreationOrder,
+			_b.output.data(), _b.output.size(), _b.contractCreationOrder
+		);
 		if (!gasRelated && !revertMatch) mismatch = true;
 		if (!_quiet)
 			std::cout << "  Revert data: " << (gasRelated ? OOG_STR : matchStr(revertMatch)) << std::endl;
@@ -1153,7 +753,7 @@ int main(int argc, char* argv[])
 			solcBinary = self.substr(0, pos) + "/../../solidity/solc/solc";
 	}
 
-	std::vector<RunResult> results;
+	std::vector<ConfigRunResult> results;
 	for (auto const& config : configs)
 	{
 		if (!quiet)
@@ -1179,7 +779,7 @@ int main(int argc, char* argv[])
 			std::string cmd = "timeout " + std::to_string(timeoutSecs) + " "
 				+ solcBinary + solcFlags + " " + srcPathArg + " > /dev/null 2>&1";
 			int rc = std::system(cmd.c_str());
-			RunResult r;
+			ConfigRunResult r;
 			r.compilationFailed = true;
 			if (WIFEXITED(rc) && WEXITSTATUS(rc) == 124)
 			{
@@ -1200,7 +800,7 @@ int main(int argc, char* argv[])
 			{
 				if (!quiet)
 					std::cout << "  StackTooDeep exception" << std::endl;
-				RunResult r;
+				ConfigRunResult r;
 				r.compilationFailed = true;
 				results.push_back(std::move(r));
 			}
@@ -1208,7 +808,7 @@ int main(int argc, char* argv[])
 			{
 				if (!quiet)
 					std::cout << "  InternalCompilerError: " << e.what() << std::endl;
-				RunResult r;
+				ConfigRunResult r;
 				r.compilationFailed = true;
 				r.internalError = true;
 				r.internalErrorMsg = e.what();
@@ -1218,7 +818,7 @@ int main(int argc, char* argv[])
 			{
 				if (!quiet)
 					std::cout << "  UnimplementedFeatureError: " << e.what() << std::endl;
-				RunResult r;
+				ConfigRunResult r;
 				r.compilationFailed = true;
 				r.internalError = true;
 				r.internalErrorMsg = e.what();
@@ -1228,7 +828,7 @@ int main(int argc, char* argv[])
 			{
 				if (!quiet)
 					std::cout << "  Exception: " << e.what() << std::endl;
-				RunResult r;
+				ConfigRunResult r;
 				r.compilationFailed = true;
 				r.internalError = true;
 				r.internalErrorMsg = e.what();

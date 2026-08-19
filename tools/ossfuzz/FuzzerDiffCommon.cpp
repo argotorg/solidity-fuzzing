@@ -22,25 +22,63 @@
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
+#include <charconv>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace solidity::test;
 using namespace solidity::test::fuzzer;
 using namespace solidity::frontend;
 using namespace solidity::util;
 
+namespace
+{
+
+/// Normalize deployed-contract addresses inside a fixed-width word in place.
+template<typename Word>
+void normalizeAddressesInWord(Word& _word, std::vector<evmc::address> const& _creationOrder)
+{
+	auto normalized = normalizeCreatedAddresses(_word.bytes, sizeof(_word.bytes), _creationOrder);
+	std::copy(normalized.begin(), normalized.end(), _word.bytes);
+}
+
+/// A log record with deployed-contract addresses replaced by creation indices,
+/// in both the data and the (indexed) topics.
+evmc::MockedHost::log_record normalizeLog(
+	evmc::MockedHost::log_record const& _log,
+	std::vector<evmc::address> const& _creationOrder
+)
+{
+	evmc::MockedHost::log_record out = _log;
+	auto data = normalizeCreatedAddresses(out.data.data(), out.data.size(), _creationOrder);
+	out.data.assign(data.begin(), data.end());
+	for (auto& topic: out.topics)
+		normalizeAddressesInWord(topic, _creationOrder);
+	return out;
+}
+
+}
+
 bool solidity::test::fuzzer::logsEqual(
 	std::vector<evmc::MockedHost::log_record> const& _a,
-	std::vector<evmc::MockedHost::log_record> const& _b
+	std::vector<evmc::address> const& _creationOrderA,
+	std::vector<evmc::MockedHost::log_record> const& _b,
+	std::vector<evmc::address> const& _creationOrderB
 )
 {
 	if (_a.size() != _b.size())
 		return false;
 	for (size_t i = 0; i < _a.size(); i++)
-		if (_a[i].data != _b[i].data || _a[i].topics != _b[i].topics)
+	{
+		auto normA = normalizeLog(_a[i], _creationOrderA);
+		auto normB = normalizeLog(_b[i], _creationOrderB);
+		if (normA.data != normB.data || normA.topics != normB.topics)
 			return false;
+	}
 	return true;
 }
 
@@ -88,13 +126,15 @@ std::map<size_t, StorageMap> solidity::test::fuzzer::normalizeStorageByCreationO
 	auto filtered = filterZeroStorage(_storage);
 	std::map<size_t, StorageMap> result;
 	size_t unknownIdx = _creationOrder.size();
-	for (auto const& [addr, storageMap] : filtered)
+	for (auto& [addr, storageMap] : filtered)
 	{
 		auto it = std::find(_creationOrder.begin(), _creationOrder.end(), addr);
 		size_t idx = (it != _creationOrder.end())
 			? static_cast<size_t>(std::distance(_creationOrder.begin(), it))
 			: unknownIdx++;
-		result[idx] = storageMap;
+		for (auto& [key, val] : storageMap)
+			normalizeAddressesInWord(val.current, _creationOrder);
+		result[idx] = std::move(storageMap);
 	}
 	return result;
 }
@@ -107,13 +147,15 @@ std::map<size_t, TransientStorageMap> solidity::test::fuzzer::normalizeTransient
 	auto filtered = filterZeroTransientStorage(_storage);
 	std::map<size_t, TransientStorageMap> result;
 	size_t unknownIdx = _creationOrder.size();
-	for (auto const& [addr, storageMap] : filtered)
+	for (auto& [addr, storageMap] : filtered)
 	{
 		auto it = std::find(_creationOrder.begin(), _creationOrder.end(), addr);
 		size_t idx = (it != _creationOrder.end())
 			? static_cast<size_t>(std::distance(_creationOrder.begin(), it))
 			: unknownIdx++;
-		result[idx] = storageMap;
+		for (auto& [key, val] : storageMap)
+			normalizeAddressesInWord(val, _creationOrder);
+		result[idx] = std::move(storageMap);
 	}
 	return result;
 }
@@ -209,13 +251,27 @@ bool isInternalFunctionType(std::string const& _typeKey)
 	return _typeKey.compare(0, sizeof(kInternalFunctionPrefix) - 1, kInternalFunctionPrefix) == 0;
 }
 
-/// numberOfBytes for a type key; 0 if the type or the field is missing.
+/// numberOfBytes for a type key; 0 if the type or the field is missing, or if
+/// the size does not fit in an unsigned. solc reports the true byte count of a
+/// type, so an oversized storage declaration such as `T[2**64-1][2**64-1]`
+/// yields a 78-digit decimal — std::stoul would throw std::out_of_range on it.
+/// Callers treat 0 as "size unknown" and give up on masking that subtree.
 unsigned typeNumberOfBytes(solidity::Json const& _types, std::string const& _typeKey)
 {
-	if (auto it = _types.find(_typeKey); it != _types.end())
-		if (auto nb = it->find("numberOfBytes"); nb != it->end() && nb->is_string())
-			return static_cast<unsigned>(std::stoul(nb->get<std::string>()));
-	return 0;
+	auto it = _types.find(_typeKey);
+	if (it == _types.end())
+		return 0;
+	auto nb = it->find("numberOfBytes");
+	if (nb == it->end() || !nb->is_string())
+		return 0;
+	std::string const& text = nb->get_ref<std::string const&>();
+	uint64_t value = 0;
+	auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
+	if (ec != std::errc{} || end != text.data() + text.size())
+		return 0;
+	if (value > std::numeric_limits<unsigned>::max())
+		return 0;
+	return static_cast<unsigned>(value);
 }
 
 /// Structural check: does @p _typeKey contain an internal-function-pointer
@@ -230,8 +286,10 @@ bool typeContainsInternalFunction(
 {
 	if (isInternalFunctionType(_typeKey))
 		return true;
+	// Past the recursion guard, assume the worst: reporting "no fp" here would
+	// skip masking and turn a legitimate encoding difference into a false diff.
 	if (_depth > kMaxWalkDepth)
-		return false;
+		return true;
 	auto it = _types.find(_typeKey);
 	if (it == _types.end())
 		return false;
@@ -289,8 +347,14 @@ void walkArrayElements(
 )
 {
 	unsigned elemBytes = typeNumberOfBytes(_ctx.types, _elemTypeKey);
-	if (elemBytes == 0 || elemBytes > 32)
+	if (elemBytes == 0 || _count > kMaxMaskedArrayElements)
+	{
+		// Element size unknown, or too many elements to expand. The caller only
+		// gets here for arrays that do contain an internal fp, so silently not
+		// masking would surface as a spurious storage diff.
+		_ctx.unmaskable = true;
 		return;
+	}
 	if (elemBytes <= 16)
 	{
 		// Packed: floor(32/elemBytes) elements per slot, lower-order aligned.
@@ -306,9 +370,11 @@ void walkArrayElements(
 	}
 	else
 	{
-		// One whole slot per element (a 17..32-byte value, e.g. external fp).
+		// One slot per 17..32-byte value; structs and nested arrays take
+		// ceil(size/32) whole slots each.
+		uint64_t slotsPerElem = (elemBytes + 31) / 32;
 		for (uint64_t i = 0; i < _count; ++i)
-			walkLayoutType(_ctx, _elemTypeKey, _dataSlot + i, 0, _depth + 1);
+			walkLayoutType(_ctx, _elemTypeKey, _dataSlot + i * slotsPerElem, 0, _depth + 1);
 	}
 }
 
@@ -321,7 +387,11 @@ void walkLayoutType(
 )
 {
 	if (_depth > kMaxWalkDepth)
+	{
+		if (typeContainsInternalFunction(_ctx.types, _typeKey))
+			_ctx.unmaskable = true;
 		return;
+	}
 
 	if (isInternalFunctionType(_typeKey))
 	{
@@ -407,7 +477,12 @@ void walkLayoutType(
 		unsigned arrayBytes = typeNumberOfBytes(_ctx.types, _typeKey);
 		unsigned elemBytes = typeNumberOfBytes(_ctx.types, baseKey);
 		if (arrayBytes == 0 || elemBytes == 0)
+		{
+			// Oversized declaration (numberOfBytes beyond 2**32) or a missing
+			// types entry: we cannot enumerate the elements to mask them.
+			_ctx.unmaskable = true;
 			return;
+		}
 		walkArrayElements(_ctx, baseKey, _slot, arrayBytes / elemBytes, _depth);
 		return;
 	}
@@ -418,8 +493,7 @@ void walkLayoutType(
 
 solidity::test::fuzzer::StorageMaskResult solidity::test::fuzzer::internalFunctionPointerMasks(
 	solidity::Json const& _layout,
-	std::map<evmc::address, StorageMap> const& _storage,
-	std::vector<evmc::address> const& _creationOrder
+	StorageMap const& _accountStorage
 )
 {
 	StorageMaskResult result;
@@ -431,14 +505,7 @@ solidity::test::fuzzer::StorageMaskResult solidity::test::fuzzer::internalFuncti
 		typesIt == _layout.end() || !typesIt->is_object())
 		return result;
 
-	// Dynamic-array lengths are read from the main contract's storage.
-	static StorageMap const emptyStorage;
-	StorageMap const* mainStorage = &emptyStorage;
-	if (!_creationOrder.empty())
-		if (auto it = _storage.find(_creationOrder.front()); it != _storage.end())
-			mainStorage = &it->second;
-
-	WalkContext ctx{*typesIt, *mainStorage, result.masks, result.unmaskable};
+	WalkContext ctx{*typesIt, _accountStorage, result.masks, result.unmaskable};
 	for (auto const& var: *storageIt)
 	{
 		std::string typeKey = var.at("type").get<std::string>();
@@ -484,4 +551,108 @@ void solidity::test::fuzzer::applyStorageMasks(
 		if (current == zero)
 			slots.erase(slotIt);
 	}
+}
+
+bool solidity::test::fuzzer::maskInternalFunctionPointers(
+	std::map<evmc::address, StorageMap>& _storage,
+	std::map<h256, solidity::Json> const& _layoutByRuntimeCode,
+	std::map<evmc::address, h256> const& _accountCodeHashes
+)
+{
+	// Nothing anywhere in the unit needs masking, so an account we cannot
+	// attribute to a layout is harmless — don't give up the comparison for it.
+	bool anyInternalFunction = false;
+	for (auto const& [codeHash, layout]: _layoutByRuntimeCode)
+	{
+		auto typesIt = layout.find("types");
+		if (typesIt == layout.end() || !typesIt->is_object())
+			continue;
+		for (auto const& [typeKey, typeInfo]: typesIt->items())
+			if (isInternalFunctionType(typeKey))
+			{
+				anyInternalFunction = true;
+				break;
+			}
+		if (anyInternalFunction)
+			break;
+	}
+	if (!anyInternalFunction)
+		return true;
+
+	// Collect first, apply second: applyStorageMasks erases from _storage, and
+	// a later account turning out to be unmaskable must leave it untouched.
+	std::vector<std::pair<evmc::address, std::vector<StorageSlotMask>>> pending;
+	for (auto const& [address, slots]: _storage)
+	{
+		if (slots.empty())
+			continue;
+		auto hashIt = _accountCodeHashes.find(address);
+		if (hashIt == _accountCodeHashes.end())
+			continue;  // No code: an EOA (sender, precompile) holds no layout-described state.
+		auto layoutIt = _layoutByRuntimeCode.find(hashIt->second);
+		if (layoutIt == _layoutByRuntimeCode.end())
+			// Deployed code we cannot attribute to a compiled contract — e.g. a
+			// contract assembled at runtime, or one whose immutables were filled
+			// in after compilation. Masking it is impossible, so bail out.
+			return false;
+		auto masks = internalFunctionPointerMasks(layoutIt->second, slots);
+		if (masks.unmaskable)
+			return false;
+		pending.emplace_back(address, std::move(masks.masks));
+	}
+	for (auto const& [address, masks]: pending)
+		applyStorageMasks(_storage, address, masks);
+	return true;
+}
+
+solidity::bytes solidity::test::fuzzer::normalizeCreatedAddresses(
+	uint8_t const* _data,
+	size_t _size,
+	std::vector<evmc::address> const& _creationOrder
+)
+{
+	solidity::bytes out(_data, _data + _size);
+	if (_creationOrder.empty() || out.size() < sizeof(evmc::address))
+		return out;
+
+	constexpr size_t addressSize = sizeof(evmc::address);
+	for (size_t i = 0; i + addressSize <= out.size(); )
+	{
+		auto match = std::find_if(
+			_creationOrder.begin(),
+			_creationOrder.end(),
+			[&](evmc::address const& _a) { return std::memcmp(out.data() + i, _a.bytes, addressSize) == 0; }
+		);
+		if (match == _creationOrder.end())
+		{
+			++i;
+			continue;
+		}
+		// Stamp the creation index in place of the address. The marker bytes
+		// make an accidental collision with genuine return data implausible.
+		auto index = static_cast<uint32_t>(std::distance(_creationOrder.begin(), match));
+		std::fill_n(out.begin() + static_cast<ptrdiff_t>(i), addressSize - 4, uint8_t{0xAD});
+		for (size_t b = 0; b < 4; ++b)
+			out[i + addressSize - 1 - b] = static_cast<uint8_t>(index >> (8 * b));
+		i += addressSize;
+	}
+	return out;
+}
+
+bool solidity::test::fuzzer::outputEqual(
+	uint8_t const* _dataA, size_t _sizeA, std::vector<evmc::address> const& _creationOrderA,
+	uint8_t const* _dataB, size_t _sizeB, std::vector<evmc::address> const& _creationOrderB
+)
+{
+	return
+		normalizeCreatedAddresses(_dataA, _sizeA, _creationOrderA) ==
+		normalizeCreatedAddresses(_dataB, _sizeB, _creationOrderB);
+}
+
+bool solidity::test::fuzzer::outputEqual(RunResult const& _a, RunResult const& _b)
+{
+	return outputEqual(
+		_a.result.output_data, _a.result.output_size, _a.contractCreationOrder,
+		_b.result.output_data, _b.result.output_size, _b.contractCreationOrder
+	);
 }

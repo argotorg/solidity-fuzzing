@@ -206,6 +206,11 @@ static RunResult runOnce(
 		if (!account.transient_storage.empty())
 			transientStorage[addr] = account.transient_storage;
 
+	std::map<evmc::address, h256> accountCodeHashes;
+	for (auto const& [addr, account] : host.accounts)
+		if (!account.code.empty())
+			accountCodeHashes[addr] = keccak256(bytes(account.code.begin(), account.code.end()));
+
 	return RunResult{
 		std::move(execResult),
 		host.m_subCallOutOfGas,
@@ -213,9 +218,11 @@ static RunResult runOnce(
 		std::move(storage),
 		std::move(transientStorage),
 		host.m_contractCreationOrder,
-		// Carry the storage layout so the differential check below can mask
-		// internal-function-pointer bytes (non-portable across optimiser modes).
-		compOut->storageLayout
+		// Carry the storage layouts so the differential check below can mask
+		// internal-function-pointer bytes (non-portable across optimiser modes)
+		// in every deployed contract, not just the main one.
+		compOut->storageLayoutByRuntimeCode,
+		std::move(accountCodeHashes)
 	};
 }
 
@@ -324,30 +331,26 @@ static void runOneInput(std::string_view _input)
 
 	if (runA.result.status_code == EVMC_SUCCESS && runB.result.status_code == EVMC_SUCCESS)
 	{
+		solAssert(outputEqual(runA, runB), label + ": output differs");
 		solAssert(
-			runA.result.output_size == runB.result.output_size &&
-			std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-			label + ": output differs"
+			logsEqual(runA.logs, runA.contractCreationOrder, runB.logs, runB.contractCreationOrder),
+			label + ": logs differ"
 		);
-		solAssert(logsEqual(runA.logs, runB.logs), label + ": logs differ");
 		// Internal function pointers are encoded differently across legacy
 		// (PCs) and IR (function IDs) and across optimiser levels (PCs shift
 		// with bytecode size). Mask their storage bytes before the strict
 		// equality check — see TODO.md for the full rationale.
-		// Masks are computed per run because dynamic-array masks depend on the
-		// array length read from that run's storage. If an internal fp is
-		// reachable only through a mapping (unenumerable keys), skip the
-		// storage comparison to avoid a false positive.
-		auto fpMasksA = internalFunctionPointerMasks(
-			runA.mainContractStorageLayout, runA.storage, runA.contractCreationOrder);
-		auto fpMasksB = internalFunctionPointerMasks(
-			runB.mainContractStorageLayout, runB.storage, runB.contractCreationOrder);
-		if (!fpMasksA.unmaskable && !fpMasksB.unmaskable)
+		// Masks are computed per run and per account because dynamic-array
+		// masks depend on the array length read from that account's storage.
+		// If an internal fp cannot be masked (reachable only through a mapping,
+		// or in an account whose code we cannot attribute to a compiled
+		// contract), skip the storage comparison to avoid a false positive.
+		bool maskedA = maskInternalFunctionPointers(
+			runA.storage, runA.storageLayouts, runA.accountCodeHashes);
+		bool maskedB = maskInternalFunctionPointers(
+			runB.storage, runB.storageLayouts, runB.accountCodeHashes);
+		if (maskedA && maskedB)
 		{
-			if (!runA.contractCreationOrder.empty())
-				applyStorageMasks(runA.storage, runA.contractCreationOrder.front(), fpMasksA.masks);
-			if (!runB.contractCreationOrder.empty())
-				applyStorageMasks(runB.storage, runB.contractCreationOrder.front(), fpMasksB.masks);
 			solAssert(
 				storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
 				label + ": storage differs"
@@ -360,13 +363,7 @@ static void runOneInput(std::string_view _input)
 	}
 
 	if (runA.result.status_code == EVMC_REVERT && runB.result.status_code == EVMC_REVERT)
-	{
-		solAssert(
-			runA.result.output_size == runB.result.output_size &&
-			std::memcmp(runA.result.output_data, runB.result.output_data, runA.result.output_size) == 0,
-			label + ": revert data differs"
-		);
-	}
+		solAssert(outputEqual(runA, runB), label + ": revert data differs");
 }
 
 int main(int argc, char** argv)
