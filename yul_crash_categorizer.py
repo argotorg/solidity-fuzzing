@@ -5,7 +5,9 @@ Group a yul fuzzer crash corpus into unique bugs.
 For each crash input:
   1. Replay it through the matching fuzzer binary with PROTO_FUZZER_DUMP_PATH /
      PROTO_FUZZER_DUMP_SEQ_PATH set, writing <crash>.yul, <crash>.seq and the
-     fuzzer's own stderr to <crash>.err.
+     fuzzer's own stderr to <crash>.err.  The calldata is read straight out of
+     the (text-format) protobuf input into <crash>.calldata -- the fuzzer does
+     not dump it, and without it the replay executes a different program.
   2. Derive a signature from (a) the assertion text the harness threw and
      (b) a hash of the Yul source with literals and identifier numbering
      normalized away, so re-discoveries of the same bug collapse together.
@@ -102,6 +104,59 @@ def parse_seq(seq_path: Path) -> tuple[str, str]:
     return opt, cleanup
 
 
+CALLDATA_BLOCK_RE = re.compile(r"^calldata\s*\{(.*?)^\}", re.S | re.M)
+STRING_LITERAL_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+SIMPLE_ESCAPES = {"a": 7, "b": 8, "f": 12, "n": 10, "r": 13, "t": 9, "v": 11,
+                  "\\": 92, "'": 39, '"': 34, "?": 63}
+HEXDIGITS = "0123456789abcdefABCDEF"
+
+
+def unescape_text_proto(s: str) -> bytes:
+    """Decode the C-style escapes protobuf text format uses inside a bytes field."""
+    out, i = bytearray(), 0
+    while i < len(s):
+        if s[i] != "\\":
+            out += s[i].encode("latin-1")
+            i += 1
+            continue
+        i += 1
+        if i >= len(s):
+            break
+        e = s[i]
+        if e in SIMPLE_ESCAPES:
+            out.append(SIMPLE_ESCAPES[e])
+            i += 1
+        elif e == "x":
+            j = i + 1
+            while j < len(s) and j < i + 3 and s[j] in HEXDIGITS:
+                j += 1
+            out.append(int(s[i + 1:j] or "0", 16) & 0xFF)
+            i = j
+        elif e in "01234567":
+            j = i
+            while j < len(s) and j < i + 3 and s[j] in "01234567":
+                j += 1
+            out.append(int(s[i:j], 8) & 0xFF)
+            i = j
+        else:
+            out += e.encode("latin-1")
+            i += 1
+    return bytes(out)
+
+
+def calldata_of(crash: Path) -> str:
+    """Hex calldata from the text-proto crash input ('' if absent/unparsable)."""
+    try:
+        text = crash.read_bytes().decode("latin-1")
+    except OSError:
+        return ""
+    m = CALLDATA_BLOCK_RE.search(text)
+    if not m:
+        return ""
+    raw = b"".join(unescape_text_proto(lit) for lit in STRING_LITERAL_RE.findall(m.group(1)))
+    return raw.hex()
+
+
 def dump(crash: Path, dumper: Path, sel: str, timeout: int) -> str:
     """Run the fuzzer on the input; write the artifacts, return its stderr."""
     yul_out = Path(f"{crash}.yul")
@@ -121,6 +176,7 @@ def dump(crash: Path, dumper: Path, sel: str, timeout: int) -> str:
             partial = partial.decode(errors="replace")
         err = partial + f"\nTIMEOUT after {timeout}s\n"
     Path(f"{crash}.err").write_text(err)
+    Path(f"{crash}.calldata").write_text(calldata_of(crash) + "\n")
     return err
 
 
@@ -137,7 +193,9 @@ def replay(crash: Path, sel: str, timeout: int, work_root: Path) -> int | None:
         seq_args = ["--optimizer-sequence", seq, "--optimizer-cleanup-sequence", cleanup]
     else:
         seq_args = []
-    cmd = [str(RUNNER), "--verbose", *seq_args, str(yul_out.resolve())]
+    calldata = calldata_of(crash)
+    cd_args = ["--calldata", calldata] if calldata else []
+    cmd = [str(RUNNER), "--verbose", *seq_args, *cd_args, str(yul_out.resolve())]
     # Per-task cwd: parallel runners would otherwise collide on yul_debug_output-N.
     with tempfile.TemporaryDirectory(dir=str(work_root)) as work:
         with Path(f"{crash}.out").open("wb") as out:
