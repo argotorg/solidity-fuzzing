@@ -41,3 +41,7 @@ fuzz-*.log
 /seeds_sol_ice
 findings.*
 /results
+/afl_crash_triage
+
+# crash reports
+unique_*

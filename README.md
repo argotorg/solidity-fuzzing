@@ -68,22 +68,23 @@ tools/ossfuzz/run_ossfuzz_afl.sh sol_ice_ossfuzz seeds_sol_ice
 tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 ```
 
-## Triage of Crashes/Hangs
+## Generative fuzzer ("ossfuzz") triage
 
 ```bash
 ./yul_crash_categorizer.py results/639-yul_proto_ossfuzz_evmone_ssacfg/findings/*/crashes/
+./sol_crash_categorizer.py results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
 ./sol_ice_crash_backtrace_categorizer.py results/643-sol_ice_ossfuzz/findings/*/crashes
+```
 
-
+Without categorization:
+```bash
 run_ice_crashes.py
 ./run_sol_crashes.py --fuzzer build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
 ./run_yul_crashes.py ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
-
-
 ```
 
-## AFL Triage
 
+## Non-generative fuzzer ("afl") triage
 
 ```bash
 ./run_afl_crashes.py ./results/645-afl/findings/*/crashes # gives nice table, with backtrace
