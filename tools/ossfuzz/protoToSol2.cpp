@@ -1551,6 +1551,7 @@ std::string ProtoConverter::visitVarDecl(VarDeclStmt const& _s)
 std::string ProtoConverter::visitExprStmt(ExprStmt const& _s)
 {
 	// Generate a uint expression as a statement (useful for assignments, function calls)
+	m_exprIsStatement = true;
 	std::string expr = visitUintExpr(_s.expr());
 	if (expr.empty())
 		return "";
@@ -2177,6 +2178,9 @@ std::string ProtoConverter::visitTupleDestruct(TupleDestructStmt const& _s)
 
 std::string ProtoConverter::visitUintExpr(Expression const& _e)
 {
+	bool sideEffectOk = m_exprIsStatement;
+	m_exprIsStatement = false;
+
 	if (m_exprDepth >= s_maxExprDepth)
 		return findVar(0);
 
@@ -2311,7 +2315,7 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			if (v.empty())
 				result = defaultUintLiteral();
 			else
-				result = "++" + v;
+				result = sideEffectOk ? "++" + v : v;
 			break;
 		}
 		case UnaryOp::DEC_PRE:
@@ -2320,7 +2324,7 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			if (v.empty())
 				result = defaultUintLiteral();
 			else
-				result = "--" + v;
+				result = sideEffectOk ? "--" + v : v;
 			break;
 		}
 		case UnaryOp::INC_POST:
@@ -2329,7 +2333,7 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			if (v.empty())
 				result = defaultUintLiteral();
 			else
-				result = v + "++";
+				result = sideEffectOk ? v + "++" : v;
 			break;
 		}
 		case UnaryOp::DEC_POST:
@@ -2338,7 +2342,7 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			if (v.empty())
 				result = defaultUintLiteral();
 			else
-				result = v + "--";
+				result = sideEffectOk ? v + "--" : v;
 			break;
 		}
 		default:
@@ -2436,15 +2440,16 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 		break;
 	case Expression::kHashExpr:
 	{
-		// keccak256/sha256/ripemd160 are allowed in pure functions
+		// keccak256/sha256 are allowed in pure functions. RIPEMD160 maps to
+		// sha256: EVMHost only stubs precompile 0x03 for a few fixed inputs and
+		// fails for everything else, which solc turns into a bare revert whose
+		// timing differs per codegen - a false positive, not a bug.
 		auto const& h = _e.hash_expr();
 		std::string inner = visitUintExpr(h.arg());
 		if (h.kind() == HashExpr::KECCAK256)
 			result = "uint256(keccak256(abi.encode(" + inner + ")))";
-		else if (h.kind() == HashExpr::SHA256)
-			result = "uint256(sha256(abi.encode(" + inner + ")))";
 		else
-			result = "uint256(uint160(ripemd160(abi.encode(" + inner + "))))";
+			result = "uint256(sha256(abi.encode(" + inner + ")))";
 		break;
 	}
 	case Expression::kMathExpr:
@@ -2530,16 +2535,18 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 			break;
 		}
 		std::string rhs = visitUintExpr(a.rhs());
+		std::string op = assignOpStr(a.op());
 		if (a.op() == AssignExpr::DIV_ASSIGN || a.op() == AssignExpr::MOD_ASSIGN)
-		{
-			// Avoid div-by-zero: do regular assignment with safe division
-			if (a.op() == AssignExpr::DIV_ASSIGN)
-				result = "(" + lhs + " = " + lhs + " / (" + rhs + " | 1))";
-			else
-				result = "(" + lhs + " = " + lhs + " % (" + rhs + " | 1))";
-		}
+			rhs = "(" + rhs + " | 1)"; // avoid div-by-zero
+		if (!sideEffectOk)
+			// Nested: drop the store, keep the operator so the arithmetic stays.
+			result = a.op() == AssignExpr::ASSIGN
+				? rhs
+				: "(" + lhs + " " + op.substr(0, op.size() - 1) + " " + rhs + ")";
+		else if (a.op() == AssignExpr::DIV_ASSIGN || a.op() == AssignExpr::MOD_ASSIGN)
+			result = "(" + lhs + " = " + lhs + " " + op.substr(0, 1) + " " + rhs + ")";
 		else
-			result = "(" + lhs + " " + assignOpStr(a.op()) + " " + rhs + ")";
+			result = "(" + lhs + " " + op + " " + rhs + ")";
 		break;
 	}
 	case Expression::kFuncCall:
@@ -3264,6 +3271,8 @@ std::string ProtoConverter::visitUintExpr(Expression const& _e)
 
 std::string ProtoConverter::visitBoolExpr(Expression const& _e)
 {
+	m_exprIsStatement = false;
+
 	if (m_exprDepth >= s_maxExprDepth)
 		return defaultBoolLiteral();
 

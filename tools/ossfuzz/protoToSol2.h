@@ -336,6 +336,11 @@ private:
 
 	// ===== State =====
 	unsigned m_exprDepth = 0;
+	// Set only for the expression that forms a whole statement; assignments and
+	// ++/-- are emitted as side effects there and nowhere else, because legacy
+	// and IR evaluate sibling subexpressions in different orders
+	// (docs/ir-breaking-changes.rst) and every such program is a false positive.
+	bool m_exprIsStatement = false;
 	unsigned m_stmtDepth = 0;
 	unsigned m_indentLevel = 0;
 	unsigned m_varCounter = 0;

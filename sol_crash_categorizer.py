@@ -11,7 +11,9 @@ For each crash input:
   2. Derive a signature from (a) the assertion text the harness threw and
      (b) a hash of the Solidity source with literals and identifier numbering
      normalized away, so re-discoveries of the same bug collapse together.
-  3. Print the buckets, largest first, and write unique_sol_crashes.txt.
+  3. Label each bucket with the known-noise class that explains it (see
+     NOISE_CLASSES) and report the unclassified ones first -- those are the
+     only candidate bugs.  Written to unique_sol_crashes.txt.
 
 Inputs may be crash files or directories; directories are walked recursively,
 so a whole AFL findings tree can be passed in one go.  The fuzzer binary is
@@ -23,6 +25,7 @@ Usage:
     ./sol_crash_categorizer.py --fuzzer sol_ice_ossfuzz -j16 ice_crashes
     ./sol_crash_categorizer.py --replay results/637-*/findings
     ./sol_crash_categorizer.py --summary-only results/637-*/findings
+    ./sol_crash_categorizer.py --all results/637-*/findings   # detail for noise too
 """
 
 import argparse
@@ -187,36 +190,155 @@ def features_of(sol_text: str) -> str:
     return ", ".join(found) if found else "(none)"
 
 
-def signature(crash: Path) -> tuple[str, str]:
-    """Return (signature, feature label) for one already-dumped crash."""
+# The (?![=>]) also keeps mapping(K => V) out of the side-effect scan.
+ASSIGN_OP_RE = re.compile(r"<<=|>>=|[+\-*/%&|^]=|(?<![=!<>+\-*/%&|^])=(?![=>])")
+INCDEC_RE = re.compile(r"\+\+|--")
+SOLO_INCDEC_RE = re.compile(r"^(?:[\w.\[\]]+(?:\+\+|--)|(?:\+\+|--)[\w.\[\]]+)$")
+MEM_DECL_RE = re.compile(r"^\s*\w[\w.\[\]]*\s+memory\s+(\w+)\s*[;=]", re.M)
+TUPLE_LHS_RE = re.compile(r"^\(([^()]*)\)\s*=\s*\(")
+STUB_PRECOMPILE_RE = re.compile(r"\bripemd160\b")
+
+
+def strip_outer_parens(expr: str) -> str:
+    while expr.startswith("(") and expr.endswith(")"):
+        depth = 0
+        for i, c in enumerate(expr):
+            depth += (c == "(") - (c == ")")
+            if depth == 0 and i < len(expr) - 1:
+                return expr
+        expr = expr[1:-1].strip()
+    return expr
+
+
+def nested_side_effect(stmt: str) -> bool:
+    """True if an assignment or ++/-- sits inside a subexpression rather than
+    being the whole statement -- legacy and IR order siblings differently."""
+    expr = strip_outer_parens(stmt.strip().rstrip(";").strip())
+    if SOLO_INCDEC_RE.match(expr):
+        return False
+    depth, i = 0, 0
+    while i < len(expr):
+        c = expr[i]
+        if c in "()":
+            depth += 1 if c == "(" else -1
+            i += 1
+            continue
+        mo = ASSIGN_OP_RE.match(expr, i) or INCDEC_RE.match(expr, i)
+        if mo:
+            # A ++/-- is a side effect wherever it appears next to other operands;
+            # a bare assignment is fine as long as it is the statement itself.
+            if depth > 0 or INCDEC_RE.match(expr, i):
+                return True
+            i = mo.end()
+            continue
+        i += 1
+    return False
+
+
+def has_eval_order_noise(sol: str) -> bool:
+    for raw in sol.splitlines():
+        line = raw.split("//")[0].strip()
+        if line.startswith("for ("):
+            clauses = line[line.find("(") + 1:line.rfind(")")].split(";")
+            line = ";".join(clauses[:2]) if len(clauses) >= 3 else line
+        if nested_side_effect(line):
+            return True
+    return False
+
+
+def has_tuple_alias(sol: str) -> bool:
+    """Destructuring assignment whose LHS holds a memory local -- the storage
+    -> memory copy then races the other components' stores."""
+    memory_locals = set(MEM_DECL_RE.findall(sol))
+    if not memory_locals:
+        return False
+    for raw in sol.splitlines():
+        mo = TUPLE_LHS_RE.match(raw.strip())
+        if mo and any(v.strip() in memory_locals for v in mo.group(1).split(",")):
+            return True
+    return False
+
+
+# Ordered: the first match explains the crash. Everything unmatched is a candidate.
+NOISE_CLASSES = [
+    ("eval-order", has_eval_order_noise,
+     "side effect in a subexpression - legacy/IR evaluate siblings in a "
+     "different order (solidity docs/ir-breaking-changes.rst)"),
+    ("precompile-stub", lambda sol: bool(STUB_PRECOMPILE_RE.search(sol)),
+     "ripemd160 - EVMHost only stubs precompile 0x03, the call fails and solc "
+     "turns that into a bare revert"),
+    ("tuple-alias", has_tuple_alias,
+     "tuple assignment with a memory LHS aliasing an overwritten storage var - "
+     "known legacy/IR difference, under investigation"),
+]
+NO_REPRO = ("no-repro", "the input no longer crashes this fuzzer build - stale corpus entry")
+CANDIDATE = "candidate"
+
+
+def noise_class(msg: str, sol: str) -> str:
+    if msg.startswith("NO-CRASH") or msg.startswith("TIMEOUT"):
+        return NO_REPRO[0]
+    for name, matches, _ in NOISE_CLASSES:
+        if matches(sol):
+            return name
+    return CANDIDATE
+
+
+CLASS_ORDER = [(CANDIDATE, "not explained by any known class -- triage these")] + \
+              [(name, why) for name, _, why in NOISE_CLASSES] + [NO_REPRO]
+
+
+def signature(crash: Path) -> tuple[str, str, str]:
+    """Return (signature, feature label, class) for one already-dumped crash."""
     err_path, sol_path = Path(f"{crash}.err"), Path(f"{crash}.sol")
     msg = message_of(err_path.read_text(errors="replace")) if err_path.is_file() else "NO-ARTIFACT"
     if not sol_path.is_file() or sol_path.stat().st_size == 0:
-        return f"{msg}  [no .sol dumped]", "(none)"
+        return f"{msg}  [no .sol dumped]", "(none)", CANDIDATE
     sol = sol_path.read_text(errors="replace")
-    return f"{msg}  [shape {shape_hash(sol)}]", features_of(sol)
+    return f"{msg}  [shape {shape_hash(sol)}]", features_of(sol), noise_class(msg, sol)
 
 
-def summarize(crashes: list[Path], replay_rc: dict[Path, int | None], out_file: Path) -> int:
+def summarize(crashes: list[Path], replay_rc: dict[Path, int | None], out_file: Path,
+              show_all: bool) -> int:
     buckets: dict[str, list[Path]] = defaultdict(list)
     labels: dict[str, str] = {}
+    classes: dict[str, str] = {}
     for c in crashes:
-        sig, feats = signature(c)
+        sig, feats, cls = signature(c)
         buckets[sig].append(c)
         labels.setdefault(sig, feats)
+        classes.setdefault(sig, cls)
 
-    lines = [f"=== Unique sol crash signatures: {len(buckets)} (from {len(crashes)} inputs) ==="]
-    for sig, members in sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0])):
-        lines += ["", f"[{len(members)}] {sig}", f"    features: {labels[sig]}"]
+    def detail(sig: str) -> list[str]:
+        members = buckets[sig]
+        out = [f"[{len(members)}] {sig}", f"    features: {labels[sig]}"]
         if replay_rc:
             rcs = sorted({str(replay_rc.get(m)) for m in members})
-            lines.append(f"    sol_debug_runner rc: {', '.join(rcs)}")
-        lines.append(f"    representative: {members[0]}")
+            out.append(f"    sol_debug_runner rc: {', '.join(rcs)}")
+        out.append(f"    representative: {members[0]}")
         others = members[1:MAX_EXAMPLES]
         if others:
             hidden = len(members) - 1 - len(others)
-            lines.append("    others: " + ", ".join(str(o) for o in others)
-                         + (f" (+{hidden} more)" if hidden else ""))
+            out.append("    others: " + ", ".join(str(o) for o in others)
+                       + (f" (+{hidden} more)" if hidden else ""))
+        return out
+
+    order = sorted(buckets, key=lambda sig: (-len(buckets[sig]), sig))
+    lines = [f"=== Unique sol crash signatures: {len(buckets)} (from {len(crashes)} inputs) ===", ""]
+    for name, why in CLASS_ORDER:
+        sigs = [s for s in order if classes[s] == name]
+        n_inputs = sum(len(buckets[s]) for s in sigs)
+        lines.append(f"  {n_inputs:5d} inputs / {len(sigs):4d} shapes  {name:16s} {why}")
+
+    for name, _ in CLASS_ORDER:
+        sigs = [s for s in order if classes[s] == name]
+        if not sigs:
+            continue
+        collapsed = name != CANDIDATE and not show_all
+        header = f"=== {name}: {sum(len(buckets[s]) for s in sigs)} inputs / {len(sigs)} shapes"
+        lines += ["", header + (" (largest 3; --all for the rest) ===" if collapsed else " ===")]
+        for sig in (sigs[:3] if collapsed else sigs):
+            lines += [""] + detail(sig)
 
     by_msg: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for sig, members in buckets.items():
@@ -247,6 +369,8 @@ def main() -> int:
     parser.add_argument("--replay", action="store_true",
                         help="also run sol_debug_runner on each dump and report its exit code "
                              "(rc=1 means the mismatch reproduces standalone)")
+    parser.add_argument("--all", action="store_true",
+                        help="print every bucket, including the known-noise classes")
     parser.add_argument("--summary-only", action="store_true",
                         help="skip the dumping step; bucket the existing .sol/.err artifacts")
     parser.add_argument("-o", "--output", default="unique_sol_crashes.txt", help="summary file (default: %(default)s)")
@@ -259,7 +383,7 @@ def main() -> int:
         return 2
 
     if args.summary_only:
-        return summarize(crashes, {}, Path(args.output))
+        return summarize(crashes, {}, Path(args.output), args.all)
 
     name = args.fuzzer or infer_fuzzer(paths)
     dumper = (Path(name) if "/" in name else FUZZER_DIR / name).resolve()
@@ -292,7 +416,7 @@ def main() -> int:
                 print(f"[{n}/{total}] {crash.name}: {msg}{rc_note}", flush=True)
 
     print()
-    return summarize(crashes, replay_rc if args.replay else {}, Path(args.output))
+    return summarize(crashes, replay_rc if args.replay else {}, Path(args.output), args.all)
 
 
 if __name__ == "__main__":
