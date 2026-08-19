@@ -40,3 +40,4 @@ fuzz-*.log
 /team-meeting.txt
 /seeds_sol_ice
 findings.*
+/results
