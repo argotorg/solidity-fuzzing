@@ -37,6 +37,7 @@
 
 #include <boost/program_options.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -498,6 +499,16 @@ static bool storageEqual(
 	return true;
 }
 
+/// TransientStorageMap is unordered; sort slots so dumps are diffable.
+static std::vector<std::pair<evmc::bytes32, evmc::bytes32>> sortedTransientSlots(
+	TransientStorageMap const& _slots
+)
+{
+	std::vector<std::pair<evmc::bytes32, evmc::bytes32>> out(_slots.begin(), _slots.end());
+	std::sort(out.begin(), out.end(), [](auto const& _l, auto const& _r) { return _l.first < _r.first; });
+	return out;
+}
+
 /// Filter out transient storage entries where value is zero.
 static std::map<evmc::address, TransientStorageMap> filterZeroTransientStorage(
 	std::map<evmc::address, TransientStorageMap> const& _storage
@@ -517,30 +528,55 @@ static std::map<evmc::address, TransientStorageMap> filterZeroTransientStorage(
 	return filtered;
 }
 
-/// Compare transient storage maps positionally.
-static bool transientStorageEqual(
-	std::map<evmc::address, TransientStorageMap> const& _a,
-	std::map<evmc::address, TransientStorageMap> const& _b
+/// Build a map from creation-order index to non-zero transient storage content.
+static std::map<size_t, TransientStorageMap> normalizeTransientByCreationOrder(
+	std::map<evmc::address, TransientStorageMap> const& _storage,
+	std::vector<evmc::address> const& _creationOrder
 )
 {
-	auto filtA = filterZeroTransientStorage(_a);
-	auto filtB = filterZeroTransientStorage(_b);
-	if (filtA.size() != filtB.size())
-		return false;
-	auto itA = filtA.begin();
-	auto itB = filtB.begin();
-	for (; itA != filtA.end(); ++itA, ++itB)
+	auto filtered = filterZeroTransientStorage(_storage);
+	std::map<size_t, TransientStorageMap> result;
+	size_t unknownIdx = _creationOrder.size();
+	for (auto const& [addr, storageMap] : filtered)
 	{
-		auto const& storageA = itA->second;
-		auto const& storageB = itB->second;
+		auto it = std::find(_creationOrder.begin(), _creationOrder.end(), addr);
+		size_t idx = (it != _creationOrder.end())
+			? static_cast<size_t>(std::distance(_creationOrder.begin(), it))
+			: unknownIdx++;
+		result[idx] = storageMap;
+	}
+	return result;
+}
+
+/// Compare transient storage maps for equality. Accounts are matched by CONTRACT
+/// CREATION ORDER, exactly as storageEqual does and as the fuzzer harness does --
+/// comparing by sorted address instead makes every differing CREATE/CREATE2
+/// address look like a mismatch.
+static bool transientStorageEqual(
+	std::map<evmc::address, TransientStorageMap> const& _a,
+	std::vector<evmc::address> const& _creationOrderA,
+	std::map<evmc::address, TransientStorageMap> const& _b,
+	std::vector<evmc::address> const& _creationOrderB
+)
+{
+	auto normA = normalizeTransientByCreationOrder(_a, _creationOrderA);
+	auto normB = normalizeTransientByCreationOrder(_b, _creationOrderB);
+	if (normA.size() != normB.size())
+		return false;
+	for (auto const& [idx, storageA] : normA)
+	{
+		auto jt = normB.find(idx);
+		if (jt == normB.end())
+			return false;
+		auto const& storageB = jt->second;
 		if (storageA.size() != storageB.size())
 			return false;
 		for (auto const& [key, valA] : storageA)
 		{
-			auto jt = storageB.find(key);
-			if (jt == storageB.end())
+			auto kt = storageB.find(key);
+			if (kt == storageB.end())
 				return false;
-			if (valA != jt->second)
+			if (valA != kt->second)
 				return false;
 		}
 	}
@@ -593,6 +629,20 @@ static void printRunResult(std::string const& _label, RunResult const& _run, std
 		_out << "    Account " << toHexString(addr) << " " << creationTag << " (" << storageMap.size() << " slots):" << std::endl;
 		for (auto const& [key, val] : storageMap)
 			_out << "      " << toHexString(key) << " => " << toHexString(val.current) << std::endl;
+	}
+
+	auto filteredTransient = filterZeroTransientStorage(_run.transientStorage);
+	_out << "  Transient storage (" << filteredTransient.size() << " accounts):" << std::endl;
+	for (auto const& [addr, storageMap] : filteredTransient)
+	{
+		auto const& co = _run.contractCreationOrder;
+		auto it = std::find(co.begin(), co.end(), addr);
+		std::string creationTag = (it != co.end())
+			? "[created #" + std::to_string(std::distance(co.begin(), it)) + "]"
+			: "[unknown creation order]";
+		_out << "    Account " << toHexString(addr) << " " << creationTag << " (" << storageMap.size() << " slots):" << std::endl;
+		for (auto const& [key, val] : sortedTransientSlots(storageMap))
+			_out << "      " << toHexString(key) << " => " << toHexString(val) << std::endl;
 	}
 	_out << std::endl;
 }
@@ -703,7 +753,10 @@ static bool compareRuns(
 		if (!gasRelated && !storageMatch) mismatch = true;
 
 		// Transient storage
-		bool transientMatch = transientStorageEqual(_a.transientStorage, _b.transientStorage);
+		bool transientMatch = transientStorageEqual(
+			_a.transientStorage, _a.contractCreationOrder,
+			_b.transientStorage, _b.contractCreationOrder
+		);
 		if (!gasRelated && !transientMatch) mismatch = true;
 
 		if (!_quiet)
@@ -1140,6 +1193,56 @@ int main(int argc, char* argv[])
 							std::cout << "  Account " << toHexString(addr) << " (" << storageMap.size() << " slots):" << std::endl;
 							for (auto const& [key, val] : storageMap)
 								std::cout << "    " << toHexString(key) << " => " << toHexString(val.current) << std::endl;
+						}
+					}
+				}
+				std::cout << std::endl;
+			}
+		}
+
+		// Print transient storage
+		std::cout << YELLOW << "========== TRANSIENT STORAGE ==========" << RESET << std::endl;
+		for (size_t i = 0; i < configs.size(); i++)
+		{
+			auto filtered = filterZeroTransientStorage(results[i].transientStorage);
+			std::cout << "  " << configs[i].label << ": ";
+			if (results[i].compilationFailed)
+				std::cout << "COMPILATION FAILED";
+			else
+				std::cout << filtered.size() << " accounts";
+			std::cout << std::endl;
+		}
+		std::cout << std::endl;
+
+		if (verbose)
+		{
+			std::cout << "NOTE: Accounts are tagged with their CREATE/CREATE2 creation index;" << std::endl;
+			std::cout << "that index, not the address, is what the comparison matches on." << std::endl;
+			std::cout << "NOTE: Slots with value zero are hidden (equivalent to unwritten in the EVM)." << std::endl;
+			std::cout << std::endl;
+			for (size_t i = 0; i < configs.size(); i++)
+			{
+				std::cout << "--- " << configs[i].label << " ---" << std::endl;
+				if (results[i].compilationFailed)
+					std::cout << "  COMPILATION FAILED" << std::endl;
+				else
+				{
+					auto filtered = filterZeroTransientStorage(results[i].transientStorage);
+					if (filtered.empty())
+						std::cout << "  (no transient storage)" << std::endl;
+					else
+					{
+						auto const& co = results[i].contractCreationOrder;
+						for (auto const& [addr, storageMap] : filtered)
+						{
+							auto it = std::find(co.begin(), co.end(), addr);
+							std::string creationTag = (it != co.end())
+								? "[created #" + std::to_string(std::distance(co.begin(), it)) + "]"
+								: "[unknown creation order]";
+							std::cout << "  Account " << toHexString(addr) << " " << creationTag
+								<< " (" << storageMap.size() << " slots):" << std::endl;
+							for (auto const& [key, val] : sortedTransientSlots(storageMap))
+								std::cout << "    " << toHexString(key) << " => " << toHexString(val) << std::endl;
 						}
 					}
 				}

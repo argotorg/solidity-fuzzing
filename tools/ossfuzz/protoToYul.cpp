@@ -2037,10 +2037,46 @@ void ProtoConverter::buildObjectScopeTree(Object const& _x)
 	m_objectScope.emplace(objectName, node);
 }
 
+/// Opcodes whose result depends on how the program was compiled, and which must
+/// therefore never end up in code we execute -- see createCalldata below.
+static bool isOptimizerDependentOpcode(uint8_t _byte)
+{
+	switch (_byte)
+	{
+	case 0x38: // CODESIZE
+	case 0x39: // CODECOPY
+	case 0x3b: // EXTCODESIZE
+	case 0x3c: // EXTCODECOPY
+	case 0x3f: // EXTCODEHASH
+	case 0x59: // MSIZE
+	case 0x5a: // GAS
+		return true;
+	default:
+		return false;
+	}
+}
+
 bytes ProtoConverter::createCalldata(CallData const& _x)
 {
+	// Calldata is inert as data, but it does not stay data: the grammar emits
+	// calldatacopy into memory that create/create2 then deploys as init code, so
+	// mutator-chosen calldata bytes become executable. A child contract running
+	// e.g. GAS or EXTCODEHASH(CALLER) writes an optimizer-dependent value into
+	// (transient) storage, and the differential oracle reports a mismatch that is
+	// not a compiler bug. This is the same property filterOptimizationNoise
+	// enforces for the Yul we emit; calldata was the way around it.
+	//
+	// Substitute rather than drop, so calldata offsets and sizes stay stable.
+	// PUSH0 is the replacement because it is deterministic, single-byte and does
+	// not halt, leaving the rest of any init code reachable (STOP would truncate
+	// every child contract at the first offending byte).
+	static constexpr uint8_t pushZero = 0x5f;
 	std::string const& data = _x.raw_data();
-	return bytes(data.begin(), data.end());
+	bytes result(data.begin(), data.end());
+	for (uint8_t& b: result)
+		if (isOptimizerDependentOpcode(b))
+			b = pushZero;
+	return result;
 }
 
 void ProtoConverter::visit(Program const& _x)
