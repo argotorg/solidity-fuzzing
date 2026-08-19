@@ -24,8 +24,11 @@ fuzzer's own difference message.
 
 The fuzzer binary is inferred from the crash-dir name by stripping a leading
 "NNN-" prefix (so `488-sol_proto_ossfuzz_evmone_viair` -> that binary); override
-with --fuzzer. NOTE: an AFL++ crash dir is `findings_<fuzzer>/default/crashes`,
-whose basename is just "crashes" — pass --fuzzer explicitly for those. Crash
+with --fuzzer. NOTE: an AFL++ crash dir is `findings/<instance>/crashes`, whose
+basename is just "crashes" — pass --fuzzer explicitly for those. Several crash
+dirs may be given at once (e.g. `findings/*/crashes`), and a dir holding no
+crash files is expanded to its `*/crashes` subdirs, so passing the findings dir
+itself works too. Crash
 inputs are matched by both libFuzzer ("crash-*") and AFL++ ("id:*") naming, and
 the fuzzers now live in build_afl/ (was build_ossfuzz/). Exit-code meanings (both
 runners):
@@ -124,7 +127,8 @@ def run_with_timeout(cmd, env, cwd, timeout):
         return None, out
 
 
-def process_one(crash, family, dumper, runner, timeout, work_root):
+def process_one(crash, family, dumper, runner, timeout, work_root, label=None):
+    label = label or crash.name
     ext = ".sol" if family == "sol" else ".yul"
     src = (crash.parent / f"{crash.name}{ext}").resolve()
     dump_log = crash.parent / f"{crash.name}.dump.txt"
@@ -147,7 +151,7 @@ def process_one(crash, family, dumper, runner, timeout, work_root):
     dump_log.write_text(dump_text)
 
     if not src.is_file() or src.stat().st_size == 0:
-        return dict(name=crash.name, rc=None, verdict="DUMP_FAILED",
+        return dict(name=label, rc=None, verdict="DUMP_FAILED",
                     detail=extract_message(dump_text), repro="-")
 
     detail = extract_message(dump_text)
@@ -180,7 +184,7 @@ def process_one(crash, family, dumper, runner, timeout, work_root):
         repro = "NO"
     else:
         repro = "?"
-    return dict(name=crash.name, rc=rc, verdict=verdict_for(rc),
+    return dict(name=label, rc=rc, verdict=verdict_for(rc),
                 detail=detail, repro=repro)
 
 
@@ -222,7 +226,10 @@ def print_table(rows, max_detail):
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("crash_dir", help="directory of crash-<hash> files")
+    ap.add_argument("crash_dirs", nargs="+", metavar="CRASH_DIR",
+                    help="directories of crash-<hash> files. A findings dir "
+                         "(or a shell glob over one) works too: any dir with "
+                         "no crash files is searched for */crashes")
     ap.add_argument("--fuzzer", default=None,
                     help="ossfuzz binary name or path (default: inferred from "
                          "crash-dir name with a leading 'NNN-' stripped)")
@@ -238,13 +245,23 @@ def main():
                     help="truncate the difference column to N chars (0 = full)")
     args = ap.parse_args()
 
-    crash_dir = Path(args.crash_dir)
-    if not crash_dir.is_dir():
-        print(f"missing dir: {crash_dir}", file=sys.stderr)
+    crash_dirs = []
+    for d in args.crash_dirs:
+        d = Path(d)
+        if not d.is_dir():
+            print(f"missing dir: {d}", file=sys.stderr)
+            return 1
+        if any(f.is_file() and is_crash_file(f.name) for f in d.iterdir()):
+            crash_dirs.append(d)
+        else:
+            crash_dirs += sorted(sub for sub in d.glob("*/crashes")
+                                 if sub.is_dir())
+    if not crash_dirs:
+        print("no crash directories found", file=sys.stderr)
         return 1
 
     # Infer the fuzzer binary from the crash-dir name (strip leading "NNN-").
-    name = args.fuzzer or re.sub(r"^\d+-", "", crash_dir.name)
+    name = args.fuzzer or re.sub(r"^\d+-", "", crash_dirs[0].name)
     dumper = Path(name) if "/" in name else (OSSFUZZ_DIR / name)
     dumper = dumper.resolve()
     base = dumper.name
@@ -265,16 +282,27 @@ def main():
             print(f"missing or not executable: {p}", file=sys.stderr)
             return 1
 
-    crashes = sorted(f for f in crash_dir.iterdir()
-                     if f.is_file() and is_crash_file(f.name))
+    crashes = []
+    for d in crash_dirs:
+        crashes += sorted(f for f in d.iterdir()
+                          if f.is_file() and is_crash_file(f.name))
     if args.limit is not None:
         crashes = crashes[:args.limit]
     total = len(crashes)
     threads = max(1, args.threads)
 
     print(f"fuzzer={base} family={family} runner={runner.name}")
-    print(f"crash_dir={crash_dir} total={total} threads={threads}")
+    for d in crash_dirs:
+        print(f"crash_dir={d}")
+    print(f"total={total} threads={threads}")
     print()
+
+    def label_for(crash):
+        if len(crash_dirs) < 2:
+            return crash.name
+        d = crash.parent
+        inst = d.parent.name if d.name == "crashes" else d.name
+        return f"{inst}/{crash.name}"
 
     rows = []
     lock = threading.Lock()
@@ -283,13 +311,14 @@ def main():
         work_root_path = Path(work_root)
         with ThreadPoolExecutor(max_workers=threads) as ex:
             futures = [ex.submit(process_one, c, family, dumper, runner,
-                                 args.timeout, work_root_path) for c in crashes]
+                                 args.timeout, work_root_path, label_for(c))
+                       for c in crashes]
             for fut in as_completed(futures):
                 row = fut.result()
                 rows.append(row)
                 with lock:
                     done += 1
-                    print(f"[{done}/{total}] {row['name'][6:]} ... "
+                    print(f"[{done}/{total}] {row['name']} ... "
                           f"{row['verdict']}", file=sys.stderr)
 
     rows.sort(key=lambda r: r["name"])

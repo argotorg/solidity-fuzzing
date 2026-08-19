@@ -72,14 +72,14 @@ tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 
 ```bash
 yul_crash_categorizer.py
-sol_ice_crash_backtrace_categorizer.py
+./sol_ice_crash_backtrace_categorizer.py -j16 results/643-sol_ice_ossfuzz/findings/*/crashes
+
 rerender_afl_hangs.py
 run_afl_crashes.py
 run_afl_hangs.py
 run_ice_crashes.py
-run_sol_crashes.py
-run_yul_crashes.py
-sol_ice_crash_backtrace_categorizer.py
+./run_sol_crashes.py --fuzzer build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
+./run_yul_crashes.py ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
 ```
 
 

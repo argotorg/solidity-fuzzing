@@ -4,7 +4,11 @@
 Works for both the single-pass fuzzers and the whole-sequence differential
 modes (ssacfg / check_stack_alloc / no_ssa / default), selected via -p.
 
-For each crash-<hash> file in the crash dir:
+Several crash dirs may be given at once (e.g. `--crash-dir findings/*/crashes`),
+and a dir holding no crash files is expanded to its `*/crashes` subdirs, so
+passing the findings dir itself works too.
+
+For each crash-<hash> file in the crash dirs:
   1. Dump the protobuf to <crash-dir>/crash-<hash>.yul via the matching fuzzer
      binary. For non-single-pass modes also dump the optimizer sequence to
      <crash-dir>/crash-<hash>.seq (the harness bakes each mode's differential
@@ -88,10 +92,12 @@ def is_crash_file(name: str) -> bool:
     return name.startswith("crash-") or name.startswith("id:")
 
 
-def process_one(crash: Path, crash_dir: Path, dumper: Path, sel: str, work_root: Path):
-    yul_out = (crash_dir / f"{crash.name}.yul").resolve()
-    run_out = (crash_dir / f"{crash.name}.out").resolve()
-    seq_out = (crash_dir / f"{crash.name}.seq").resolve()
+def process_one(crash: Path, dumper: Path, sel: str, work_root: Path,
+                label: str = None):
+    label = label or crash.name
+    yul_out = (crash.parent / f"{crash.name}.yul").resolve()
+    run_out = (crash.parent / f"{crash.name}.out").resolve()
+    seq_out = (crash.parent / f"{crash.name}.seq").resolve()
 
     # 1. Dump the Yul source. The harness deliberately crashes after writing the
     # .yul, so a non-zero exit is expected. Non-single-pass modes also dump their
@@ -104,7 +110,7 @@ def process_one(crash: Path, crash_dir: Path, dumper: Path, sel: str, work_root:
                    check=False)
 
     if not yul_out.is_file() or yul_out.stat().st_size == 0:
-        return crash.name, None, "dump-failed"
+        return label, None, "dump-failed"
 
     # 2. Replay. Per-task cwd so parallel runners don't collide on the
     # yul_debug_output-N artifacts the runner writes.
@@ -115,7 +121,7 @@ def process_one(crash: Path, crash_dir: Path, dumper: Path, sel: str, work_root:
                 run_cmd, cwd=work, stdout=out, stderr=subprocess.STDOUT,
                 check=False,
             ).returncode
-    return crash.name, rc, None
+    return label, rc, None
 
 
 def main() -> int:
@@ -125,32 +131,58 @@ def main() -> int:
                         choices=VALID_SELECTORS, metavar="SELECTOR",
                         help="single-pass abbreviation (%s) or differential mode (%s)"
                              % (",".join(VALID_PASSES), ",".join(VALID_MODES)))
-    parser.add_argument("--crash-dir", default=None,
-                        help="crash directory (default: <selector>_crash)")
+    parser.add_argument("--crash-dir", nargs="+", default=None,
+                        metavar="CRASH_DIR",
+                        help="crash directories (default: <selector>_crash). A "
+                             "findings dir (or a shell glob over one) works "
+                             "too: any dir with no crash files is searched for "
+                             "*/crashes")
     parser.add_argument("--threads", "-j", type=int, default=os.cpu_count() or 1,
                         help="number of parallel workers (default: %(default)d)")
     args = parser.parse_args()
 
     sel = args.opt_pass
-    crash_dir = Path(args.crash_dir) if args.crash_dir else Path(f"{sel}_crash")
     dumper = Path(f"./build_afl/tools/ossfuzz/{dumper_name(sel)}").resolve()
 
     for p in (dumper, RUNNER):
         if not (p.is_file() and os.access(p, os.X_OK)):
             print(f"missing or not executable: {p}", file=sys.stderr)
             return 1
-    if not crash_dir.is_dir():
-        print(f"missing dir: {crash_dir}", file=sys.stderr)
+    crash_dirs = []
+    for d in (args.crash_dir or [f"{sel}_crash"]):
+        d = Path(d)
+        if not d.is_dir():
+            print(f"missing dir: {d}", file=sys.stderr)
+            return 1
+        if any(f.is_file() and is_crash_file(f.name) for f in d.iterdir()):
+            crash_dirs.append(d)
+        else:
+            crash_dirs += sorted(sub for sub in d.glob("*/crashes")
+                                 if sub.is_dir())
+    if not crash_dirs:
+        print("no crash directories found", file=sys.stderr)
         return 1
 
-    crashes = sorted(f for f in crash_dir.iterdir()
-                     if f.is_file() and is_crash_file(f.name))
+    crashes = []
+    for d in crash_dirs:
+        crashes += sorted(f for f in d.iterdir()
+                          if f.is_file() and is_crash_file(f.name))
     total = len(crashes)
     done = 0
     threads = max(1, args.threads)
 
     kind = "pass" if sel in VALID_PASSES else "mode"
-    print(f"{kind}='{sel}' crash_dir={crash_dir} total={total} threads={threads}")
+    for d in crash_dirs:
+        print(f"crash_dir={d}")
+    print(f"{kind}='{sel}' total={total} threads={threads}")
+
+    # AFL++ ids repeat across instances, so qualify names when >1 dir.
+    def label_for(crash):
+        if len(crash_dirs) < 2:
+            return crash.name
+        d = crash.parent
+        inst = d.parent.name if d.name == "crashes" else d.name
+        return f"{inst}/{crash.name}"
 
     print_lock = threading.Lock()
     completed = 0
@@ -158,7 +190,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as work_root:
         work_root_path = Path(work_root)
         with ThreadPoolExecutor(max_workers=threads) as ex:
-            futures = [ex.submit(process_one, c, crash_dir, dumper, sel, work_root_path)
+            futures = [ex.submit(process_one, c, dumper, sel, work_root_path,
+                                 label_for(c))
                        for c in crashes]
             for fut in as_completed(futures):
                 name, rc, err = fut.result()
