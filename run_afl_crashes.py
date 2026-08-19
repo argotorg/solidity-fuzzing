@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Replay AFL crashes through sol_afl_diff_runner and sol_debug_runner --afl.
 
-Walks <findings_root> for AFL crash files — any file whose name starts with
-"id:" — in either the native AFL layout (<campaign>/crashes/id:*) or a flat
-directory of crash files (e.g. a merged fuzzer-results/ folder). Symlinked
+Walks each <findings_root> for AFL crash files — any file whose name starts
+with "id:" — in either the native AFL layout (<campaign>/crashes/id:*) or a
+flat directory of crash files (e.g. a merged fuzzer-results/ folder). Several
+roots may be given, so a shell glob such as findings/*/crashes works. Symlinked
 subdirectories are not followed, so a self-referential sync dir cannot cause an
 infinite walk. Byte-identical inputs are collapsed by default (pass --no-dedup
 to process every copy). For each crash file (raw AFL input, possibly carrying
@@ -202,26 +203,44 @@ def find_crashes(findings_root: Path) -> list[Path]:
     return sorted(out)
 
 
-def dedup_crashes(crashes: list[Path]) -> tuple[list[Path], int]:
+def find_crashes_multi(roots: list[Path]) -> list[tuple[Path, Path]]:
+    """Collect (crash, owning_root) pairs across several findings roots.
+
+    A crash reached through more than one root is attributed to the first root
+    that reaches it, so overlapping globs do not produce duplicate work.
+    """
+    seen: set[Path] = set()
+    out: list[tuple[Path, Path]] = []
+    for root in roots:
+        for c in find_crashes(root):
+            key = c.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((c, root))
+    return out
+
+
+def dedup_crashes(crashes: list[tuple[Path, Path]]) -> tuple[list[tuple[Path, Path]], int]:
     """Drop byte-identical crash inputs, keeping the first by sorted path.
 
     Merged findings folders and AFL sync dirs routinely hold many copies of the
     same input. Returns (unique_crashes, dropped_count).
     """
     seen: set[str] = set()
-    unique: list[Path] = []
+    unique: list[tuple[Path, Path]] = []
     dropped = 0
-    for c in crashes:
+    for c, root in crashes:
         try:
             digest = hashlib.sha1(c.read_bytes()).hexdigest()
         except OSError:
-            unique.append(c)  # unreadable — keep it, let the runner report it
+            unique.append((c, root))  # unreadable — keep it, let the runner report it
             continue
         if digest in seen:
             dropped += 1
             continue
         seen.add(digest)
-        unique.append(c)
+        unique.append((c, root))
     return unique, dropped
 
 
@@ -351,11 +370,14 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("findings_root", nargs="?", default="findings_afl",
-                    help="dir to search for crash files (id:*); accepts the "
-                         "native <campaign>/crashes/<id> layout or a flat "
-                         "folder of crash files (default: findings_afl)")
-    ap.add_argument("out_dir", nargs="?", default="afl_crash_triage",
+    ap.add_argument("paths", nargs="*", default=[],
+                    help="one or more dirs to search for crash files (id:*); "
+                         "accepts the native <campaign>/crashes/<id> layout or "
+                         "a flat folder of crash files, so a glob like "
+                         "findings/*/crashes works (default: findings_afl). "
+                         "For backwards compatibility a trailing path that is "
+                         "not an existing directory is taken as out_dir.")
+    ap.add_argument("-o", "--out-dir", default=None,
                     help="output directory (default: afl_crash_triage)")
     ap.add_argument("--threads", "-j", type=int, default=os.cpu_count() or 1,
                     help="parallel workers (default: %(default)d)")
@@ -374,22 +396,30 @@ def main() -> int:
                          "another (by default duplicate inputs are collapsed)")
     args = ap.parse_args()
 
-    findings_root = Path(args.findings_root)
-    out_dir = Path(args.out_dir)
+    paths = list(args.paths)
+    out_dir_arg = args.out_dir
+    if out_dir_arg is None and len(paths) >= 2 and not Path(paths[-1]).is_dir():
+        out_dir_arg = paths.pop()
+    findings_roots = [Path(p) for p in paths] or [Path("findings_afl")]
+    out_dir = Path(out_dir_arg or "afl_crash_triage")
 
     for p in (DIFF_RUNNER, DEBUG_RUNNER):
         if not (p.is_file() and os.access(p, os.X_OK)):
             print(f"missing or not executable: {p}", file=sys.stderr)
             return 2
-    if not findings_root.is_dir():
-        print(f"findings_root not a directory: {findings_root}", file=sys.stderr)
+    missing = [r for r in findings_roots if not r.is_dir()]
+    if missing:
+        for r in missing:
+            print(f"findings root not a directory: {r}", file=sys.stderr)
         return 2
 
     (out_dir / "logs").mkdir(parents=True, exist_ok=True)
     (out_dir / "sources").mkdir(parents=True, exist_ok=True)
 
-    crashes = find_crashes(findings_root)
-    print(f"Found {len(crashes)} crash file(s) under {findings_root}",
+    crashes = find_crashes_multi(findings_roots)
+    roots_desc = (str(findings_roots[0]) if len(findings_roots) == 1
+                  else f"{len(findings_roots)} roots")
+    print(f"Found {len(crashes)} crash file(s) under {roots_desc}",
           file=sys.stderr)
     dropped = 0
     if not args.no_dedup:
@@ -408,9 +438,9 @@ def main() -> int:
     with tsv_path.open("w") as tsv:
         tsv.write("\t".join(HEADER) + "\n")
         with ThreadPoolExecutor(max_workers=max(1, args.threads)) as ex:
-            futs = {ex.submit(process_one, c, findings_root, out_dir,
+            futs = {ex.submit(process_one, c, root, out_dir,
                               args.per_config_timeout, args.outer_timeout): c
-                    for c in crashes}
+                    for c, root in crashes}
             for fut in as_completed(futs):
                 r = fut.result()
                 with print_lock:
