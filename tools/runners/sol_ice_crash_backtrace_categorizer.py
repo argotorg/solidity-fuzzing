@@ -10,18 +10,19 @@ For each crash-* input file given on the command line:
      file, capturing the full gdb report into <crash>.backtrace and solc's
      own stderr into <crash>.output.
   3. After all inputs are processed (or with --summary-only), scan every
-     crash-*.backtrace in the cwd, compute a signature for each, and print
+     *.backtrace next to the inputs, compute a signature for each, and print
      the unique buckets.
 
 Usage:
-    ./tools/runners/sol_crash_backtrace.py crash-<hash> [crash-<hash> ...]
-    ./tools/runners/sol_crash_backtrace.py --summary-only
+    ./tools/runners/sol_ice_crash_backtrace_categorizer.py <crash> [<crash> ...]
+    ./tools/runners/sol_ice_crash_backtrace_categorizer.py --summary-only [dir ...]
 """
 
 import argparse
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from collections import defaultdict
@@ -48,16 +49,41 @@ FRAME_RE = re.compile(r"^#\d+\s+(?:0x[0-9a-f]+\s+in\s+)?(.+?)(?:\s+\(.*)?$", re.
 STDERR_SPLIT_RE = re.compile(r"^=== STDERR ===$", re.MULTILINE)
 
 
-def dump_sol(dumper: Path, crash: Path, sol_out: Path) -> None:
+def is_crash_input(p: Path) -> bool:
+    """Reject our own artifacts and AFL's README, so `crashes/*` stays usable."""
+    return not p.name.endswith((".sol", ".backtrace", ".output")) and p.name != "README.txt"
+
+
+def run_limited(cmd, timeout: int, **kwargs) -> subprocess.CompletedProcess:
+    """subprocess.run with a timeout that also reaps grandchildren.
+
+    Plain subprocess.run only kills the direct child; gdb's inferior survives,
+    keeps the stdout/stderr pipes open, and the post-kill communicate() then
+    blocks forever. Running in a new session lets us kill the whole group.
+    """
+    with subprocess.Popen(cmd, start_new_session=True, **kwargs) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            out, err = proc.communicate()
+            raise subprocess.TimeoutExpired(cmd, timeout, out, err)
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
+def dump_sol(dumper: Path, crash: Path, sol_out: Path, timeout: int) -> None:
     env = os.environ.copy()
     env["PROTO_FUZZER_DUMP_PATH"] = str(sol_out)
-    subprocess.run(
-        [str(dumper), str(crash)],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        run_limited(
+            [str(dumper), str(crash)],
+            timeout,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def run_gdb(solc: Path, sol_in: Path, timeout: int):
@@ -79,12 +105,12 @@ def run_gdb(solc: Path, sol_in: Path, timeout: int):
         str(sol_in),
     ]
     try:
-        result = subprocess.run(
+        result = run_limited(
             cmd,
-            capture_output=True,
+            timeout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            check=False,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
@@ -116,7 +142,7 @@ def process(crash: Path, dumper: Path, solc: Path, timeout: int) -> bool:
     output_out = Path(str(crash) + ".output")
 
     print(f"[{crash.name}] dumping -> {sol_out.name}")
-    dump_sol(dumper, crash, sol_out)
+    dump_sol(dumper, crash, sol_out, timeout)
     if not sol_out.is_file() or sol_out.stat().st_size == 0:
         print(f"  ERROR: failed to produce {sol_out.name}", file=sys.stderr)
         if sol_out.exists():
@@ -203,11 +229,11 @@ def backfill_output(backtrace_path: Path) -> None:
     output_path.write_text(extract_solc_stderr(text))
 
 
-def summarize(cwd: Path) -> int:
-    """Group every crash-*.backtrace by signature; print + write a summary."""
-    backtraces = sorted(cwd.glob("crash-*.backtrace"))
+def summarize(dirs: list[Path]) -> int:
+    """Group every *.backtrace under `dirs` by signature; print + write a summary."""
+    backtraces = sorted({bt for d in dirs for bt in d.glob("*.backtrace")})
     if not backtraces:
-        print("No crash-*.backtrace files found.", file=sys.stderr)
+        print(f"No *.backtrace files found in: {', '.join(str(d) for d in dirs)}", file=sys.stderr)
         return 1
 
     buckets: dict[str, list[str]] = defaultdict(list)
@@ -234,14 +260,16 @@ def summarize(cwd: Path) -> int:
 
     text = "\n".join(lines) + "\n"
     print(text)
-    (cwd / "unique_crashes.txt").write_text(text)
-    print(f"Wrote summary to {cwd / 'unique_crashes.txt'}")
+    out = Path.cwd() / "unique_crashes.txt"
+    out.write_text(text)
+    print(f"Wrote summary to {out}")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("crashes", nargs="*", help="crash-* input files")
+    parser.add_argument("crashes", nargs="*",
+                        help="crash input files (or, with --summary-only, directories)")
     parser.add_argument("--dumper", default=str(DEFAULT_DUMPER),
                         help=f"Path to sol_ice_ossfuzz (default: {DEFAULT_DUMPER})")
     parser.add_argument("--solc", default=str(DEFAULT_SOLC),
@@ -249,20 +277,26 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120,
                         help="Per-file gdb timeout in seconds (default: 120)")
     parser.add_argument("--summary-only", action="store_true",
-                        help="Skip processing; just summarize existing crash-*.backtrace files")
+                        help="Skip processing; just summarize existing *.backtrace files in the given dirs (default: cwd)")
     parser.add_argument("--no-summary", action="store_true",
                         help="Skip the unique-crash summary step after processing")
     args = parser.parse_args()
 
-    cwd = Path.cwd()
-
     if args.summary_only:
-        if args.crashes:
-            print("ERROR: --summary-only takes no crash arguments", file=sys.stderr)
-            return 2
-        return summarize(cwd)
+        dirs = [Path(d) for d in args.crashes] or [Path.cwd()]
+        for d in dirs:
+            if not d.is_dir():
+                print(f"ERROR: --summary-only takes directories, not {d}", file=sys.stderr)
+                return 2
+        return summarize(dirs)
 
-    if not args.crashes:
+    crashes = [Path(c) for c in args.crashes]
+    ignored = [c for c in crashes if not is_crash_input(c)]
+    crashes = [c for c in crashes if is_crash_input(c)]
+    if ignored:
+        print(f"Ignoring {len(ignored)} non-input file(s) (own output / README)")
+
+    if not crashes:
         print("ERROR: no crash files given (use --summary-only to skip processing)", file=sys.stderr)
         return 2
 
@@ -280,16 +314,16 @@ def main() -> int:
         return 2
 
     ok = 0
-    for c in args.crashes:
-        if process(Path(c), dumper, solc, args.timeout):
+    for c in crashes:
+        if process(c, dumper, solc, args.timeout):
             ok += 1
-    print(f"Processed {ok}/{len(args.crashes)} crash files")
+    print(f"Processed {ok}/{len(crashes)} crash files")
 
     if not args.no_summary:
         print()
-        summarize(cwd)
+        summarize(sorted({c.parent for c in crashes}))
 
-    return 0 if ok == len(args.crashes) else 1
+    return 0 if ok == len(crashes) else 1
 
 
 if __name__ == "__main__":
