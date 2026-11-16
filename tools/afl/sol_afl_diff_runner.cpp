@@ -241,10 +241,14 @@ static void runOneInput(std::string_view _input)
 	afl::AflInput const input = afl::splitInput(_input);
 	if (input.source.empty() || input.source.size() > s_maxSourceBytes)
 		return;
-	// Inline assembly can break solc's invariants in ways that look like miscompiles; gas() differs by config.
-	// Substring matches on purpose: a false hit only costs one corpus entry.
-	if (input.source.find("assembly") != std::string::npos || input.source.find("gas()") != std::string::npos)
-		return stop("static: assembly/gas");
+	// gas() / gasleft() differ by config. Substring matches on purpose: a false hit only costs one corpus entry. Inline
+	// assembly is checked on the call graph after compiling (configDependentSemantics).
+	if (input.source.find("gas()") != std::string::npos || input.source.find("gasleft") != std::string::npos)
+		return stop("static: gas");
+#if defined(AFL_MODE_ICE)
+	if (input.source.find("assembly") != std::string::npos)
+		return stop("static: assembly");
+#endif
 	// The compiled bytecode itself, which differs by config by design
 	if (input.source.find("creationCode") != std::string::npos || input.source.find("runtimeCode") != std::string::npos)
 		return stop("static: bytecode introspection");

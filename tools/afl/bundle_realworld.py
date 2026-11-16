@@ -33,7 +33,8 @@ IMPORT_RE = re.compile(r'\bimport\b[^;"\']*["\']([^"\']+)["\'][^;]*;')
 # Strings first so that comment markers inside them survive
 TOKEN_RE = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|//[^\n]*|/\*.*?\*/', re.S)
 CONCRETE_CONTRACT_RE = re.compile(r"(?<!abstract )\bcontract\s+\w+[^;]*?\{")
-ORACLE_UNSAFE_RE = re.compile(r"\bassembly\b|\bgasleft\s*\(|\bgas\s*\(|\.gas\s*:|\{\s*gas\s*:|tx\.gasprice|"
+# Inline assembly is fine: the runner skips only assembly a call graph reaches
+ORACLE_UNSAFE_RE = re.compile(r"\bgasleft\s*\(|\bgas\s*\(|\.gas\s*:|\{\s*gas\s*:|tx\.gasprice|"
                               r"creationCode|runtimeCode")
 
 
@@ -162,7 +163,7 @@ def main() -> int:
         (args.out / ("rwb_" + "__".join(rel.parts))).write_text(text)
         written += 1
     print(f"{len(files)} files: {written} bundles written, {rejected} rejected "
-          "(unresolved import, too big, no concrete contract, or assembly/gas/bytecode introspection)")
+          "(unresolved import, too big, no concrete contract, or gas/bytecode introspection)")
     return 0
 
 
