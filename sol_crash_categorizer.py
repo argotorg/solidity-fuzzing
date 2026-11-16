@@ -247,17 +247,45 @@ def has_eval_order_noise(sol: str) -> bool:
     return False
 
 
-def has_tuple_alias(sol: str) -> bool:
-    """Destructuring assignment whose LHS holds a memory local -- the storage
+def tuple_alias_lines(sol: str) -> list[int]:
+    """Destructuring assignments whose LHS holds a memory local -- the storage
     -> memory copy then races the other components' stores."""
     memory_locals = set(MEM_DECL_RE.findall(sol))
     if not memory_locals:
-        return False
-    for raw in sol.splitlines():
+        return []
+    hits = []
+    for i, raw in enumerate(sol.splitlines()):
         mo = TUPLE_LHS_RE.match(raw.strip())
         if mo and any(v.strip() in memory_locals for v in mo.group(1).split(",")):
-            return True
-    return False
+            hits.append(i)
+    return hits
+
+
+def has_tuple_alias(sol: str) -> bool:
+    return bool(tuple_alias_lines(sol))
+
+
+def verify_tuple_alias(crash: Path, timeout: int, work_root: Path) -> None:
+    """Delete the aliasing tuple assignments and re-run the differential; record its rc in
+    <crash>.noalias.rc. rc 0 means those statements explain the mismatch."""
+    sol = Path(f"{crash}.sol").read_text(errors="replace")
+    lines = sol.splitlines()
+    hits = tuple_alias_lines(sol)
+    rc_path = Path(f"{crash}.noalias.rc")
+    if not hits or any(not lines[i].rstrip().endswith(";") for i in hits):
+        rc_path.write_text("skip\n")
+        return
+    stripped = Path(f"{crash}.noalias.sol")
+    stripped.write_text("\n".join(l for i, l in enumerate(lines) if i not in hits) + "\n")
+    calldata = calldata_of(crash)
+    cmd = [str(RUNNER), "--quiet", *(["--calldata", calldata] if calldata else []), str(stripped.resolve())]
+    with tempfile.TemporaryDirectory(dir=str(work_root)) as work:
+        try:
+            rc = run_limited(cmd, timeout, cwd=work, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL).returncode
+        except subprocess.TimeoutExpired:
+            rc = "timeout"
+    rc_path.write_text(f"{rc}\n")
 
 
 # Ordered: the first match explains the crash. Everything unmatched is a candidate.
@@ -270,8 +298,10 @@ NOISE_CLASSES = [
      "turns that into a bare revert"),
     ("tuple-alias", has_tuple_alias,
      "tuple assignment with a memory LHS aliasing an overwritten storage var - "
-     "known legacy/IR difference, under investigation"),
+     "known legacy/IR difference (argotorg/solidity#16685); verified: deleting it removes the mismatch"),
 ]
+UNVERIFIED_TUPLE_ALIAS = ("tuple-alias-unverified",
+                          "matches the tuple-alias pattern, but --verify was not run or deleting it broke compilation")
 NO_REPRO = ("no-repro", "the input no longer crashes this fuzzer build - stale corpus entry")
 CANDIDATE = "candidate"
 
@@ -286,7 +316,7 @@ def noise_class(msg: str, sol: str) -> str:
 
 
 CLASS_ORDER = [(CANDIDATE, "not explained by any known class -- triage these")] + \
-              [(name, why) for name, _, why in NOISE_CLASSES] + [NO_REPRO]
+              [(name, why) for name, _, why in NOISE_CLASSES] + [UNVERIFIED_TUPLE_ALIAS, NO_REPRO]
 
 
 def signature(crash: Path) -> tuple[str, str, str]:
@@ -296,7 +326,13 @@ def signature(crash: Path) -> tuple[str, str, str]:
     if not sol_path.is_file() or sol_path.stat().st_size == 0:
         return f"{msg}  [no .sol dumped]", "(none)", CANDIDATE
     sol = sol_path.read_text(errors="replace")
-    return f"{msg}  [shape {shape_hash(sol)}]", features_of(sol), noise_class(msg, sol)
+    cls = noise_class(msg, sol)
+    if cls == "tuple-alias":
+        rc_path = Path(f"{crash}.noalias.rc")
+        rc = rc_path.read_text().strip() if rc_path.is_file() else ""
+        # Still mismatching without the aliasing statements: something else is going on.
+        cls = "tuple-alias" if rc == "0" else CANDIDATE if rc == "1" else UNVERIFIED_TUPLE_ALIAS[0]
+    return f"{msg}  [shape {shape_hash(sol)}]", features_of(sol), cls
 
 
 def summarize(crashes: list[Path], replay_rc: dict[Path, int | None], out_file: Path,
@@ -370,6 +406,9 @@ def main() -> int:
     parser.add_argument("--replay", action="store_true",
                         help="also run sol_debug_runner on each dump and report its exit code "
                              "(rc=1 means the mismatch reproduces standalone)")
+    parser.add_argument("--verify", action="store_true",
+                        help="check each tuple-alias crash by deleting the aliasing statements and "
+                             "re-running sol_debug_runner (works with --summary-only on existing dumps)")
     parser.add_argument("--all", action="store_true",
                         help="print every bucket, including the known-noise classes")
     parser.add_argument("--summary-only", action="store_true",
@@ -383,7 +422,27 @@ def main() -> int:
         print("ERROR: no crash inputs found", file=sys.stderr)
         return 2
 
+    if args.verify:
+        if not (RUNNER.is_file() and os.access(RUNNER, os.X_OK)):
+            print(f"ERROR: missing or not executable: {RUNNER}", file=sys.stderr)
+            return 2
+
+    def verify_all() -> None:
+        todo = []
+        for c in crashes:
+            sol = Path(f"{c}.sol")
+            err = Path(f"{c}.err")
+            if sol.is_file() and err.is_file():
+                msg = message_of(err.read_text(errors="replace"))
+                if noise_class(msg, sol.read_text(errors="replace")) == "tuple-alias":
+                    todo.append(c)
+        print(f"verifying {len(todo)} tuple-alias crashes", flush=True)
+        with tempfile.TemporaryDirectory() as work_root, ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            list(pool.map(lambda c: verify_tuple_alias(c, args.timeout, Path(work_root)), todo))
+
     if args.summary_only:
+        if args.verify:
+            verify_all()
         return summarize(crashes, {}, Path(args.output), args.all)
 
     name = args.fuzzer or infer_fuzzer(paths)
@@ -417,6 +476,8 @@ def main() -> int:
                 print(f"[{n}/{total}] {crash.name}: {msg}{rc_note}", flush=True)
 
     print()
+    if args.verify:
+        verify_all()
     return summarize(crashes, replay_rc if args.replay else {}, Path(args.output), args.all)
 
 
