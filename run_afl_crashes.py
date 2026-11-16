@@ -47,7 +47,13 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-DIFF_RUNNER = Path("./build/tools/afl/sol_afl_diff_runner").resolve()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sol_crash_categorizer  # noqa: E402
+
+AFL_BIN_DIR = Path("./build/tools/afl").resolve()
+DIFF_RUNNER = AFL_BIN_DIR / "sol_afl_diff_runner"
+THROW_SITE_RE = re.compile(r"(?:^|/)(lib\w+/\S+\.(?:cpp|h)\(\d+\)): Throw in function (.*)$", re.MULTILINE)
+MODE_FROM_PATH_RE = re.compile(r"findings_afl_(\w+)")
 DEBUG_RUNNER = Path("./build/tools/runners/sol_debug_runner").resolve()
 
 # sol_debug_runner --timeout switches the runner into *hang-triage* mode: it
@@ -63,7 +69,9 @@ DEFAULT_OUTER_TIMEOUT_S = 180
 #   "Sol AFL diff fuzzer: <bucket>"
 # See tools/afl/sol_afl_diff_runner.cpp.
 DIFF_ASSERT_BUCKETS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"status code differs"), "diff:status"),
+    (re.compile(r"deploy status differs"), "diff:deploy-status"),
+    (re.compile(r"status (code )?differs"), "diff:status"),
+    (re.compile(r"number of executed calls differs"), "diff:call-count"),
     (re.compile(r"output differs"),       "diff:output"),
     (re.compile(r"logs differ"),          "diff:logs"),
     (re.compile(r"transient storage differs"), "diff:tstorage"),
@@ -134,6 +142,10 @@ def parse_diff_runner_outcome(rc: int, output: str) -> tuple[str, str]:
             for pat, bucket in DIFF_ASSERT_BUCKETS:
                 if pat.search(output):
                     return f"crash:abort:{bucket}", pat.pattern
+            # sol_afl_ice_runner prints boost::diagnostic_information: bucket by throw site
+            throw = THROW_SITE_RE.search(output)
+            if throw:
+                return f"crash:abort:ice:{throw.group(1)}", throw.group(2).strip()[:160]
             for pat, sub in INTERNAL_ASSERT_PATTERNS:
                 if pat.search(output):
                     return f"crash:abort:{sub}", pat.pattern
@@ -197,6 +209,9 @@ def find_crashes(findings_root: Path) -> list[Path]:
     out: list[Path] = []
     for dirpath, _dirnames, filenames in os.walk(findings_root, followlinks=False):
         d = Path(dirpath)
+        # queue/ and hangs/ entries are id:* too, but are not crashes
+        if d.name in ("queue", "hangs", ".synced") or "queue" in d.parts:
+            continue
         for name in filenames:
             if name.startswith("id:"):
                 out.append(d / name)
@@ -279,6 +294,10 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
     diff_rc, diff_out = run_with_timeout([str(DIFF_RUNNER), str(crash)], outer_timeout)
     (out_dir / "logs" / f"{key}.diff.log").write_text(diff_out)
     diff_cat, diff_detail = parse_diff_runner_outcome(diff_rc, diff_out)
+    noise = ""
+    if diff_cat.startswith("crash:abort:diff:"):
+        noise = sol_crash_categorizer.noise_class("", src.decode("utf-8", errors="replace"))
+        noise = "" if noise == sol_crash_categorizer.CANDIDATE else noise
 
     # 2. Debug runner — multi-config cross-check.
     debug_cmd = [str(DEBUG_RUNNER), "--afl", "--quiet", str(crash)]
@@ -299,6 +318,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         "diff_rc": str(diff_rc),
         "diff_cat": diff_cat,
         "diff_detail": diff_detail.replace("\t", " ").replace("\n", " ")[:200],
+        "noise": noise,
         "debug_rc": str(debug_rc),
         "debug_cat": debug_cat,
         "debug_detail": debug_detail.replace("\t", " ").replace("\n", " ")[:200],
@@ -307,7 +327,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
 
 HEADER = (
     "campaign", "crash", "size", "src_size", "calldata_size", "has_magic",
-    "diff_rc", "diff_cat", "diff_detail",
+    "diff_rc", "diff_cat", "diff_detail", "noise",
     "debug_rc", "debug_cat", "debug_detail",
 )
 
@@ -318,7 +338,8 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
     for r in rows:
         # Joint category — the diff runner's verdict is primary; the debug
         # runner's verdict is appended for cross-check.
-        cat = r["diff_cat"]
+        # Known-noise classes (sol_crash_categorizer.NOISE_CLASSES) sort after the candidates
+        cat = r["diff_cat"] + (f" [noise:{r['noise']}]" if r.get("noise") else "")
         counts[cat] = counts.get(cat, 0) + 1
         by_cat.setdefault(cat, []).append(r)
 
@@ -391,10 +412,21 @@ def main() -> int:
                     help="wall-clock timeout per binary invocation (seconds)")
     ap.add_argument("--limit", type=int, default=0,
                     help="process at most this many crashes (0 = all)")
+    ap.add_argument("--mode", default=None,
+                    help="runner the campaign used, e.g. sol_afl_diff_runner_viair (default: from a "
+                         "findings_afl_<mode> path, else sol_afl_diff_runner)")
     ap.add_argument("--no-dedup", action="store_true",
                     help="process every crash file even if byte-identical to "
                          "another (by default duplicate inputs are collapsed)")
     args = ap.parse_args()
+
+    global DIFF_RUNNER
+    mode = args.mode
+    if mode is None:
+        m = MODE_FROM_PATH_RE.search(" ".join(str(Path(p).resolve()) for p in args.paths))
+        mode = f"sol_afl_{m.group(1)}" if m else "sol_afl_diff_runner"
+    DIFF_RUNNER = AFL_BIN_DIR / mode
+    print(f"diff runner: {DIFF_RUNNER.name}", file=sys.stderr)
 
     paths = list(args.paths)
     out_dir_arg = args.out_dir
