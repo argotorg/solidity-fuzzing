@@ -14,7 +14,7 @@ set -eu
 
 CORPUS_DIR="${1:?Usage: $0 <corpus_dir> <num_files> [fuzzer_binary]}"
 NUM_FILES="${2:?Usage: $0 <corpus_dir> <num_files> [fuzzer_binary]}"
-FUZZER_BIN="${3:-./build_ossfuzz/tools/ossfuzz/sol_proto_ossfuzz_evmone}"
+FUZZER_BIN="${3:-./build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone}"
 SOLC="./build/solc/solc"
 CHECK_SCRIPT="./tools/ossfuzz/check_sol_proto_files.py"
 DUMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/check_diversity_XXXXXX")
@@ -55,7 +55,7 @@ find "$CORPUS_DIR" -maxdepth 1 -type f -print0 \
   | shuf -z -n "$NUM_FILES" \
   | while IFS= read -r -d '' file; do
       PROTO_FUZZER_DUMP_PATH="$DUMP_DIR/$(basename "$file").sol" \
-        "$FUZZER_BIN" "$file" 2>/dev/null || true
+        "$FUZZER_BIN" "$(realpath "$file")" 2>/dev/null || true
       dumped=$((dumped + 1))
       # Progress every 50 files
       if [ $((dumped % 50)) -eq 0 ]; then

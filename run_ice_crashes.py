@@ -93,7 +93,7 @@ def process_one(crash: Path, crash_dir: Path, extra_args: list, work_root: Path)
     # 1. Dump. Harness writes the .sol then attempts the compile,
     # which may crash; either way the .sol should be on disk.
     env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(sol_out)}
-    subprocess.run([str(DUMPER), str(crash)],
+    subprocess.run([str(DUMPER), str(crash.resolve())],
                    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    check=False)
 

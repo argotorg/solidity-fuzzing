@@ -105,7 +105,7 @@ def process_one(crash: Path, dumper: Path, sel: str, work_root: Path,
     env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(yul_out)}
     if sel not in VALID_PASSES:
         env["PROTO_FUZZER_DUMP_SEQ_PATH"] = str(seq_out)
-    subprocess.run([str(dumper), str(crash)],
+    subprocess.run([str(dumper), str(crash.resolve())],
                    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    check=False)
 

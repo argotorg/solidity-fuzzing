@@ -99,7 +99,7 @@ def dump_sol(dumper: Path, crash: Path, sol_out: Path, timeout: int) -> None:
     env["PROTO_FUZZER_DUMP_PATH"] = str(sol_out)
     try:
         run_limited(
-            [str(dumper), str(crash)],
+            [str(dumper), str(crash.resolve())],
             timeout,
             env=env,
             stdout=subprocess.DEVNULL,

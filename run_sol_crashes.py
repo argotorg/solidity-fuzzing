@@ -147,7 +147,7 @@ def process_one(crash, family, dumper, runner, timeout, work_root, label=None):
         # calldata and input-dependent divergences (e.g. calldataload(...))
         # collapse and won't reproduce. Dump it so we can replay --calldata.
         env["PROTO_FUZZER_DUMP_CALLDATA_PATH"] = str(calldata_path)
-    _, dump_text = run_with_timeout([str(dumper), str(crash)], env, None, timeout)
+    _, dump_text = run_with_timeout([str(dumper), str(crash.resolve())], env, None, timeout)
     dump_log.write_text(dump_text)
 
     if not src.is_file() or src.stat().st_size == 0:

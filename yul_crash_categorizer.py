@@ -165,7 +165,7 @@ def dump(crash: Path, dumper: Path, sel: str, timeout: int) -> str:
     if sel not in VALID_PASSES:
         env["PROTO_FUZZER_DUMP_SEQ_PATH"] = str(seq_out)
     try:
-        result = run_limited([str(dumper), str(crash)], timeout, env=env,
+        result = run_limited([str(dumper), str(crash.resolve())], timeout, env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         err = result.stderr
         if result.returncode == 0:

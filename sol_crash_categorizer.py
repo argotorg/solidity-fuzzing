@@ -107,7 +107,7 @@ def dump(crash: Path, dumper: Path, timeout: int) -> str:
            "PROTO_FUZZER_DUMP_PATH": str(Path(f"{crash}.sol")),
            "PROTO_FUZZER_DUMP_CALLDATA_PATH": str(Path(f"{crash}.calldata"))}
     try:
-        result = run_limited([str(dumper), str(crash)], timeout, env=env,
+        result = run_limited([str(dumper), str(crash.resolve())], timeout, env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         err = result.stderr
         if result.returncode == 0:
