@@ -40,6 +40,7 @@
 #include <liblangutil/EVMVersion.h>
 #include <liblangutil/Exceptions.h>
 
+#include <libyul/Exceptions.h>
 #include <libyul/YulString.h>
 
 #include <src/libfuzzer/libfuzzer_macro.h>
@@ -101,6 +102,10 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 	{
 	}
 	catch (evmasm::StackTooDeepException const&)
+	{
+	}
+	// Escapes CompilerStack from via-IR codegen; solc's CLI reports it as a plain error.
+	catch (yul::StackTooDeepError const&)
 	{
 	}
 	// Known non-bug: FixedPointType is not implemented in the frontend, but the
