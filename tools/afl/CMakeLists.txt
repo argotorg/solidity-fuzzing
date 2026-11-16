@@ -41,4 +41,5 @@ add_afl_runner(sol_afl_diff_runner_viair_opt AFL_MODE_VIAIR_OPT)     # ir vs ir-
 add_afl_runner(sol_afl_diff_runner_ssacfg AFL_MODE_SSACFG)           # ir-opt vs ssacfg-opt
 add_afl_runner(sol_afl_diff_runner_optseq AFL_MODE_OPTSEQ)           # ir-opt vs ir-opt, input-drawn Yul steps + runs
 add_afl_runner(sol_afl_diff_runner_evmversion AFL_MODE_EVMVERSION)   # ir-opt: current EVM vs paris
+add_afl_runner(sol_afl_diff_runner_metamorphic AFL_MODE_METAMORPHIC) # ir-opt vs ir-opt of identity-wrapped source
 add_afl_runner(sol_afl_ice_runner AFL_MODE_ICE)                      # compile only, ICEs escape

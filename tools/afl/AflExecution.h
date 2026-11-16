@@ -25,6 +25,7 @@
 #include <tools/common/EVMHost.h>
 
 #include <libsolutil/CommonData.h>
+#include <libsolutil/FixedHash.h>
 #include <libsolutil/JSON.h>
 #include <libsolutil/Numeric.h>
 
@@ -134,6 +135,11 @@ Comparison compare(Execution const& _a, Execution const& _b);
 /// Why the compiled sources may legitimately behave differently across configs, or nullopt:
 /// with @param _legacyVsIR the documented semantic changes (docs/ir-breaking-changes.rst); with
 /// @param _legacyOptimizer internal function pointer comparison, which solc itself warns about.
+/// Metamorphic variant of the compiled sources: some value-typed expressions inside function bodies, picked by
+/// @param _seed, become calls of an identity function. Same semantics, different inlining/optimizer decisions.
+/// nullopt if nothing was rewritten.
+std::optional<StringMap> wrapInIdentityCalls(frontend::CompilerStack const& _compiler, util::h256 const& _seed);
+
 std::optional<std::string> configDependentSemantics(
 	frontend::CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer);
 

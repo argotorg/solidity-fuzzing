@@ -100,6 +100,8 @@ static constexpr Config s_configs[] = {{"ir", true, false}, {"ir-opt", true, tru
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", true, true, true}};
 #elif defined(AFL_MODE_OPTSEQ)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-random-steps", true, true, false, true}};
+#elif defined(AFL_MODE_METAMORPHIC)
+static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-identity-wrapped", true, true}};
 #elif defined(AFL_MODE_EVMVERSION)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-paris", true, true, false, false, true}};
 #else
@@ -155,7 +157,13 @@ static OptimiserSettings optimiserSettings(Config const& _config, util::h256 con
 	return settings;
 }
 
-static std::optional<CompilerOutput> compile(StringMap const& _sources, Config const& _config, util::h256 const& _seed = util::h256())
+/// With @param _variant, also the metamorphic variant of the sources (wrapInIdentityCalls)
+static std::optional<CompilerOutput> compile(
+	StringMap const& _sources,
+	Config const& _config,
+	util::h256 const& _seed = util::h256(),
+	std::optional<StringMap>* _variant = nullptr
+)
 {
 	CompilerInput input(
 		evmVersion(_config),
@@ -188,6 +196,8 @@ static std::optional<CompilerOutput> compile(StringMap const& _sources, Config c
 				return std::nullopt;
 			}
 #endif
+		if (output && _variant)
+			*_variant = afl::wrapInIdentityCalls(framework.compilerStack(), _seed);
 		return output;
 	}
 	// Known non-bugs in every mode. A diff below throws InternalCompilerError too, but outside this scope.
@@ -261,7 +271,12 @@ static void runOneInput(std::string_view _input)
 	auto const ms = [](auto _from) {
 		return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - _from).count());
 	};
+#if defined(AFL_MODE_METAMORPHIC)
+	std::optional<StringMap> variant;
+	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0], util::keccak256(input.source), &variant);
+#else
 	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0]);
+#endif
 	if (verbose())
 		std::cerr << "time: compile A " << ms(t0) << " ms\n";
 	if (!outA)
@@ -269,7 +284,16 @@ static void runOneInput(std::string_view _input)
 	if (outA->byteCode.empty())
 		return stop("no bytecode");
 	auto const t1 = std::chrono::steady_clock::now();
+#if defined(AFL_MODE_METAMORPHIC)
+	if (!variant)
+		return stop("nothing to wrap");
+	if (verbose() && std::getenv("AFL_RUNNER_DUMP_VARIANT"))
+		for (auto const& [name, source]: *variant)
+			std::cerr << "==== Source: " << name << " ====\n" << source << "\n";
+	std::optional<CompilerOutput> outB = compile(*variant, s_configs[1]);
+#else
 	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1], util::keccak256(input.source));
+#endif
 	if (verbose())
 		std::cerr << "time: compile B " << ms(t1) << " ms\n";
 	if (!outB || outB->byteCode.empty())

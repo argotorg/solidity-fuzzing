@@ -25,6 +25,7 @@
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
+#include <random>
 #include <cctype>
 #include <sstream>
 #include <string_view>
@@ -911,4 +912,125 @@ std::optional<std::string> afl::configDependentSemantics(
 		}
 	}
 	return std::nullopt;
+}
+
+namespace
+{
+
+struct IdentityWrapper: ASTConstVisitor
+{
+	IdentityWrapper(util::h256 const& _seed, std::size_t _unit): rng(seedOf(_seed)), unit(_unit) {}
+
+	static uint64_t seedOf(util::h256 const& _seed)
+	{
+		uint64_t value = 0;
+		for (std::size_t i = 0; i < 8; ++i)
+			value = (value << 8) | _seed[i];
+		return value;
+	}
+
+	struct Edit
+	{
+		std::size_t start;
+		std::size_t end;
+		std::string helper;
+	};
+	std::mt19937_64 rng;
+	std::size_t unit;
+	std::vector<Edit> edits;
+	std::map<std::string, std::string> helpers; ///< name -> definition
+
+	/// Pre-order, so an enclosing expression comes before the ones inside it
+	std::vector<std::pair<Expression const*, std::string>> candidates;
+
+	bool visitNode(ASTNode const& _node) override
+	{
+		auto const* expression = dynamic_cast<Expression const*>(&_node);
+		if (expression && candidate(*expression))
+			candidates.emplace_back(expression, expression->annotation().type->toString(true));
+		return true;
+	}
+
+	/// About a quarter of the candidates, at least one, none nested in another
+	void choose()
+	{
+		std::vector<bool> chosen(candidates.size());
+		for (std::size_t i = 0; i < candidates.size(); ++i)
+			chosen[i] = rng() % 4 == 0;
+		if (!candidates.empty() && std::find(chosen.begin(), chosen.end(), true) == chosen.end())
+			chosen[rng() % candidates.size()] = true;
+		for (std::size_t i = 0; i < candidates.size(); ++i)
+		{
+			auto const& location = candidates[i].first->location();
+			auto const start = static_cast<std::size_t>(location.start);
+			auto const end = static_cast<std::size_t>(location.end);
+			// Pre-order: whatever is nested in a chosen expression directly follows it
+			if (!chosen[i] || (!edits.empty() && start >= edits.back().start && end <= edits.back().end))
+				continue;
+			std::string const& typeName = candidates[i].second;
+			std::string name = "__id" + std::to_string(unit) + "_";
+			for (char c: typeName)
+				name += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
+			helpers[name] = "function " + name + "(" + typeName + " v) pure returns (" + typeName + ") { return v; }";
+			edits.push_back({start, end, name});
+		}
+	}
+
+	static bool candidate(Expression const& _expression)
+	{
+		auto const& annotation = _expression.annotation();
+		if (!annotation.type || annotation.willBeWrittenTo || _expression.location().start < 0)
+			return false;
+		// Literals stay literals: wrapping would change type inference
+		switch (annotation.type->category())
+		{
+		case Type::Category::Integer:
+		case Type::Category::Bool:
+		case Type::Category::Address:
+		case Type::Category::FixedBytes:
+			return true;
+		default:
+			return false;
+		}
+	}
+};
+
+}
+
+std::optional<StringMap> afl::wrapInIdentityCalls(CompilerStack const& _compiler, util::h256 const& _seed)
+{
+	StringMap out;
+	bool changed = false;
+	std::size_t unit = 0;
+	for (std::string const& name: _compiler.sourceNames())
+	{
+		std::string source = _compiler.charStream(name).source();
+		IdentityWrapper wrapper(util::keccak256(_seed.asBytes() + util::asBytes(name)), unit++);
+		for (auto const* function: ASTNode::filteredNodes<FunctionDefinition>(_compiler.ast(name).nodes()))
+			if (function->isImplemented())
+				function->body().accept(wrapper);
+		for (auto const* contract: ASTNode::filteredNodes<ContractDefinition>(_compiler.ast(name).nodes()))
+		{
+			for (FunctionDefinition const* function: contract->definedFunctions())
+				if (function->isImplemented())
+					function->body().accept(wrapper);
+			for (ModifierDefinition const* modifier: contract->functionModifiers())
+				if (modifier->isImplemented())
+					modifier->body().accept(wrapper);
+		}
+		wrapper.choose();
+		std::sort(wrapper.edits.begin(), wrapper.edits.end(), [](auto const& _a, auto const& _b) { return _a.start > _b.start; });
+		for (auto const& edit: wrapper.edits)
+		{
+			if (edit.end > source.size() || edit.start >= edit.end)
+				return std::nullopt;
+			source.insert(edit.end, ")");
+			source.insert(edit.start, edit.helper + "(");
+		}
+		for (auto const& [_, definition]: wrapper.helpers)
+			source += "\n" + definition;
+		changed = changed || !wrapper.edits.empty();
+		out[name] = std::move(source);
+	}
+	return changed ? std::optional<StringMap>(std::move(out)) : std::nullopt;
 }
