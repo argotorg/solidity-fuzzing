@@ -520,7 +520,7 @@ evmc::bytes32 EVMHost::get_block_hash(int64_t _number) const noexcept
 	return convertToEVMC(u256("0x3737373737373737373737373737373737373737373737373737373737373737") + _number);
 }
 
-// EXTCODESIZE / EXTCODECOPY / EXTCODEHASH on any contract WE deployed are
+// EXTCODECOPY / EXTCODEHASH on any contract WE deployed are
 // inherently config-dependent: the deployed bytecode varies across optimiser
 // and codegen settings, so its size, hash and contents differ legitimately.
 // We taint `m_readsDeployedCode` so differential fuzzers can skip such inputs
@@ -536,11 +536,15 @@ bool isDeployedContract(
 }
 }
 
+// Not tainted: solc checks `extcodesize(target) != 0` before every external call, so tainting here
+// excluded every input that calls a contract it created. Report a config-independent non-zero size
+// instead (evmone only calls this for EXTCODESIZE).
 size_t EVMHost::get_code_size(evmc::address const& _addr) const noexcept
 {
-	if (isDeployedContract(m_contractCreationOrder, _addr))
-		m_readsDeployedCode = true;
-	return MockedHost::get_code_size(_addr);
+	size_t const size = MockedHost::get_code_size(_addr);
+	if (size != 0 && isDeployedContract(m_contractCreationOrder, _addr))
+		return 24576;
+	return size;
 }
 
 evmc::bytes32 EVMHost::get_code_hash(evmc::address const& _addr) const noexcept
@@ -557,7 +561,10 @@ size_t EVMHost::copy_code(
 	size_t _buffer_size
 ) const noexcept
 {
-	if (isDeployedContract(m_contractCreationOrder, _addr))
+	// evmone reads the first 23 bytes of every call target to look for an EIP-7702 delegation
+	// designator (lib/evmone/delegation.cpp); that is not the contract observing its bytecode.
+	bool const delegationCheck = _code_offset == 0 && _buffer_size == 23;
+	if (!delegationCheck && isDeployedContract(m_contractCreationOrder, _addr))
 		m_readsDeployedCode = true;
 	return MockedHost::copy_code(_addr, _code_offset, _buffer_data, _buffer_size);
 }

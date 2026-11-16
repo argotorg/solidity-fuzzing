@@ -102,6 +102,10 @@ public:
 		newTransactionFrame();
 	}
 
+	/// Transaction boundary within a block: clears transient storage and warm/cold access state,
+	/// keeps logs and the observation flags.
+	void newTransaction() { newTransactionFrame(); }
+
 	/// @returns contents of storage at @param _addr.
 	StorageMap const& get_address_storage(evmc::address const& _addr);
 
