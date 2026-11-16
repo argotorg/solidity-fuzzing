@@ -76,7 +76,8 @@ def collect_inputs(paths: list[Path]) -> list[Path]:
     inputs: list[Path] = []
     for p in paths:
         if p.is_dir():
-            inputs += [c for c in sorted(p.rglob("*")) if c.is_file() and is_crash_input(c)]
+            inputs += [c for c in sorted(p.rglob("*")) if c.is_file() and is_crash_input(c)
+                       and c.parent.name not in ("hangs", "queue")]
         elif p.is_file():
             inputs.append(p)
     return inputs
