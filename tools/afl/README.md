@@ -23,7 +23,8 @@ A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` re
 | `sol_afl_diff_runner` | legacy vs legacy-opt |
 | `sol_afl_diff_runner_viair_opt` | ir vs ir-opt |
 | `sol_afl_diff_runner_ssacfg` | ir-opt vs ssacfg-opt |
-| `sol_afl_diff_runner_optseq` | ir-opt vs ir-opt with a Yul step sequence and `runs` drawn from a hash of the source |
+| `sol_afl_diff_runner_optseq` | ir-opt vs ir-opt with a Yul step sequence, cleanup sequence, evmasm passes and `runs` drawn from a hash of the source |
+| `sol_afl_diff_runner_legacy_knobs` | legacy vs legacy-opt with input-drawn evmasm passes and `runs` |
 | `sol_afl_diff_runner_evmversion` | ir-opt at the current EVM version vs at Paris (no PUSH0/MCOPY/transient storage) |
 | `sol_afl_diff_runner_metamorphic` | ir-opt vs ir-opt of the same source with some value-typed expressions wrapped in identity function calls: finds bugs every config shares (`AFL_RUNNER_DUMP_VARIANT=1` prints the variant) |
 | `sol_afl_ice_runner` | compiles only, under all four legacy/IR × opt configs; ICEs crash (bucketed by throw site) |
