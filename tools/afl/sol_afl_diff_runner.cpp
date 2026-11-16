@@ -232,10 +232,10 @@ static std::optional<CompilerOutput> compile(
 		return output;
 	}
 	// Known non-bugs in every mode. A diff below throws InternalCompilerError too, but outside this scope.
-	catch (langutil::UnimplementedFeatureError const&) {}
-	catch (langutil::StackTooDeepError const&) {}
-	catch (evmasm::StackTooDeepException const&) {}
-	catch (yul::StackTooDeepError const&) {}
+	catch (langutil::UnimplementedFeatureError const&) { stop("unimplemented feature"); }
+	catch (langutil::StackTooDeepError const&) { stop("stack too deep"); }
+	catch (evmasm::StackTooDeepException const&) { stop("stack too deep"); }
+	catch (yul::StackTooDeepError const&) { stop("stack too deep"); }
 	// afl-ts can produce non-UTF-8 bytes, which solc's JSON layer rejects
 	catch (Json::exception const&) {}
 	// Known: BlockDeduplicator with deduplicate+cse but without jumpdestRemover (optseq's random evmasm passes)
@@ -262,9 +262,9 @@ static std::optional<CompilerOutput> compile(
 	}
 #else
 	// ICEs belong to the ICE mode
-	catch (langutil::InternalCompilerError const&) {}
-	catch (yul::YulAssertion const&) {}
-	catch (yul::YulException const&) {}
+	catch (langutil::InternalCompilerError const& _e) { stop(std::string("ICE: ") + _e.what()); }
+	catch (yul::YulAssertion const& _e) { stop(std::string("YulAssertion: ") + _e.what()); }
+	catch (yul::YulException const& _e) { stop(std::string("YulException: ") + _e.what()); }
 #endif
 	return std::nullopt;
 }
