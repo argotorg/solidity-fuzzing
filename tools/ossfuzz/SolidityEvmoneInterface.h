@@ -56,6 +56,10 @@ struct CompilerOutput
 	bool hasReceive = false;
 	bool hasFallback = false;
 	bool fallbackPayable = false;
+	/// Unlinked library references in byteCode: offset -> fully qualified library name
+	std::map<size_t, std::string> linkReferences;
+	/// Bytecode of each referenced library that needs no linking itself
+	std::map<std::string, solidity::bytes> libraries;
 };
 
 struct CompilerInput

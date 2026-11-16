@@ -97,6 +97,8 @@ struct ConfigRunResult
 	/// runtime bytecode, plus the code hash of each account that has one — used
 	/// to mask internal-function-pointer fields in the differential check.
 	std::map<h256, Json> storageLayouts;
+	std::map<size_t, std::string> linkReferences;
+	std::map<std::string, bytes> libraries;
 	std::map<evmc::address, h256> accountCodeHashes;
 	/// --afl: the shared call-plan execution sol_afl_diff_runner compares
 	std::optional<afl::Execution> aflExecution;
@@ -270,6 +272,8 @@ static ConfigRunResult runOnce(
 		{
 			result.bytecode = compOutput->byteCode;
 			result.storageLayouts = compOutput->storageLayoutByRuntimeCode;
+			result.linkReferences = compOutput->linkReferences;
+			result.libraries = compOutput->libraries;
 			actualContractName = compiler.deployedContractName();
 			// Extract Yul IR (only available when viaIR is enabled)
 			try
@@ -293,7 +297,7 @@ static ConfigRunResult runOnce(
 	evmc::Result evmResult{EVMC_INTERNAL_ERROR};
 	if (aflMode)
 	{
-		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan);
+		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan, result.linkReferences, result.libraries);
 		execution.state.storageLayouts = result.storageLayouts;
 		evmResult = evmc::Result{execution.deployStatus};
 		result.aflExecution = std::move(execution);

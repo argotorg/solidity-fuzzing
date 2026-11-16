@@ -388,8 +388,8 @@ static void runOneInput(std::string_view _input)
 	EVMHost hostA(evmVersion(s_configs[0], util::keccak256(input.source)), evmone());
 	EVMHost hostB(evmVersion(s_configs[1], util::keccak256(input.source)), evmone());
 	auto const t2 = std::chrono::steady_clock::now();
-	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan);
-	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan);
+	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan, outA->linkReferences, outA->libraries);
+	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan, outB->linkReferences, outB->libraries);
 	if (verbose())
 		std::cerr << "time: execute " << ms(t2) << " ms\n";
 	if (std::getenv("AFL_RUNNER_VERBOSE"))

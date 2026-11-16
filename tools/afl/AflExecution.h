@@ -124,7 +124,15 @@ struct Execution
 constexpr int64_t deployGas = 30'000'000;
 constexpr int64_t callGas = 10'000'000;
 
-Execution execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan);
+/// Deploys the @param _libraries first (in name order, so both configs create them alike) and links them into
+/// @param _bytecode at @param _linkReferences
+Execution execute(
+	EVMHost& _host,
+	bytes const& _bytecode,
+	CallPlan const& _plan,
+	std::map<std::size_t, std::string> const& _linkReferences = {},
+	std::map<std::string, bytes> const& _libraries = {}
+);
 
 struct Comparison
 {

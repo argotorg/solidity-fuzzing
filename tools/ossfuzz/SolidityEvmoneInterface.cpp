@@ -100,6 +100,10 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 				layoutByRuntimeCode.emplace(util::keccak256(runtimeCode), m_compiler.storageLayout(name));
 		}
 		CompilerOutput output{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
+		output.linkReferences = obj.linkReferences;
+		for (auto const& [_, library]: obj.linkReferences)
+			if (!output.libraries.contains(library) && m_compiler.object(library).linkReferences.empty())
+				output.libraries[library] = m_compiler.object(library).bytecode;
 		for (solidity::Json const& entry: m_compiler.contractABI(contractName))
 			if (entry.value("type", "") == "constructor")
 			{

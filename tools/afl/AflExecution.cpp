@@ -708,13 +708,39 @@ CallPlan afl::planCalls(AflInput const& _input, ContractInterface const& _interf
 	return plan;
 }
 
-Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan)
+Execution afl::execute(
+	EVMHost& _host,
+	bytes const& _bytecode,
+	CallPlan const& _plan,
+	std::map<std::size_t, std::string> const& _linkReferences,
+	std::map<std::string, bytes> const& _libraries
+)
 {
 	Execution out;
 	evmc::address const sender = _host.tx_context.tx_origin;
 	_host.accounts[sender].set_balance(std::numeric_limits<uint64_t>::max());
 
-	bytes const initCode = _bytecode + _plan.constructorArgs;
+	bytes linked = _bytecode;
+	if (!_linkReferences.empty())
+	{
+		std::map<std::string, evmc::address> addresses;
+		for (auto const& [name, code]: _libraries)
+		{
+			evmc_message deploy = EvmoneUtility::initializeMessage(code, deployGas);
+			deploy.kind = EVMC_CREATE;
+			deploy.sender = sender;
+			evmc::Result result = _host.call(deploy);
+			if (result.status_code == EVMC_SUCCESS)
+				addresses[name] = result.create_address;
+		}
+		for (auto const& [offset, name]: _linkReferences)
+			if (auto it = addresses.find(name); it != addresses.end() && offset + 20 <= linked.size())
+				std::copy(it->second.bytes, it->second.bytes + 20, linked.begin() + static_cast<std::ptrdiff_t>(offset));
+		_host.newTransaction();
+		_host.m_subCalls.clear();
+	}
+
+	bytes const initCode = linked + _plan.constructorArgs;
 	evmc_message create = EvmoneUtility::initializeMessage(initCode, deployGas);
 	create.kind = EVMC_CREATE;
 	create.sender = sender;
