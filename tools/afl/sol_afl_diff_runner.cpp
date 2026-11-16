@@ -106,7 +106,7 @@ static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt-ra
 #elif defined(AFL_MODE_METAMORPHIC)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-identity-wrapped", true, true}};
 #elif defined(AFL_MODE_EVMVERSION)
-static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-paris", true, true, false, false, true}};
+static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-older-evm", true, true, false, false, true}};
 #else
 static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt", false, true}};
 #endif
@@ -129,9 +129,16 @@ static constexpr bool s_legacyVsIR = s_configs[0].viaIR != s_configs[1].viaIR;
 static constexpr bool s_legacyOptimizer = (!s_configs[0].viaIR && s_configs[0].optimize) ||
 	(!s_configs[1].viaIR && s_configs[1].optimize);
 
-static langutil::EVMVersion evmVersion(Config const& _config)
+/// The older version is drawn from @param _seed: each of these lowers some constructs differently (PUSH0 from
+/// Shanghai, MCOPY and transient storage from Cancun)
+static langutil::EVMVersion evmVersion(Config const& _config, util::h256 const& _seed)
 {
-	return _config.oldEVM ? langutil::EVMVersion::paris() : langutil::EVMVersion::current();
+	if (!_config.oldEVM)
+		return langutil::EVMVersion::current();
+	static constexpr langutil::EVMVersion older[] = {
+		langutil::EVMVersion::paris(), langutil::EVMVersion::shanghai(), langutil::EVMVersion::cancun(),
+		langutil::EVMVersion::prague()};
+	return older[_seed[5] % 4];
 }
 
 /// Steps drawn from @param _seed (a hash of the input), so a source mutation also re-rolls the sequence
@@ -195,7 +202,7 @@ static std::optional<CompilerOutput> compile(
 )
 {
 	CompilerInput input(
-		evmVersion(_config),
+		evmVersion(_config, _seed),
 		_sources,
 		/*contractName=*/"",
 		optimiserSettings(_config, _seed),
@@ -375,8 +382,11 @@ static void runOneInput(std::string_view _input)
 		return stop("compile B");
 
 	afl::CallPlan const plan = afl::planCalls(input, afl::interfaceOf(*outA));
-	EVMHost hostA(evmVersion(s_configs[0]), evmone());
-	EVMHost hostB(evmVersion(s_configs[1]), evmone());
+	if (verbose() && s_configs[1].oldEVM)
+		std::cerr << "EVM versions: " << evmVersion(s_configs[0], util::keccak256(input.source)).name() << " / "
+			<< evmVersion(s_configs[1], util::keccak256(input.source)).name() << "\n";
+	EVMHost hostA(evmVersion(s_configs[0], util::keccak256(input.source)), evmone());
+	EVMHost hostB(evmVersion(s_configs[1], util::keccak256(input.source)), evmone());
 	auto const t2 = std::chrono::steady_clock::now();
 	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan);
 	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan);
