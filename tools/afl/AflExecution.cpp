@@ -692,8 +692,11 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 	create.kind = EVMC_CREATE;
 	create.sender = sender;
 	create.value = EVMHost::convertToEVMC(h256(_plan.constructorValue));
+	_host.m_subCalls.clear();
 	evmc::Result created = _host.call(create);
 	out.deployStatus = created.status_code;
+	out.deploySubCalls = std::move(_host.m_subCalls);
+	_host.m_subCalls.clear();
 	if (created.status_code != EVMC_SUCCESS)
 		return out;
 	evmc::address const contract = created.create_address;
@@ -702,6 +705,7 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 	{
 		_host.newTransaction();
 		_host.m_subCallOutOfGas = false;
+		_host.m_subCalls.clear();
 		evmc_message msg = EvmoneUtility::initializeMessage(planned.calldata, callGas);
 		msg.kind = EVMC_CALL;
 		msg.sender = sender;
@@ -711,7 +715,8 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 		evmc::Result result = _host.call(msg);
 
 		CallObservation observation{result.status_code, bytes(result.output_data, result.output_data + result.output_size),
-			_host.m_subCallOutOfGas, {}};
+			_host.m_subCallOutOfGas, {}, std::move(_host.m_subCalls)};
+		_host.m_subCalls.clear();
 		for (auto const& [address, account]: _host.accounts)
 			if (!account.transient_storage.empty())
 				observation.transientStorage[address] = account.transient_storage;
@@ -734,6 +739,39 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 	return out;
 }
 
+namespace
+{
+/// Order-insensitive: legacy and IR evaluate some expressions (e.g. function call arguments) in different orders
+std::vector<std::string> normalizedSubCalls(
+	std::vector<EVMHost::SubCall> const& _calls,
+	std::vector<evmc::address> const& _creationOrder
+)
+{
+	std::vector<std::string> out;
+	for (EVMHost::SubCall const& call: _calls)
+	{
+		// Precompiles: legacy codegen may copy memory through the identity precompile
+		if (std::all_of(call.recipient.bytes, call.recipient.bytes + 18, [](uint8_t _b) { return _b == 0; }))
+			continue;
+		bool const creation = call.kind == EVMC_CREATE || call.kind == EVMC_CREATE2;
+		std::string key = std::to_string(call.kind) + ":" + std::to_string(call.depth) + ":" +
+			toHex(EVMHost::convertFromEVMC(call.value).asBytes()) + ":";
+		// The init code of a creation differs by config; the created address is matched by creation order
+		if (creation)
+			key += toHex(EVMHost::convertFromEVMC(call.salt).asBytes());
+		else
+		{
+			bytes const recipient(call.recipient.bytes, call.recipient.bytes + 20);
+			key += toHex(normalizeCreatedAddresses(recipient.data(), recipient.size(), _creationOrder)) + ":" +
+				toHex(normalizeCreatedAddresses(call.input.data(), call.input.size(), _creationOrder));
+		}
+		out.push_back(std::move(key));
+	}
+	std::sort(out.begin(), out.end());
+	return out;
+}
+}
+
 Comparison afl::compare(Execution const& _a, Execution const& _b)
 {
 	Comparison out;
@@ -748,6 +786,8 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 
 	auto const& orderA = _a.state.contractCreationOrder;
 	auto const& orderB = _b.state.contractCreationOrder;
+	if (normalizedSubCalls(_a.deploySubCalls, orderA) != normalizedSubCalls(_b.deploySubCalls, orderB))
+		out.differences.push_back("deploy outgoing calls differ");
 	for (std::size_t i = 0; i < std::min(_a.calls.size(), _b.calls.size()); ++i)
 	{
 		CallObservation const& a = _a.calls[i];
@@ -760,6 +800,8 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 				std::to_string(b.status) + ")");
 		else if (!outputEqual(a.output.data(), a.output.size(), orderA, b.output.data(), b.output.size(), orderB))
 			out.differences.push_back(call + (a.status == EVMC_SUCCESS ? " output differs" : " revert data differs"));
+		if (a.status == b.status && normalizedSubCalls(a.subCalls, orderA) != normalizedSubCalls(b.subCalls, orderB))
+			out.differences.push_back(call + " outgoing calls differ");
 		if (!transientStorageEqual(a.transientStorage, orderA, b.transientStorage, orderB))
 			out.differences.push_back(call + " transient storage differs");
 	}

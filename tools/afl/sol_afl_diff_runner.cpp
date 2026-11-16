@@ -228,6 +228,8 @@ static void runOneInput(std::string_view _input)
 			std::cerr << "call #" << i << " " << plan.calls[i].signature << ": "
 				<< (i < execA.calls.size() ? std::to_string(execA.calls[i].status) : "-") << " / "
 				<< (i < execB.calls.size() ? std::to_string(execB.calls[i].status) : "-")
+				<< (i < execA.calls.size() && !execA.calls[i].subCalls.empty()
+					? " (" + std::to_string(execA.calls[i].subCalls.size()) + " sub-calls)" : "")
 				<< (std::getenv("AFL_RUNNER_VERBOSE") == std::string("2") ? " " + util::toHex(plan.calls[i].calldata) : "")
 				<< "\n";
 	}

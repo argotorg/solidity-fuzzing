@@ -3,14 +3,18 @@
 Tree-sitter-mutated Solidity (afl-ts) against a differential oracle. Each input is compiled under the two
 configs of the runner's mode, and both builds run the same call plan (`AflExecution.{h,cpp}`):
 
-1. deploy the last contract, with the isoltest `constructor()` arguments and value if the source has them;
+1. deploy the last non-abstract contract of the last source unit, with the isoltest `constructor()`
+   arguments and value if the source has them, else with generated ones;
 2. run the isoltest call script (`// ----` section of solidity's semantic tests: literal ABI words);
 3. call every public function with ABI-encoded arguments drawn from the input's calldata region,
-   boundary-biased, and for some of them a malformed copy (dirty high bits, non-canonical bool,
-   negative/huge/backward tail offsets);
-4. send the raw calldata region itself.
+   boundary-biased (ether for payable ones), and for some of them a malformed copy (dirty high bits,
+   non-canonical bool, negative/huge/backward tail offsets);
+4. call every function again in an input-chosen order with fresh arguments, so it sees the state the
+   others wrote;
+5. send the raw calldata region itself.
 
-Per call the status, output/revert data and transient storage must agree; at the end, logs and storage.
+Per call the status, output/revert data, outgoing calls (normalized, as a multiset) and transient storage
+must agree; at the end, logs and storage. `pragma solidity` version constraints are dropped before compiling.
 A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` replays the identical plan.
 
 | Binary | Compares |
@@ -22,7 +26,9 @@ A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` re
 | `sol_afl_ice_runner` | compiles only, under all four legacy/IR × opt configs; ICEs crash (bucketed by throw site) |
 
 Skipped as config-dependent by design: sources with `assembly`, `gas()`, `creationCode`/`runtimeCode`;
-in the viaIR mode also `abicoder v1` and isoltest `compileViaYul: false` (via-IR always validates with v2);
+in the viaIR mode also `abicoder v1`, isoltest `compileViaYul:` tests and the documented legacy/IR semantic
+changes (state variable initialization order, a modifier placeholder that can run twice; checked on the AST);
+with the legacy optimizer, internal function pointer comparison (warning 3075);
 runs that EXTCODECOPY/EXTCODEHASH a deployed contract; anything after an out-of-gas. EXTCODESIZE of a
 deployed contract reports a fixed size instead (solc checks it before every external call).
 

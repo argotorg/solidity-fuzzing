@@ -220,6 +220,7 @@ void EVMHost::reset()
 	recorded_account_accesses.clear();
 	m_newlyCreatedAccounts.clear();
 	m_contractCreationOrder.clear();
+	m_subCalls.clear();
 	m_totalCodeDepositGas = 0;
 	m_subCallOutOfGas = false;
 	m_readsDeployedCode = false;
@@ -297,6 +298,9 @@ void EVMHost::recordCalls(evmc_message const& _message) noexcept
 {
 	if (recorded_calls.size() < max_recorded_calls)
 		recorded_calls.emplace_back(_message);
+	if (_message.depth > 0 && m_subCalls.size() < 256)
+		m_subCalls.push_back({_message.kind, _message.depth, _message.recipient, _message.value,
+			_message.create2_salt, bytes(_message.input_data, _message.input_data + _message.input_size)});
 }
 
 // NOTE: this is used for both internal and external calls.

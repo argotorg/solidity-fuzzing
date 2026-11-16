@@ -100,6 +100,7 @@ public:
 		m_subCallOutOfGas = false;
 		m_readsDeployedCode = false;
 		m_contractCreationOrder.clear();
+		m_subCalls.clear();
 		newTransactionFrame();
 	}
 
@@ -137,6 +138,18 @@ public:
 	/// can check this flag to skip such inputs.
 	/// `mutable` because the EVMC code-access methods are `const`.
 	mutable bool m_readsDeployedCode = false;
+
+	/// Messages of nested calls and creates (depth > 0), with their input copied
+	struct SubCall
+	{
+		evmc_call_kind kind;
+		int32_t depth;
+		evmc::address recipient;
+		evmc::bytes32 value;
+		evmc::bytes32 salt;
+		bytes input;
+	};
+	std::vector<SubCall> m_subCalls;
 
 private:
 	/// Transfer value between accounts. Checks for sufficient balance.
