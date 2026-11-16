@@ -26,6 +26,7 @@
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
+#include <limits>
 #include <random>
 #include <cctype>
 #include <sstream>
@@ -1129,4 +1130,123 @@ std::optional<StringMap> afl::wrapInIdentityCalls(CompilerStack const& _compiler
 		out[name] = std::move(source);
 	}
 	return changed ? std::optional<StringMap>(std::move(out)) : std::nullopt;
+}
+
+namespace
+{
+struct ScopeCollector: ASTConstVisitor
+{
+	explicit ScopeCollector(langutil::SourceLocation const& _use): use(_use) {}
+	langutil::SourceLocation const& use;
+	std::vector<std::string> values; ///< variables of elementary, non-array type
+	std::vector<std::string> otherValues;
+	std::vector<std::string> functions;
+	std::vector<std::string> types;
+
+	void addVariable(VariableDeclaration const& _var)
+	{
+		auto const* typeName = _var.hasTypeName() ? dynamic_cast<ElementaryTypeName const*>(&_var.typeName()) : nullptr;
+		bool const elementary = typeName && typeName->typeName().token() != langutil::Token::String &&
+			typeName->typeName().token() != langutil::Token::Bytes;
+		(elementary ? values : otherValues).push_back(_var.name());
+	}
+
+	bool contains(ASTNode const& _node) const
+	{
+		return _node.location().start <= use.start && use.end <= _node.location().end;
+	}
+	bool visit(ContractDefinition const& _contract) override
+	{
+		types.push_back(_contract.name());
+		if (contains(_contract))
+		{
+			for (auto const* var: _contract.stateVariables())
+				addVariable(*var);
+			for (auto const* function: _contract.definedFunctions())
+				if (!function->name().empty())
+					functions.push_back(function->name());
+		}
+		return contains(_contract);
+	}
+	bool visit(StructDefinition const& _struct) override { types.push_back(_struct.name()); return false; }
+	bool visit(EnumDefinition const& _enum) override { types.push_back(_enum.name()); return false; }
+	bool visit(UserDefinedValueTypeDefinition const& _type) override { types.push_back(_type.name()); return false; }
+	bool visit(SourceUnit const& _unit) override
+	{
+		// Free functions; their scope annotation may be missing after failed name resolution
+		for (auto const* function: ASTNode::filteredNodes<FunctionDefinition>(_unit.nodes()))
+			if (!function->name().empty())
+				functions.push_back(function->name());
+		return true;
+	}
+	bool visit(FunctionDefinition const& _function) override { return contains(_function); }
+	bool visit(ModifierDefinition const& _modifier) override { return contains(_modifier); }
+	bool visit(VariableDeclaration const& _var) override
+	{
+		// Parameters and locals declared before the use; block scoping is approximated by position
+		if (!_var.isStateVariable() && !_var.name().empty() && _var.location().end <= use.start)
+			addVariable(_var);
+		return false;
+	}
+};
+}
+
+std::optional<StringMap> afl::repairUndeclaredIdentifiers(CompilerStack const& _compiler, StringMap const& _sources)
+{
+	if (_compiler.state() < CompilerStack::Parsed)
+		return std::nullopt;
+	std::map<std::string, std::vector<std::pair<langutil::SourceLocation, std::string>>> edits;
+	for (auto const& error: _compiler.errors())
+	{
+		if (error->type() != langutil::Error::Type::DeclarationError || !error->comment())
+			continue;
+		bool const value = error->comment()->starts_with("Undeclared identifier");
+		if (!value && !error->comment()->starts_with("Identifier not found or not unique"))
+			continue;
+		auto const* location = error->sourceLocation();
+		if (!location || !location->sourceName || location->start < 0 || location->end <= location->start ||
+			!_sources.contains(*location->sourceName))
+			continue;
+		ScopeCollector scope(*location);
+		_compiler.ast(*location->sourceName).accept(scope);
+		std::string const& source = _sources.at(*location->sourceName);
+		std::string const used = source.substr(static_cast<std::size_t>(location->start),
+			static_cast<std::size_t>(location->end - location->start));
+		std::size_t next = static_cast<std::size_t>(location->end);
+		while (next < source.size() && std::isspace(static_cast<unsigned char>(source[next])))
+			++next;
+		bool const called = next < source.size() && source[next] == '(';
+		// solc's own suggestions (`Did you mean "a" or "b"?`) are names close to the one used
+		std::vector<std::string> candidates;
+		for (std::size_t q = error->comment()->find('"'); q != std::string::npos; q = error->comment()->find('"', q))
+		{
+			std::size_t const end = error->comment()->find('"', q + 1);
+			if (end == std::string::npos)
+				break;
+			candidates.push_back(error->comment()->substr(q + 1, end - q - 1));
+			q = end + 1;
+		}
+		if (candidates.empty())
+			candidates = !value ? scope.types : called ? scope.functions : !scope.values.empty() ? scope.values : scope.otherValues;
+		if (candidates.empty())
+			continue;
+		h256 const pick = keccak256(used + std::to_string(location->start));
+		edits[*location->sourceName].emplace_back(*location, candidates[pick[0] % candidates.size()]);
+	}
+	if (edits.empty())
+		return std::nullopt;
+	StringMap out = _sources;
+	for (auto& [unit, unitEdits]: edits)
+	{
+		std::sort(unitEdits.begin(), unitEdits.end(), [](auto const& _a, auto const& _b) { return _a.first.start > _b.first.start; });
+		std::string& source = out[unit];
+		int previousStart = std::numeric_limits<int>::max();
+		for (auto const& [location, name]: unitEdits)
+			if (location.end <= previousStart && static_cast<std::size_t>(location.end) <= source.size())
+			{
+				source.replace(static_cast<std::size_t>(location.start), static_cast<std::size_t>(location.end - location.start), name);
+				previousStart = location.start;
+			}
+	}
+	return out == _sources ? std::nullopt : std::optional<StringMap>(std::move(out));
 }

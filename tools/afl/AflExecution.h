@@ -141,6 +141,11 @@ Comparison compare(Execution const& _a, Execution const& _b);
 /// Metamorphic variant of the compiled sources: some value-typed expressions inside function bodies, picked by
 /// @param _seed, become calls of an identity function. Same semantics, different inlining/optimizer decisions.
 /// nullopt if nothing was rewritten.
+/// After a failed compile: the sources with each undeclared identifier replaced by a name that is in scope there
+/// (state variables, functions, parameters, earlier locals; type names for unresolved paths), chosen by a hash.
+/// Mutations splice in foreign identifiers, and this is their most common compile error. nullopt if nothing to do.
+std::optional<StringMap> repairUndeclaredIdentifiers(frontend::CompilerStack const& _compiler, StringMap const& _sources);
+
 std::optional<StringMap> wrapInIdentityCalls(frontend::CompilerStack const& _compiler, util::h256 const& _seed);
 
 std::optional<std::string> configDependentSemantics(

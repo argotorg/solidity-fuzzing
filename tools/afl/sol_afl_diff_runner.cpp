@@ -40,6 +40,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -117,6 +118,11 @@ static void stop(std::string const& _why)
 		std::cerr << "stop: " << _why << "\n";
 }
 
+#if defined(AFL_MODE_METAMORPHIC)
+static constexpr bool s_metamorphic = true;
+#else
+static constexpr bool s_metamorphic = false;
+#endif
 static constexpr bool s_legacyVsIR = s_configs[0].viaIR != s_configs[1].viaIR;
 static constexpr bool s_legacyOptimizer = (!s_configs[0].viaIR && s_configs[0].optimize) ||
 	(!s_configs[1].viaIR && s_configs[1].optimize);
@@ -162,7 +168,8 @@ static std::optional<CompilerOutput> compile(
 	StringMap const& _sources,
 	Config const& _config,
 	util::h256 const& _seed = util::h256(),
-	std::optional<StringMap>* _variant = nullptr
+	std::optional<StringMap>* _variant = nullptr,
+	std::optional<StringMap>* _repaired = nullptr
 )
 {
 	CompilerInput input(
@@ -179,6 +186,8 @@ static std::optional<CompilerOutput> compile(
 	{
 		SolidityCompilationFramework framework(input);
 		std::optional<CompilerOutput> output = framework.compileContract();
+		if (!output && _repaired)
+			*_repaired = afl::repairUndeclaredIdentifiers(framework.compilerStack(), _sources);
 		if (!output && verbose())
 			for (auto const& error: framework.compilerStack().errors())
 				if (langutil::Error::isError(error->severity()))
@@ -275,12 +284,26 @@ static void runOneInput(std::string_view _input)
 	auto const ms = [](auto _from) {
 		return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - _from).count());
 	};
-#if defined(AFL_MODE_METAMORPHIC)
+	StringMap units = *sources;
 	std::optional<StringMap> variant;
-	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0], util::keccak256(input.source), &variant);
-#else
-	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0]);
-#endif
+	std::optional<CompilerOutput> outA;
+	for (int round = 0;; ++round)
+	{
+		std::optional<StringMap> repaired;
+		outA = compile(units, s_configs[0], util::keccak256(input.source), s_metamorphic ? &variant : nullptr,
+			round < 3 ? &repaired : nullptr);
+		if (outA || !repaired)
+			break;
+		units = std::move(*repaired);
+		if (verbose())
+			std::cerr << "repaired undeclared identifiers (round " << round + 1 << ")\n";
+	}
+	if (char const* dump = std::getenv("AFL_RUNNER_DUMP_SOURCE"))
+	{
+		std::ofstream out(dump);
+		for (auto const& [name, source]: units)
+			out << "==== Source: " << name << " ====\n" << source << "\n";
+	}
 	if (verbose())
 		std::cerr << "time: compile A " << ms(t0) << " ms\n";
 	if (!outA)
@@ -296,7 +319,7 @@ static void runOneInput(std::string_view _input)
 			std::cerr << "==== Source: " << name << " ====\n" << source << "\n";
 	std::optional<CompilerOutput> outB = compile(*variant, s_configs[1]);
 #else
-	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1], util::keccak256(input.source));
+	std::optional<CompilerOutput> outB = compile(units, s_configs[1], util::keccak256(input.source));
 #endif
 	if (verbose())
 		std::cerr << "time: compile B " << ms(t1) << " ms\n";

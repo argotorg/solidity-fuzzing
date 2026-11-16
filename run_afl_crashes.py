@@ -313,8 +313,10 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         pass
 
     # 1. Diff runner — this is the one AFL ran when it found the crash.
+    # The runner may repair undeclared identifiers first; keep the source it actually compiled
     diff_rc, diff_out = run_with_timeout([str(DIFF_RUNNER), str(crash)], outer_timeout,
-                                         {**os.environ, "AFL_RUNNER_VERBOSE": "1"})
+                                         {**os.environ, "AFL_RUNNER_VERBOSE": "1",
+                                          "AFL_RUNNER_DUMP_SOURCE": str(out_dir / "sources" / f"{key}.compiled.sol")})
     (out_dir / "logs" / f"{key}.diff.log").write_text(diff_out)
     diff_cat, diff_detail = parse_diff_runner_outcome(diff_rc, diff_out)
     noise = ""
