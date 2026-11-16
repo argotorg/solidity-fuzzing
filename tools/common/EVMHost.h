@@ -119,9 +119,9 @@ public:
 	static util::h256 convertFromEVMC(evmc::bytes32 const& _data);
 	static evmc::bytes32 convertToEVMC(util::h256 const& _data);
 
-	/// True if any sub-call during execution returned EVMC_OUT_OF_GAS.
+	/// True if any sub-call during execution returned EVMC_OUT_OF_GAS or EVMC_STACK_OVERFLOW.
 	/// Useful for differential testing: when this is set, log/output differences
-	/// across optimization levels are expected (gas consumption varies).
+	/// across optimization levels are expected (gas and stack use vary).
 	bool m_subCallOutOfGas = false;
 
 	/// Ordered list of contract addresses in the order they were created (via CREATE/CREATE2).

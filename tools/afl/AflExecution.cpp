@@ -783,7 +783,7 @@ Execution afl::execute(
 					(*observation.storage)[address] = account.storage;
 		}
 		out.calls.push_back(std::move(observation));
-		if (result.status_code == EVMC_OUT_OF_GAS || _host.m_subCallOutOfGas)
+		if (result.status_code == EVMC_OUT_OF_GAS || result.status_code == EVMC_STACK_OVERFLOW || _host.m_subCallOutOfGas)
 			break;
 	}
 
@@ -844,6 +844,7 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 	// Also a nested create running out: gas use differs by config, and a constructor creating a deep chain of
 	// contracts runs out in one config only
 	if (_a.deployStatus == EVMC_OUT_OF_GAS || _b.deployStatus == EVMC_OUT_OF_GAS ||
+		_a.deployStatus == EVMC_STACK_OVERFLOW || _b.deployStatus == EVMC_STACK_OVERFLOW ||
 		_a.deploySubCallOutOfGas || _b.deploySubCallOutOfGas)
 		return out.skipped = "deploy out of gas", out;
 	if (_a.deployStatus != _b.deployStatus)
@@ -859,8 +860,9 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 	{
 		CallObservation const& a = _a.calls[i];
 		CallObservation const& b = _b.calls[i];
-		if (a.status == EVMC_OUT_OF_GAS || b.status == EVMC_OUT_OF_GAS || a.subCallOutOfGas || b.subCallOutOfGas)
-			return out.skipped = "out of gas in call #" + std::to_string(i), out;
+		if (a.status == EVMC_OUT_OF_GAS || b.status == EVMC_OUT_OF_GAS || a.status == EVMC_STACK_OVERFLOW ||
+			b.status == EVMC_STACK_OVERFLOW || a.subCallOutOfGas || b.subCallOutOfGas)
+			return out.skipped = "out of gas or stack in call #" + std::to_string(i), out;
 		std::string const call = "call #" + std::to_string(i);
 		if (a.status != b.status)
 			out.differences.push_back(call + " status differs (" + std::to_string(a.status) + " vs " +
