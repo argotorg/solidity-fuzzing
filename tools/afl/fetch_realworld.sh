@@ -30,6 +30,10 @@ REPOS=(
     "prb-math|https://github.com/PaulRBerg/prb-math.git"
     "forge-std|https://github.com/foundry-rs/forge-std.git"
     "weth9|https://github.com/gnosis/canonical-weth.git"
+    "morpho-blue|https://github.com/morpho-org/morpho-blue.git"
+    "permit2|https://github.com/Uniswap/permit2.git"
+    "uniswap-v2-core|https://github.com/Uniswap/v2-core.git"
+    "maker-dss|https://github.com/makerdao/dss.git"
 )
 
 mkdir -p "$CACHE"
