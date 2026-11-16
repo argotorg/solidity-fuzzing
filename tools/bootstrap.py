@@ -33,6 +33,30 @@ def available_gb() -> float:
     return 8.0
 
 
+def cmake_home(cache: Path) -> str | None:
+    if cache.is_file():
+        for line in cache.read_text(errors="replace").splitlines():
+            if line.startswith("CMAKE_HOME_DIRECTORY:"):
+                return line.split("=", 1)[1]
+    return None
+
+
+def remove_foreign_build_trees() -> None:
+    """Build trees configured in another checkout (copied over with the sources) cannot be reused: CMake
+    refuses the cache, and deps_afl/ holds a libprotobuf-mutator built against another protobuf."""
+    trees = [(REPO / "build", REPO / "build" / "CMakeCache.txt", REPO),
+             (REPO / "build_afl", REPO / "build_afl" / "CMakeCache.txt", REPO),
+             (REPO / "deps_afl", REPO / "deps_afl" / "build" / "libprotobuf-mutator" / "CMakeCache.txt",
+              REPO / "deps_afl" / "src" / "libprotobuf-mutator")]
+    for tree, cache, home in trees:
+        configured = cmake_home(cache)
+        # resolve(): the same checkout reached through a symlink is not foreign
+        if configured is None or Path(configured).resolve() == home.resolve():
+            continue
+        print(f"removing {tree.name}/: configured for {configured}, not this checkout", flush=True)
+        shutil.rmtree(tree)
+
+
 def run(step: str, cmds: list[list[str]], env: dict, logs: Path, cwd: Path = REPO) -> None:
     log = logs / f"{step}.log"
     start = time.monotonic()
@@ -66,6 +90,7 @@ def main() -> int:
     logs.mkdir(exist_ok=True)
     print(f"jobs={jobs} ({physical_cores()} physical cores, {available_gb():.0f} GB available)", flush=True)
 
+    remove_foreign_build_trees()
     if not (REPO / "solidity" / "CMakeLists.txt").is_file():
         run("submodules", [["git", "submodule", "update", "--init", "--recursive"]], env, logs)
     if "afl" in steps:
@@ -76,12 +101,17 @@ def main() -> int:
     if "host" in steps:
         (REPO / "build").mkdir(exist_ok=True)
         run("host", [
+            # afl-ts and the grammar build in their source dirs, where a copied checkout carries another
+            # machine's .so files. Rebuild them directly: CMake's ExternalProject stamps would skip them.
+            ["make", "-C", str(REPO / "tree-sitter-solidity"), "clean"],
+            ["make", "-C", str(REPO / "tree-sitter-solidity"), f"-j{jobs}", "libtree-sitter-solidity.so"],
+            ["make", "-C", str(REPO / "afl-ts"), "clean"],
+            ["make", "-C", str(REPO / "afl-ts"),
+             f"CFLAGS=-O3 -funroll-loops -fPIC -Wall -Wextra -I{REPO / 'AFLplusplus' / 'include'}"],
             ["cmake", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
              "-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
              "-DCMAKE_CXX_FLAGS=-fno-omit-frame-pointer", "-DCMAKE_C_FLAGS=-fno-omit-frame-pointer", ".."],
             ["make", f"-j{jobs}"],
-            # EXCLUDE_FROM_ALL: the tree-sitter mutator and grammar the AFL harness runs with
-            ["make", f"-j{jobs}", "afl_ts", "tree_sitter_solidity"],
         ], env, logs, cwd=REPO / "build")
     if "proto" in steps:
         run("proto", [["tools/ossfuzz/build_ossfuzz.sh"]], env, logs)

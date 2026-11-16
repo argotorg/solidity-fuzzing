@@ -23,6 +23,9 @@ nix develop --command python3 tools/bootstrap.py
   flakes enabled, add `--extra-experimental-features 'nix-command flakes'`.
 - The first `nix develop` builds a static Boost from source (not in the binary cache), so it takes a few
   minutes.
+- A checkout copied from another machine is fine: `build/`, `build_afl/` and `deps_afl/` configured for a
+  different path are deleted and rebuilt, and AFL++, afl-ts and the grammar library are always rebuilt from
+  clean.
 - Before fuzzing: `echo core | sudo tee /proc/sys/kernel/core_pattern`.
 
 Without nix, install the packages listed under [Setup](#setup) and follow [Build](#build).
