@@ -261,10 +261,29 @@ static std::optional<CompilerOutput> compile(
 		throw;
 	}
 #else
-	// ICEs belong to the ICE mode
-	catch (langutil::InternalCompilerError const& _e) { stop(std::string("ICE: ") + _e.what()); }
-	catch (yul::YulAssertion const& _e) { stop(std::string("YulAssertion: ") + _e.what()); }
-	catch (yul::YulException const& _e) { stop(std::string("YulException: ") + _e.what()); }
+	// ICEs belong to the ICE mode, except under random optimizer settings: config A compiled the same source, so the
+	// settings (which standard JSON exposes) trigger it
+	catch (langutil::InternalCompilerError const& _e)
+	{
+		if (_config.randomOptimizer)
+		{
+			std::cerr << boost::diagnostic_information(_e);
+			throw;
+		}
+		stop(std::string("ICE: ") + _e.what());
+	}
+	catch (yul::YulAssertion const& _e)
+	{
+		if (_config.randomOptimizer)
+			throw;
+		stop(std::string("YulAssertion: ") + _e.what());
+	}
+	catch (yul::YulException const& _e)
+	{
+		if (_config.randomOptimizer)
+			throw;
+		stop(std::string("YulException: ") + _e.what());
+	}
 #endif
 	return std::nullopt;
 }
