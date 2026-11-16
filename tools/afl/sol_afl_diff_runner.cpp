@@ -37,6 +37,7 @@
 
 #include <boost/exception/diagnostic_information.hpp>
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -256,20 +257,32 @@ static void runOneInput(std::string_view _input)
 	for (Config const& config: s_configs)
 		compile(*sources, config);
 #else
+	auto const t0 = std::chrono::steady_clock::now();
+	auto const ms = [](auto _from) {
+		return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - _from).count());
+	};
 	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0]);
+	if (verbose())
+		std::cerr << "time: compile A " << ms(t0) << " ms\n";
 	if (!outA)
 		return stop("compile A");
 	if (outA->byteCode.empty())
 		return stop("no bytecode");
+	auto const t1 = std::chrono::steady_clock::now();
 	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1], util::keccak256(input.source));
+	if (verbose())
+		std::cerr << "time: compile B " << ms(t1) << " ms\n";
 	if (!outB || outB->byteCode.empty())
 		return stop("compile B");
 
 	afl::CallPlan const plan = afl::planCalls(input, afl::interfaceOf(*outA));
 	EVMHost hostA(evmVersion(s_configs[0]), evmone());
 	EVMHost hostB(evmVersion(s_configs[1]), evmone());
+	auto const t2 = std::chrono::steady_clock::now();
 	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan);
 	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan);
+	if (verbose())
+		std::cerr << "time: execute " << ms(t2) << " ms\n";
 	if (std::getenv("AFL_RUNNER_VERBOSE"))
 	{
 		std::cerr << "deploy: " << execA.deployStatus << " / " << execB.deployStatus << "\n";
@@ -297,13 +310,12 @@ static void runOneInput(std::string_view _input)
 
 int main(int argc, char** argv)
 {
-	// Repro / one-shot path: explicit filename bypasses AFL entirely so
-	// `./sol_afl_diff_runner crash-xxxx` keeps working for triage on host
-	// builds without an AFL runtime present.
+	// Explicit files bypass AFL (triage on host builds); several run in one process like persistent mode, for
+	// profiling and for reproducing state carried between iterations
 	if (argc >= 2)
 	{
-		std::string input = readFileAsString(argv[1]);
-		runOneInput(input);
+		for (int i = 1; i < argc; ++i)
+			runOneInput(readFileAsString(argv[i]));
 		return 0;
 	}
 

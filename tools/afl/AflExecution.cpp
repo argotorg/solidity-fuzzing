@@ -670,12 +670,16 @@ CallPlan afl::planCalls(AflInput const& _input, ContractInterface const& _interf
 			if (entropy.byte() % 2)
 				plan.calls.push_back({signature + " [malformed]", selectorOf(signature) + corrupt(*args, entropy), 0});
 		}
-	// Second pass in an input-chosen order with fresh arguments, so functions also see state that others wrote
-	for (std::size_t i = signatures.size(); i > 1; --i)
-		std::swap(signatures[i - 1], signatures[entropy.byte() % i]);
-	for (std::string const& signature: signatures)
-		if (auto args = encodeArgs(signature, entropy))
-			plan.calls.push_back({signature + " [again]", selectorOf(signature) + *args, value(signature)});
+	// More passes in input-chosen orders with fresh arguments, so functions also see state that others wrote.
+	// Executing is ~1000x cheaper than compiling, so these cost next to nothing.
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		for (std::size_t i = signatures.size(); i > 1; --i)
+			std::swap(signatures[i - 1], signatures[entropy.byte() % i]);
+		for (std::string const& signature: signatures)
+			if (auto args = encodeArgs(signature, entropy))
+				plan.calls.push_back({signature + " [again]", selectorOf(signature) + *args, value(signature)});
+	}
 	if (_input.rawCalldata)
 		plan.calls.push_back({"<raw calldata>", *_input.rawCalldata, 0});
 	return plan;

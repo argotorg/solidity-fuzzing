@@ -13,6 +13,7 @@ sol_ice_crash_backtrace_categorizer.py for the proto ones.
 """
 import argparse
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -26,6 +27,9 @@ LPM_GRAMMAR = [("sol_proto_ossfuzz_evmone", "sol2Proto"), ("sol_ice_ossfuzz", "s
                ("shuffler_proto_ossfuzz", "shufflerProto"), ("sol_recstruct_alias_ossfuzz", "solRecStructAliasProto"),
                ("sol_roundtrip_ossfuzz", "solRoundtripProto"), ("abiv2_proto_ossfuzz", "abiV2Proto")]
 STAT_KEYS = ["execs_done", "execs_per_sec", "corpus_count", "bitmap_cvg", "saved_crashes", "saved_hangs", "stability"]
+
+
+NO_ASLR = ["setarch", "-R"] if shutil.which("setarch") else []
 
 
 def base_env() -> dict:
@@ -127,7 +131,8 @@ def main() -> int:
                 sys.exit(f"missing: {path}")
         for i in range(int(cores or 1)):
             role = ["-M", "main"] if i == 0 else ["-S", f"s{i:02d}"]
-            cmd = [str(AFL_FUZZ), "-i", str(corpus), "-o", str(out / name), *role, "-m", "none",
+            # solc iterates pointer-keyed containers, so with ASLR the same input covers ~1-2% different edges
+            cmd = [*NO_ASLR, str(AFL_FUZZ), "-i", str(corpus), "-o", str(out / name), *role, "-m", "none",
                    "-t", str(args.timeout_ms), "-V", str(args.duration), "--", str(binary)]
             log_path = out / f"{name}.{i:02d}.log"
             with log_path.open("wb") as log:

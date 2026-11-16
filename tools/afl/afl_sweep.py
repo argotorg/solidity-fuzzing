@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MODES = ["sol_afl_diff_runner", "sol_afl_diff_runner_viair", "sol_afl_diff_runner_viair_opt",
          "sol_afl_diff_runner_ssacfg", "sol_afl_diff_runner_optseq", "sol_afl_diff_runner_evmversion"]
 WHAT_RE = re.compile(r"what\(\):\s*(.*)")
-CALL_RE = re.compile(r"^call #\d+ (.*): (\S+) / (\S+)(?: [0-9a-f]*)?$", re.MULTILINE)
+CALL_RE = re.compile(r"^call #\d+ (.*?): (\S+) / (\S+)", re.MULTILINE)
 STOP_RE = re.compile(r"^stop: (.*)$", re.MULTILINE)
 COMPILE_ERROR_RE = re.compile(r"^compile error: (.*)$", re.MULTILINE)
 DEPLOY_RE = re.compile(r"^deploy: (.+?) / (.+)$", re.MULTILINE)
