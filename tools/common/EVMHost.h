@@ -99,11 +99,13 @@ public:
 		recorded_logs.clear();
 		m_subCallOutOfGas = false;
 		m_readsDeployedCode = false;
+		m_contractCreationOrder.clear();
 		newTransactionFrame();
 	}
 
 	/// Transaction boundary within a block: clears transient storage and warm/cold access state,
-	/// keeps logs and the observation flags.
+	/// keeps logs, the observation flags and the creation order (address normalization and the
+	/// deployed-code taint need contracts created by earlier transactions).
 	void newTransaction() { newTransactionFrame(); }
 
 	/// @returns contents of storage at @param _addr.

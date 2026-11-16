@@ -33,6 +33,11 @@
 #include <string_view>
 #include <vector>
 
+namespace solidity::frontend
+{
+class CompilerStack;
+}
+
 namespace solidity::test::fuzzer::afl
 {
 
@@ -99,5 +104,11 @@ struct Comparison
 
 /// The differential oracle. `storageLayouts` must be set on both states.
 Comparison compare(Execution const& _a, Execution const& _b);
+
+/// Why the compiled sources may legitimately behave differently across configs, or nullopt:
+/// with @param _legacyVsIR the documented semantic changes (docs/ir-breaking-changes.rst); with
+/// @param _legacyOptimizer internal function pointer comparison, which solc itself warns about.
+std::optional<std::string> configDependentSemantics(
+	frontend::CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer);
 
 }

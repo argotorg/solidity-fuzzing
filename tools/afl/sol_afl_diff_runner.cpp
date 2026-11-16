@@ -97,6 +97,10 @@ static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", tr
 static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt", false, true}};
 #endif
 
+static constexpr bool s_legacyVsIR = s_configs[0].viaIR != s_configs[1].viaIR;
+static constexpr bool s_legacyOptimizer = (!s_configs[0].viaIR && s_configs[0].optimize) ||
+	(!s_configs[1].viaIR && s_configs[1].optimize);
+
 static std::optional<CompilerOutput> compile(StringMap const& _sources, Config const& _config)
 {
 	CompilerInput input(
@@ -111,7 +115,19 @@ static std::optional<CompilerOutput> compile(StringMap const& _sources, Config c
 	);
 	try
 	{
-		return SolidityCompilationFramework(input).compileContract();
+		SolidityCompilationFramework framework(input);
+		std::optional<CompilerOutput> output = framework.compileContract();
+#if !defined(AFL_MODE_ICE)
+		if (output)
+			if (auto const reason = afl::configDependentSemantics(
+				framework.compilerStack(), s_legacyVsIR, s_legacyOptimizer))
+			{
+				if (std::getenv("AFL_RUNNER_VERBOSE"))
+					std::cerr << "skipped: " << *reason << "\n";
+				return std::nullopt;
+			}
+#endif
+		return output;
 	}
 	// Known non-bugs in every mode. A diff below throws InternalCompilerError too, but outside this scope.
 	catch (langutil::UnimplementedFeatureError const&) {}
@@ -162,8 +178,9 @@ static void runOneInput(std::string_view _input)
 	if (input.source.find("creationCode") != std::string::npos || input.source.find("runtimeCode") != std::string::npos)
 		return;
 #if defined(AFL_MODE_VIAIR)
-	// via-IR always uses ABI coder v2, which validates inputs v1 accepts; isoltest also marks legacy-only tests
-	if (input.source.find("abicoder v1") != std::string::npos || input.source.find("compileViaYul: false") != std::string::npos)
+	// via-IR always uses ABI coder v2, which validates inputs v1 accepts; isoltest marks tests whose
+	// expectations hold for one codegen only
+	if (input.source.find("abicoder v1") != std::string::npos || input.source.find("compileViaYul:") != std::string::npos)
 		return;
 #endif
 	std::optional<StringMap> const sources = afl::sourceUnits(input.source);
@@ -193,7 +210,9 @@ static void runOneInput(std::string_view _input)
 		for (std::size_t i = 0; i < plan.calls.size(); ++i)
 			std::cerr << "call #" << i << " " << plan.calls[i].signature << ": "
 				<< (i < execA.calls.size() ? std::to_string(execA.calls[i].status) : "-") << " / "
-				<< (i < execB.calls.size() ? std::to_string(execB.calls[i].status) : "-") << "\n";
+				<< (i < execB.calls.size() ? std::to_string(execB.calls[i].status) : "-")
+				<< (std::getenv("AFL_RUNNER_VERBOSE") == std::string("2") ? " " + util::toHex(plan.calls[i].calldata) : "")
+				<< "\n";
 	}
 	execA.state.storageLayouts = outA->storageLayoutByRuntimeCode;
 	execB.state.storageLayouts = outB->storageLayoutByRuntimeCode;

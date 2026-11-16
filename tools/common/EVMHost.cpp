@@ -265,7 +265,6 @@ void EVMHost::newTransactionFrame()
 			// Otherwise, the previous behavior (pre-Cancun) is maintained.
 			accounts.erase(address);
 	m_newlyCreatedAccounts.clear();
-	m_contractCreationOrder.clear();
 	m_totalCodeDepositGas = 0;
 	recorded_selfdestructs.clear();
 }

@@ -20,6 +20,8 @@
 
 #include <tools/ossfuzz/SolidityEvmoneInterface.h>
 
+#include <libsolidity/ast/ASTVisitor.h>
+#include <libsolidity/interface/CompilerStack.h>
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
@@ -720,4 +722,92 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 	if (!out.storageUnmaskable && !storageEqual(storageA, orderA, storageB, orderB))
 		out.differences.push_back("storage differs");
 	return out;
+}
+
+namespace
+{
+
+using namespace solidity::frontend;
+
+/// Calls a user-defined function (which may read or write any state) or, unless @a callsOnly, reads a state variable
+struct ReadsState: ASTConstVisitor
+{
+	explicit ReadsState(bool _callsOnly): callsOnly(_callsOnly) {}
+	bool callsOnly;
+	bool found = false;
+	bool visit(FunctionCall const& _call) override
+	{
+		if (*_call.annotation().kind == FunctionCallKind::FunctionCall)
+			if (auto const* type = dynamic_cast<FunctionType const*>(_call.expression().annotation().type))
+				if (type->kind() == FunctionType::Kind::Internal || type->kind() == FunctionType::Kind::External ||
+					type->kind() == FunctionType::Kind::DelegateCall)
+					found = true;
+		return !found;
+	}
+	bool visit(Identifier const& _identifier) override
+	{
+		auto const* var = dynamic_cast<VariableDeclaration const*>(_identifier.annotation().referencedDeclaration);
+		if (!callsOnly && var && var->isStateVariable() && !var->isConstant())
+			found = true;
+		return false;
+	}
+};
+
+bool reads(ASTNode const& _node, bool _callsOnly)
+{
+	ReadsState visitor(_callsOnly);
+	_node.accept(visitor);
+	return visitor.found;
+}
+
+struct PlaceholderRuns: ASTConstVisitor
+{
+	int runs = 0;
+	int loops = 0;
+	bool visit(PlaceholderStatement const&) override { runs += loops ? 2 : 1; return false; }
+	bool visit(ForStatement const&) override { ++loops; return true; }
+	void endVisit(ForStatement const&) override { --loops; }
+	bool visit(WhileStatement const&) override { ++loops; return true; }
+	void endVisit(WhileStatement const&) override { --loops; }
+};
+
+}
+
+std::optional<std::string> afl::configDependentSemantics(
+	CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer)
+{
+	if (_legacyOptimizer)
+		for (auto const& error: _compiler.errors())
+			if (error->errorId() == langutil::ErrorId{3075})
+				return "compares internal function pointers";
+	if (!_legacyVsIR)
+		return std::nullopt;
+	for (std::string const& name: _compiler.contractNames())
+	{
+		// Legacy runs each contract's initializers right before its constructor, base first; IR runs all
+		// initializers, then all constructors
+		auto const& linearized = _compiler.contractDefinition(name).annotation().linearizedBaseContracts;
+		bool baseConstructorRan = false;
+		bool baseConstructorCalls = false;
+		for (auto it = linearized.rbegin(); it != linearized.rend(); ++it)
+		{
+			if (baseConstructorRan)
+				for (VariableDeclaration const* var: (*it)->stateVariables())
+					if (var->value() && (baseConstructorCalls || reads(*var->value(), false)))
+						return "state variable initialization order (" + name + ")";
+			if (FunctionDefinition const* constructor = (*it)->constructor())
+			{
+				baseConstructorRan = true;
+				baseConstructorCalls = baseConstructorCalls || reads(*constructor, true);
+			}
+			for (ModifierDefinition const* modifier: (*it)->functionModifiers())
+			{
+				PlaceholderRuns placeholder;
+				modifier->accept(placeholder);
+				if (placeholder.runs > 1)
+					return "modifier " + modifier->name() + " may run its body more than once (" + name + ")";
+			}
+		}
+	}
+	return std::nullopt;
 }

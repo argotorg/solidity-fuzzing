@@ -126,6 +126,7 @@ public:
 	{
 		return m_compiler.yulIR(_contractName);
 	}
+	frontend::CompilerStack const& compilerStack() const { return m_compiler; }
 private:
 	frontend::CompilerStack m_compiler;
 	CompilerInput m_compilerInput;
