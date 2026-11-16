@@ -93,23 +93,24 @@ diffs (needs `--afl`, since the file embeds calldata):
 ```bash
 build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:...
 # 0 match, 1 mismatch, 2 compile fail, 3 ICE
-AFLplusplus/afl-tmin -i <crash> -o min.sol \
-  -- build_afl/tools/afl/sol_afl_diff_runner
+tools/afl/minimize.py --mode sol_afl_diff_runner_viair <crash> -o min.sol   # line ddmin, keeps the bucket
 ```
 
 A hang is just an input slower than the 2 s timeout; many don't
 reproduce. Time each with `timeout 30 ... sol_afl_diff_runner <hang>`;
 only consistently slow ones are real DoS candidates.
 
-Bucket a campaign's crashes (dedups, cross-checks with `sol_debug_runner --afl`, labels known-noise
-classes, groups ICEs by throw site):
+Bucket a campaign's crashes (dedups, cross-checks with `sol_debug_runner --afl`, groups ICEs by throw site;
+`buckets.txt` has one line per root-cause signature, smallest source first):
 
 ```bash
 python3 run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl_diff_runner_viair -o triage_viair
 ```
 
-`AFL_RUNNER_VERBOSE=1 <runner> <input>` prints where the input stopped, the plan and every call's status per
-config; `=2` adds each call's calldata.
+`AFL_RUNNER_VERBOSE=1 <runner> <input>...` prints where the input stopped, per-phase times, the plan and every
+call's status per config; `=2` adds each call's calldata. `AFL_RUNNER_LOOP=N` sets the persistent-loop count
+(default 1000); `1` forks a fresh child per input, which makes coverage deterministic (solc iterates
+pointer-keyed containers, so a long-lived child's heap layout changes ~20% of the edges).
 
 ## Sweeps
 
