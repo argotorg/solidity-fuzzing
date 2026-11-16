@@ -41,6 +41,7 @@ added=0
 skipped_size=0
 skipped_dup=0
 skipped_oracle=0
+skipped_imports=0
 
 # Pattern that catches Solidity / Yul features whose values legitimately
 # differ across optimiser levels — comparing them in the diff oracle is a
@@ -91,6 +92,11 @@ ingest_tree() {
         fi
         if grep -qE "$ORACLE_UNSAFE_REGEX" "$f" 2>/dev/null; then
             skipped_oracle=$((skipped_oracle + 1))
+            continue
+        fi
+        # Real-world files with imports never compile alone; bundle_realworld.py covers them with their imports
+        if [[ "$prefix" == rw_* ]] && grep -qE '^[[:space:]]*import\b' "$f"; then
+            skipped_imports=$((skipped_imports + 1))
             continue
         fi
         local h
@@ -146,6 +152,7 @@ echo "Wrote $added files to $OUT"
 echo "  Skipped (size > $MAX_BYTES or empty):   $skipped_size"
 echo "  Skipped (duplicate content):            $skipped_dup"
 echo "  Skipped (oracle-unsafe gas/msize/pc):   $skipped_oracle"
+echo "  Skipped (real-world file with imports): $skipped_imports"
 
 # --- Seed a fraction of entries with the region-aware input format used
 # by the patched afl-ts. The format `[source][calldata][u16 LE source_len][0xCA 0xFE]`
