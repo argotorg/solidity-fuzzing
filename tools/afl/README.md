@@ -1,14 +1,30 @@
 # AFL differential `.sol` fuzzer
 
-`sol_afl_diff_runner` reads a `.sol` file, compiles + deploys the last
-contract under two optimiser settings (minimal vs standard), calls each
-with calldata derived from the source, and `solAssert`s that status /
-output / logs / storage match. A mismatch aborts (SIGABRT) and AFL records
-a crash. Runs in AFL++ persistent mode; a filename arg replays a single
-input for triage (no AFL runtime needed).
+Tree-sitter-mutated Solidity (afl-ts) against a differential oracle. Each input is compiled under the two
+configs of the runner's mode, and both builds run the same call plan (`AflExecution.{h,cpp}`):
 
-Sources containing `assembly` or `gas()` are skipped — they legitimately
-differ across optimiser settings.
+1. deploy the last contract, with the isoltest `constructor()` arguments and value if the source has them;
+2. run the isoltest call script (`// ----` section of solidity's semantic tests: literal ABI words);
+3. call every public function with ABI-encoded arguments drawn from the input's calldata region,
+   boundary-biased, and for some of them a malformed copy (dirty high bits, non-canonical bool,
+   negative/huge/backward tail offsets);
+4. send the raw calldata region itself.
+
+Per call the status, output/revert data and transient storage must agree; at the end, logs and storage.
+A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` replays the identical plan.
+
+| Binary | Compares |
+|---|---|
+| `sol_afl_diff_runner_viair` (default for the run scripts) | legacy-opt vs ir-opt |
+| `sol_afl_diff_runner` | legacy vs legacy-opt |
+| `sol_afl_diff_runner_viair_opt` | ir vs ir-opt |
+| `sol_afl_diff_runner_ssacfg` | ir-opt vs ssacfg-opt |
+| `sol_afl_ice_runner` | compiles only, under all four legacy/IR × opt configs; ICEs crash (bucketed by throw site) |
+
+Skipped as config-dependent by design: sources with `assembly`, `gas()`, `creationCode`/`runtimeCode`;
+in the viaIR mode also `abicoder v1` and isoltest `compileViaYul: false` (via-IR always validates with v2);
+runs that EXTCODECOPY/EXTCODEHASH a deployed contract; anything after an out-of-gas. EXTCODESIZE of a
+deployed contract reports a fixed size instead (solc checks it before every external call).
 
 For the protobuf fuzzers (`*_proto_ossfuzz_*`) see
 [../ossfuzz](../ossfuzz/README.md); this dir is just the `.sol` fuzzer.
@@ -34,8 +50,14 @@ tools/afl/build_corpus.sh          # -> corpus_afl/
 tools/afl/build_corpus_tsgen.sh    # grammar-driven extra surface
 cp corpus_tsgen/*.sol corpus_afl/
 
-tools/afl/run_afl.sh               # single core (afl-ts mutator)
-tools/afl/run_afl_parallel.sh -j 8 # tmux: 1 main + N-1 secondaries
+tools/afl/run_afl.sh               # single core (afl-ts mutator); MODE=<binary> picks the oracle
+tools/afl/run_afl_parallel.sh -j 8 # tmux: 1 main + N-1 secondaries, findings_afl_<mode>/
+
+# Fixed-duration multi-mode campaign without tmux, then a per-fuzzer stats table (proto fuzzers allowed
+# too, for head-to-head comparisons):
+tools/afl/run_campaign.py --duration 3600 -o results/run1 \
+    sol_afl_diff_runner_viair=16 sol_afl_diff_runner_ssacfg=6 sol_afl_ice_runner=6 \
+    sol_proto_ossfuzz_evmone_viair=8
 ```
 
 `run_afl.sh` loads `libts.so` as the custom mutator plus the grammar; set
@@ -69,6 +91,26 @@ AFLplusplus/afl-tmin -i <crash> -o min.sol \
 A hang is just an input slower than the 2 s timeout; many don't
 reproduce. Time each with `timeout 30 ... sol_afl_diff_runner <hang>`;
 only consistently slow ones are real DoS candidates.
+
+Bucket a campaign's crashes (dedups, cross-checks with `sol_debug_runner --afl`, labels known-noise
+classes, groups ICEs by throw site):
+
+```bash
+python3 run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl_diff_runner_viair -o triage_viair
+```
+
+`AFL_RUNNER_VERBOSE=1 <runner> <input>` prints the plan and every call's status per config.
+
+## Sweeps
+
+`tools/afl/afl_sweep.py` runs inputs through the modes and reports aborts plus how much code executed
+(deployed, successful calls). Run it over a corpus sample after any harness change (false-positive check),
+and over bug reproducers to see which modes catch them:
+
+```bash
+tools/afl/afl_sweep.py --sample 600 -o sweep corpus_afl
+tools/afl/afl_sweep.py --build build_old -o sweep_pocs pocs/   # build_old: same harness, older solc
+```
 
 ## Regression tests
 
