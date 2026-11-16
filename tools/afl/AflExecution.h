@@ -113,6 +113,7 @@ struct Execution
 {
 	evmc_status_code deployStatus = EVMC_FAILURE;
 	std::vector<EVMHost::SubCall> deploySubCalls;
+	bool deploySubCallOutOfGas = false;
 	std::map<evmc::address, evmc::bytes32> balances;
 	std::vector<CallObservation> calls;
 	/// Final state, with the fields FuzzerDiffCommon compares

@@ -746,8 +746,10 @@ Execution afl::execute(
 	create.sender = sender;
 	create.value = EVMHost::convertToEVMC(h256(_plan.constructorValue));
 	_host.m_subCalls.clear();
+	_host.m_subCallOutOfGas = false;
 	evmc::Result created = _host.call(create);
 	out.deployStatus = created.status_code;
+	out.deploySubCallOutOfGas = _host.m_subCallOutOfGas;
 	out.deploySubCalls = std::move(_host.m_subCalls);
 	_host.m_subCalls.clear();
 	if (created.status_code != EVMC_SUCCESS)
@@ -839,7 +841,10 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 	Comparison out;
 	if (_a.readsDeployedCode || _b.readsDeployedCode)
 		return out.skipped = "contract read deployed bytecode", out;
-	if (_a.deployStatus == EVMC_OUT_OF_GAS || _b.deployStatus == EVMC_OUT_OF_GAS)
+	// Also a nested create running out: gas use differs by config, and a constructor creating a deep chain of
+	// contracts runs out in one config only
+	if (_a.deployStatus == EVMC_OUT_OF_GAS || _b.deployStatus == EVMC_OUT_OF_GAS ||
+		_a.deploySubCallOutOfGas || _b.deploySubCallOutOfGas)
 		return out.skipped = "deploy out of gas", out;
 	if (_a.deployStatus != _b.deployStatus)
 		return out.differences.push_back("deploy status differs"), out;
