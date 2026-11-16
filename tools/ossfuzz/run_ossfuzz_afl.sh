@@ -80,7 +80,7 @@ fi
 # a tmux server with a stale environment is already running.
 command -v tmux >/dev/null || { echo "JOBS>1 needs tmux" >&2; exit 1; }
 ENVX="AFL_CUSTOM_MUTATOR_LIBRARY='$AFL_CUSTOM_MUTATOR_LIBRARY'"
-ENVX="$ENVX AFL_CUSTOM_MUTATOR_ONLY=1 AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1 AFL_HANG_TMOUT=$AFL_HANG_TMOUT"
+ENVX="$ENVX AFL_CUSTOM_MUTATOR_ONLY=1 AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1 AFL_FAST_CAL=1 AFL_HANG_TMOUT=$AFL_HANG_TMOUT"
 SESSION="afl_${FUZZER}"
 
 tmux new-session -d -s "$SESSION" -n m00 \

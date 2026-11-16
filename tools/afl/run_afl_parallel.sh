@@ -82,7 +82,7 @@ SECONDARY_PROFILES=(
 # AFL_SKIP_CPUFREQ: AFL++ refuses to start unless the CPU governor is
 # "performance"; setting this lets fuzzing run at the cost of slightly
 # noisier timing. The proper fix is `sudo cpupower frequency-set -g performance`.
-declare -a TS_ENV=(AFL_SKIP_CPUFREQ=1 "AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}")
+declare -a TS_ENV=(AFL_SKIP_CPUFREQ=1 AFL_FAST_CAL=1 "AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}")
 if [[ -n "$AFL_TS_LIB" ]]; then
     TS_ENV+=(
         "AFL_CUSTOM_MUTATOR_LIBRARY=$AFL_TS_LIB"

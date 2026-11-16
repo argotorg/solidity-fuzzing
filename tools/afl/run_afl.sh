@@ -96,7 +96,7 @@ fi
 # README is the only real prereq.
 AFL_TS_ENV+=("AFL_SKIP_CPUFREQ=1")
 # Only save hangs that are still slow at 10 s on re-run (execs still time out at -t).
-AFL_TS_ENV+=("AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}")
+AFL_TS_ENV+=("AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}" AFL_FAST_CAL=1)
 
 mkdir -p "$FINDINGS"
 

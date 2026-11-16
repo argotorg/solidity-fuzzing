@@ -33,7 +33,9 @@ NO_ASLR = ["setarch", "-R"] if shutil.which("setarch") else []
 
 
 def base_env() -> dict:
-    env = {"AFL_SKIP_CPUFREQ": "1", "AFL_NO_UI": "1", "AFL_CUSTOM_MUTATOR_ONLY": "1",
+    # AFL_FAST_CAL: solc's coverage is ~80% stable, so AFL otherwise calibrates every new or imported entry 40
+    # times; that was 90% of a campaign's run time
+    env = {"AFL_SKIP_CPUFREQ": "1", "AFL_NO_UI": "1", "AFL_CUSTOM_MUTATOR_ONLY": "1", "AFL_FAST_CAL": "1",
            "AFL_HANG_TMOUT": os.environ.get("AFL_HANG_TMOUT", "10000")}
     pattern = Path("/proc/sys/kernel/core_pattern")
     if pattern.is_file() and pattern.read_text().startswith("|"):
