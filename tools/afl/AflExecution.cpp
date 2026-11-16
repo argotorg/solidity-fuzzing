@@ -1006,10 +1006,17 @@ struct IdentityWrapper: ASTConstVisitor
 			if (!chosen[i] || (!edits.empty() && start >= edits.back().start && end <= edits.back().end))
 				continue;
 			std::string const& typeName = candidates[i].second;
-			std::string name = "__id" + std::to_string(unit) + "_";
+			// Identities through different code paths: plain, ABI encoder/decoder, memory allocation
+			static char const* const kinds[] = {"id", "id", "abi", "mem"};
+			std::string const kind = kinds[rng() % 4];
+			std::string name = "__" + kind + std::to_string(unit) + "_";
 			for (char c: typeName)
 				name += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
-			helpers[name] = "function " + name + "(" + typeName + " v) pure returns (" + typeName + ") { return v; }";
+			std::string const body =
+				kind == "abi" ? "return abi.decode(abi.encode(v), (" + typeName + "));" :
+				kind == "mem" ? typeName + "[] memory a = new " + typeName + "[](1); a[0] = v; return a[0];" :
+				"return v;";
+			helpers[name] = "function " + name + "(" + typeName + " v) pure returns (" + typeName + ") { " + body + " }";
 			edits.push_back({start, end, name});
 		}
 	}
