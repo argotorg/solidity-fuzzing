@@ -5,7 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(solidity-fuzzing LANGUAGES C CXX)
 
 # Solidity requires C++20
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Prepend our cmake/ dir so our overridden cmake modules (fmtlib, nlohmann-json,
