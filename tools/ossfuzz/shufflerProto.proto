@@ -16,53 +16,40 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 
-// Protobuf schema for the SSA stack shuffler fuzzer.
-//
-// The mutator generates ShuffleInput messages which are then projected onto
-// valid shuffler preconditions by protoToShuffler.cpp before being handed
-// to StackShuffler::shuffle().
+// Protobuf schema for the SSA stack shuffler fuzzer; protoToShuffler.cpp projects it onto stack::shuffle()'s preconditions.
 
 syntax = "proto2";
 
 package solidity.yul.test.shuffler_fuzzer;
 
-// A single EVM stack slot.
-//
-// Slot identity is determined by (kind, id):
-//   - V and PHI slots are opaque SSA values; they cannot be synthesised out of
-//     thin air, so any V/PHI referenced in target_top or tail_set that does not
-//     appear in `initial` is dropped or replaced by the converter.
-//   - LIT slots are literals; freely generatable.
-//   - JUNK slots are "don't care" placeholders; freely generatable; the id
-//     field is ignored. Not allowed in tail_set (liveness is values-only).
+// Slot identity is (kind, id). V/PHI are SSA values that must already be on the stack (or spilled) to
+// appear in a target; LIT, JUNK and CALL_RET are freely generatable; FUNC_RET is the function's return label.
 message Slot {
   enum Kind {
     V = 0;
     PHI = 1;
     LIT = 2;
     JUNK = 3;
+    CALL_RET = 4;
+    FUNC_RET = 5;
   }
   required Kind kind = 1;
   required uint32 id = 2;
 }
 
-// A single shuffling problem: "here is the initial stack, produce ops that
-// reach a state whose top matches target_top, whose tail contains tail_set,
-// and whose total size is target_top.size() + tail_set.size() + extra_tail_padding".
-//
-// The converter enforces all preconditions of StackShuffler::shuffle() before
-// invocation (size caps, value-presence checks, liveness dedup, no JUNK in
-// tail_set) so the fuzzer only explores semantically valid inputs.
+// Input to stack::shuffle(source, target, spills, allowSpilling, reachableDepth).
+// target_mode FREE takes `target` as drawn; PERMUTED makes the target a permutation of
+// `initial` (via `permutation`) with `target` entries of kind JUNK masking positions.
 message ShuffleInput {
-  // Initial stack, bottom to top. Size is capped by the converter.
+  enum TargetMode {
+    FREE = 0;
+    PERMUTED = 1;
+  }
   repeated Slot initial = 1;
-  // Required top portion of the target stack, bottom-of-args to top-of-stack.
-  // V/PHI not present in initial are replaced with JUNK by the converter.
-  repeated Slot target_top = 2;
-  // Values required to appear anywhere in the tail (below target_top).
-  // V/PHI not present in initial, JUNK entries, and duplicates are dropped.
-  repeated Slot tail_set = 3;
-  // Extra unused tail space beyond tail_set, clamped by the converter so that
-  // the final target stack size stays within fuzzer bounds.
-  required uint32 extra_tail_padding = 4;
+  repeated Slot target = 2;
+  repeated Slot spilled = 3;
+  optional bool allow_spilling = 4 [default = true];
+  optional uint32 reachable_depth = 5 [default = 16];
+  optional TargetMode target_mode = 6 [default = FREE];
+  repeated uint32 permutation = 7;
 }

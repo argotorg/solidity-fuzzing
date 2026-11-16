@@ -15,71 +15,32 @@
 	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
 */
 // SPDX-License-Identifier: GPL-3.0
-/**
- * Converts a fuzzer-generated ShuffleInput protobuf message into shuffler-ready
- * inputs (initial stack, target top args, target tail set, target stack size).
- *
- * The converter is responsible for projecting arbitrary protobuf mutations onto
- * the subset that satisfies StackShuffler::shuffle()'s preconditions — the
- * shuffler itself is full of precondition assertions and we don't want those
- * to be mistaken for bugs by the fuzzer.
- */
+/// Projects a ShuffleInput protobuf onto an input satisfying stack::shuffle()'s preconditions, so that
+/// precondition asserts in the shuffler are never mistaken for bugs.
 
 #pragma once
 
-#include <libyul/backends/evm/ssa/Stack.h>
-#include <libyul/backends/evm/ssa/StackSlotLiveness.h>
-
 #include <tools/ossfuzz/shufflerProto.pb.h>
+#include <tools/shuffler-fuzzer/StackShufflerTestCommon.h>
 
 #include <cstddef>
+#include <cstdint>
 
 namespace solidity::yul::ssa::shuffler_fuzzer
 {
 
-using ::solidity::yul::ssa::StackData;
-using ::solidity::yul::ssa::StackSlotLiveness;
-
-/// Upper bound on the initial stack size accepted from the fuzzer input.
-/// The shuffler has a hard-coded reachableStackDepth of 16 and shrinking only
-/// works so far, so very tall initial stacks just produce stack-too-deep
-/// outcomes which aren't interesting until the shuffler grows past that.
-inline constexpr std::size_t kMaxInitialSize = 32;
-/// Upper bound on the target top (args) size.
-inline constexpr std::size_t kMaxTargetTopSize = 24;
-/// Upper bound on the total target stack size (target_top + tail).
-/// Larger targets mostly produce honest stack-too-deep results.
-inline constexpr std::size_t kMaxTargetSize = 32;
-/// Upper bound on slot id values — small range produces more slot collisions,
-/// which is where the interesting shuffling logic lives (duplicates, etc.).
+/// Mirrors the upstream property test (test/fuzztest/libyul/StackShufflerPropertyTest.cpp)
+inline constexpr std::size_t kMaxStackSize = 40;
+/// A small id range makes repeated slots, where the interesting shuffling lives
 inline constexpr std::uint32_t kMaxSlotId = 15;
+inline constexpr std::uint32_t kMaxCallSiteId = 3;
 
-/// Result of converting a proto input into shuffler inputs.
-/// All preconditions of StackShuffler::shuffle() are satisfied.
-struct ConvertedInput
-{
-	StackData initial;
-	StackData targetTop;
-	StackSlotLiveness targetTail;
-	std::size_t targetStackSize = 0;
-};
-
-/// Convert a protobuf ShuffleInput into a ConvertedInput.
-///
-/// Guarantees on the returned value:
-///  - initial.size() <= kMaxInitialSize
-///  - targetTop.size() <= kMaxTargetTopSize
-///  - targetStackSize <= kMaxTargetSize
-///  - targetStackSize >= targetTop.size()
-///  - targetTail.size() <= targetStackSize - targetTop.size()
-///  - every V/PHI slot in targetTop appears in initial
-///    (others are replaced with JUNK)
-///  - every value id in targetTail either appears in initial or is freely
-///    generatable (i.e., a Literal). No JUNK / Variable-or-Phi-not-in-initial.
-///  - targetTail has at most one entry per value id (deduplicated)
-///  - no junk in targetTail
-ConvertedInput convertProtoInput(
-	::solidity::yul::test::shuffler_fuzzer::ShuffleInput const& _input
+/// Guarantees: sizes <= kMaxStackSize; at most one return label on `initial` and none in a target that is not
+/// a permutation of `initial`; every target slot is producible; spilled slots are variables;
+/// reachableDepth in [2, 16].
+shuffler_tool::ShuffleCase convertProtoInput(
+	::solidity::yul::test::shuffler_fuzzer::ShuffleInput const& _input,
+	shuffler_tool::ParsedIdentifierTable& _table
 );
 
 }

@@ -22,8 +22,8 @@
  *   stackshuffler [--verbose] <file.stack>
  *   stackshuffler [--verbose] -          (read from stdin)
  *
- * Prints "Status: <Admissible|StackTooDeep|MaxIterationsReached>" and exits 0 for
- * Admissible, 1 otherwise. With --verbose, also prints the full trace table.
+ * Prints "Status: <Admissible|StackTooDeep>" and checks the result against the spec.
+ * Exit: 0 Admissible, 1 StackTooDeep, 2 bad input, 3 spec violation. --verbose prints the trace table.
  */
 
 #include "StackShufflerTestCommon.h"
@@ -114,104 +114,35 @@ Allowed options)",
 		input = stripExpectations(input);
 
 		ParsedIdentifierTable table;
-		auto const testConfig = ShuffleTestInput::parse(table, input);
-		if (!testConfig.valid())
+		ShuffleCase const shuffleCase = ShuffleCase::parse(table, input);
+		if (!targetProducible(shuffleCase))
 		{
-			std::cerr << "Error: Could not parse input. Expected format:\n"
-				<< "  initial: [<slot>, ...]\n"
-				<< "  targetStackTop: [<slot>, ...]\n"
-				<< "  targetStackTailSet: {<slot>, ...}   (optional)\n"
-				<< "  targetStackSize: <integer>          (optional if no tail set)\n"
-				<< "  allowSpilling: <true|false>         (optional)\n"
-				<< "  initialSpilledSet: {<slot>, ...}    (optional)\n"
-				<< "\n"
-				<< "Where <slot> is one of: v<N>, phi<N>, lit<N>, JUNK, ReturnLabel[<N>]\n";
+			std::cerr << "Error: every target slot must be on the initial stack, spilled, or freely generatable\n";
 			return 2;
 		}
 
-		auto stackData = *testConfig.initial;
-		std::ostringstream traceOutput;
-		StackShufflerResult shuffleResult;
-		spill::SpillSet spillSet = testConfig.initialSpilledSet;
-		// Tracks the kind of each spilled value (for rendering).
-		std::vector<StackSlot> spilledSlotList = testConfig.initialSpilledSetSlots;
-
-		// When spilling is allowed, run the shuffler with spill discovery (without recording) to
-		// determine the final spill set, then render the values discovered on top of the initial set.
-		if (testConfig.allowSpilling)
-		{
-			auto scratch = *testConfig.initial;
-			shuffleResult = StackShuffler::shuffleWithSpillDiscovery(
-				scratch,
-				*testConfig.targetStackTop,
-				testConfig.targetStackTailSet,
-				*testConfig.targetStackSize,
-				spillSet
-			);
-			for (InstId const value: spillSet.spilledValues())
-				if (!testConfig.initialSpilledSet.isSpilled(value))
-					spilledSlotList.push_back(StackSlot::makeValue(table.store, value));
-		}
-
-		// Final shuffle with the (possibly pre-populated) spill set; the result carries the recorded trace.
-		shuffleResult = StackShuffler::shuffle(
-			stackData,
-			*testConfig.targetStackTop,
-			testConfig.targetStackTailSet,
-			*testConfig.targetStackSize,
-			&spillSet
+		StackData shuffled = shuffleCase.initial;
+		spill::SpillSet spills = shuffleCase.spillSet();
+		stack::ShuffleResult const result = stack::shuffle(
+			shuffled, shuffleCase.target, spills, shuffleCase.allowSpilling, shuffleCase.reachableDepth
 		);
 
-		// Reconstruct the intermediate stack states by replaying the trace on top of the initial stack.
-		{
-			TraceRecorder trace(
-				traceOutput,
-				table,
-				*testConfig.targetStackTop,
-				testConfig.targetStackTailSetSlots,
-				*testConfig.targetStackSize,
-				spillSet
-			);
-			trace.record("(initial)", *testConfig.initial);
-			StackData replayData = *testConfig.initial;
-			for (ShuffleOp const& op: shuffleResult.trace)
-			{
-				apply(replayData, op);
-				trace.record(render(table, op), replayData);
-			}
-			yulAssert(replayData == stackData, "replayed trace must reproduce the shuffled stack");
-			if (shuffleResult.status == StackShufflerResult::Status::MaxIterationsReached)
-				trace.truncate(30);
-			// TraceRecorder destructor fires here, writing the trace table to traceOutput
-		}
-
 		if (verbose)
-			std::cout << traceOutput.str();
+			printTrace(std::cout, table, shuffleCase, result.trace);
 
-		switch (shuffleResult.status)
-		{
-		case StackShufflerResult::Status::Admissible:
-			std::cout << "Status: Admissible" << std::endl;
-			break;
-		case StackShufflerResult::Status::StackTooDeep:
-			std::cout << fmt::format("Status: StackTooDeep (culprit: {})", table.render(shuffleResult.spillingCandidate)) << std::endl;
-			break;
-		case StackShufflerResult::Status::MaxIterationsReached:
-			std::cout << "Status: MaxIterationsReached" << std::endl;
-			break;
-		case StackShufflerResult::Status::Continue:
-			yulAssert(false, "Unexpected Continue status from shuffle()");
-		}
-		if (testConfig.allowSpilling)
-			std::cout << fmt::format(
-				"Spilled: {{{}}}",
-				fmt::join(
-					spilledSlotList | ranges::views::transform([&](StackSlot const& _slot) { return table.render(_slot); }),
-					", "
-				)
-			) << std::endl;
+		bool const admissible = result.status == stack::ShuffleResult::Status::Admissible;
+		std::cout << "Status: " << (admissible ? "Admissible" : "StackTooDeep") << std::endl;
+		StackData spilled;
+		for (StackSlot const& slot: spills.spilledValues())
+			spilled.push_back(slot);
+		std::cout << "Spilled: " << table.render(spilled, '{', '}') << std::endl;
 
-		return shuffleResult.status == StackShufflerResult::Status::Admissible ? 0 : 1;
+		std::vector<std::string> const violations = checkShuffle(table, shuffleCase, result, shuffled, spills);
+		for (std::string const& violation: violations)
+			std::cout << "VIOLATION: " << violation << std::endl;
+		if (!violations.empty())
+			return 3;
+		return admissible ? 0 : 1;
 	}
 	catch (po::error const& _exception)
 	{
