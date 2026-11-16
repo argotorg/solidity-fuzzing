@@ -153,13 +153,35 @@ static OptimiserSettings optimiserSettings(Config const& _config, util::h256 con
 			entropy = util::keccak256(entropy.asBytes());
 		sequence += steps[entropy[1 + i % 31] % steps.size()];
 	}
+	// Sometimes repeat a middle part until it reaches a fixpoint
+	if (entropy[30] % 4 == 0 && sequence.size() >= 4)
+		sequence = sequence.substr(0, 2) + "[" + sequence.substr(2, sequence.size() - 4) + "]" + sequence.substr(sequence.size() - 2);
 	settings.yulOptimiserSteps = sequence;
+	util::h256 const knobs = util::keccak256(entropy.asBytes());
+	std::string cleanup;
+	for (std::size_t i = 0; i < knobs[0] % 9; ++i)
+		cleanup += steps[knobs[1 + i] % steps.size()];
+	settings.yulOptimiserCleanupSteps = cleanup;
+	// The libevmasm passes also run on the IR pipeline's assembly
+	settings.runOrderLiterals = knobs[10] & 1;
+	settings.runInliner = knobs[11] & 1;
+	settings.runJumpdestRemover = knobs[12] & 1;
+	settings.runPeephole = knobs[13] & 1;
+	settings.runDeduplicate = knobs[14] & 1;
+	settings.runCSE = knobs[15] & 1;
+	settings.runConstantOptimiser = knobs[16] & 1;
+	settings.simpleCounterForLoopUncheckedIncrement = knobs[17] & 1;
+	settings.optimizeStackAllocation = knobs[18] % 4 != 0;
 	static constexpr std::size_t runs[] = {1, 200, 1000000};
 	settings.expectedExecutionsPerDeployment = runs[entropy[31] % 3];
 	if (verbose())
 		std::cerr << _config.name << ": --yul-optimizations '" << sequence << ":"
 			<< settings.yulOptimiserCleanupSteps << "' --optimize-runs "
-			<< settings.expectedExecutionsPerDeployment << "\n";
+			<< settings.expectedExecutionsPerDeployment << "; evmasm orderLiterals/inliner/jumpdest/peephole/dedup/cse/"
+			"constant/simpleCounter/stackAlloc = " << settings.runOrderLiterals << settings.runInliner
+			<< settings.runJumpdestRemover << settings.runPeephole << settings.runDeduplicate << settings.runCSE
+			<< settings.runConstantOptimiser << settings.simpleCounterForLoopUncheckedIncrement
+			<< settings.optimizeStackAllocation << "\n";
 	return settings;
 }
 
@@ -216,6 +238,13 @@ static std::optional<CompilerOutput> compile(
 	catch (yul::StackTooDeepError const&) {}
 	// afl-ts can produce non-UTF-8 bytes, which solc's JSON layer rejects
 	catch (Json::exception const&) {}
+	// Known: BlockDeduplicator with deduplicate+cse but without jumpdestRemover (optseq's random evmasm passes)
+	catch (evmasm::OptimizerException const& _e)
+	{
+		if (std::string(_e.what()).find("Replacement already known") == std::string::npos)
+			throw;
+		stop("known: evmasm Replacement already known");
+	}
 #if defined(AFL_MODE_ICE)
 	catch (langutil::InternalCompilerError const& _e)
 	{
