@@ -347,6 +347,10 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
+	// Warm solc's and evmone's lazily initialized state into the forkserver image, so that a child running a single
+	// iteration does not pay for it
+	runOneInput("contract C { uint x; function f(uint a) external returns (uint) { x += a; return x * 2; } }");
+
 	// Deferred forkserver: dlopen(libevmone) and static ctors of libsolc /
 	// evmone run once per fork-server lifetime, not once per iteration.
 	// Must come before the first AFL macro that touches the input buffer.
@@ -355,10 +359,13 @@ int main(int argc, char** argv)
 	// Must be assigned before __AFL_LOOP — see persistent_demo_new.c.
 	unsigned char const* buf = __AFL_FUZZ_TESTCASE_BUF;
 
-	// 1000 iterations between fork restarts amortises startup ~1000x; AFL
-	// then re-forks to flush any slow leaks in solc/evmone. Recommended
-	// starting point per AFL++ docs section 4.
-	while (__AFL_LOOP(1000))
+	// AFL_RUNNER_LOOP=1 forks a fresh child per input: solc iterates pointer-keyed containers, so in a long-lived
+	// persistent child the heap layout, and with it ~20% of the coverage, differs from run to run
+	static unsigned const loops = [] {
+		char const* env = std::getenv("AFL_RUNNER_LOOP");
+		return env ? static_cast<unsigned>(std::max(1, std::atoi(env))) : 1000u;
+	}();
+	while (__AFL_LOOP(loops))
 	{
 		int len = __AFL_FUZZ_TESTCASE_LEN;  // do not inline into the call
 		runOneInput(std::string_view(reinterpret_cast<char const*>(buf), static_cast<size_t>(len)));

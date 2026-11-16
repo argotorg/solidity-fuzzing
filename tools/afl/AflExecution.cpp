@@ -726,6 +726,13 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 		for (auto const& [address, account]: _host.accounts)
 			if (!account.transient_storage.empty())
 				observation.transientStorage[address] = account.transient_storage;
+		if (result.status_code == EVMC_SUCCESS)
+		{
+			observation.storage.emplace();
+			for (auto const& [address, account]: _host.accounts)
+				if (!account.storage.empty())
+					(*observation.storage)[address] = account.storage;
+		}
 		out.calls.push_back(std::move(observation));
 		if (result.status_code == EVMC_OUT_OF_GAS || _host.m_subCallOutOfGas)
 			break;
@@ -742,6 +749,8 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 			out.state.accountCodeHashes[address] = keccak256(bytes(account.code.begin(), account.code.end()));
 	}
 	out.state.contractCreationOrder = _host.m_contractCreationOrder;
+	for (auto const& [address, account]: _host.accounts)
+		out.balances[address] = account.balance;
 	return out;
 }
 
@@ -810,11 +819,37 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 			out.differences.push_back(call + " outgoing calls differ");
 		if (!transientStorageEqual(a.transientStorage, orderA, b.transientStorage, orderB))
 			out.differences.push_back(call + " transient storage differs");
+		if (a.storage && b.storage)
+		{
+			auto storageA = *a.storage;
+			auto storageB = *b.storage;
+			if (
+				maskInternalFunctionPointers(storageA, _a.state.storageLayouts, _a.state.accountCodeHashes) &&
+				maskInternalFunctionPointers(storageB, _b.state.storageLayouts, _b.state.accountCodeHashes) &&
+				!storageEqual(storageA, orderA, storageB, orderB)
+			)
+				out.differences.push_back(call + " storage differs");
+		}
 	}
 	if (_a.calls.size() != _b.calls.size())
 		out.differences.push_back("number of executed calls differs");
 	if (!logsEqual(_a.state.logs, orderA, _b.state.logs, orderB))
 		out.differences.push_back("logs differ");
+	auto normalizedBalances = [](Execution const& _e) {
+		std::map<std::string, std::string> out;
+		for (auto const& [address, balance]: _e.balances)
+		{
+			// An account can exist in one config only because its code path touched it
+			if (balance == evmc::bytes32{})
+				continue;
+			bytes const raw(address.bytes, address.bytes + 20);
+			out[util::toHex(normalizeCreatedAddresses(raw.data(), raw.size(), _e.state.contractCreationOrder))] =
+				util::toHex(EVMHost::convertFromEVMC(balance).asBytes());
+		}
+		return out;
+	};
+	if (normalizedBalances(_a) != normalizedBalances(_b))
+		out.differences.push_back("balances differ");
 
 	// Internal function pointers are PCs in legacy and IDs in IR and move with bytecode size
 	auto storageA = _a.state.storage;

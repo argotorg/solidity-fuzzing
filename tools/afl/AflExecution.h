@@ -102,12 +102,15 @@ struct CallObservation
 	bool subCallOutOfGas;
 	std::map<evmc::address, TransientStorageMap> transientStorage;
 	std::vector<EVMHost::SubCall> subCalls;
+	/// After a successful call: a later call can overwrite what this one wrote wrongly
+	std::optional<std::map<evmc::address, StorageMap>> storage;
 };
 
 struct Execution
 {
 	evmc_status_code deployStatus = EVMC_FAILURE;
 	std::vector<EVMHost::SubCall> deploySubCalls;
+	std::map<evmc::address, evmc::bytes32> balances;
 	std::vector<CallObservation> calls;
 	/// Final state, with the fields FuzzerDiffCommon compares
 	RunResult state;
