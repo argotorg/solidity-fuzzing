@@ -45,6 +45,10 @@ struct CompilerOutput
 	/// the right layout for contracts the main one deploys via `new`, which
 	/// need masking just as much as the main contract itself.
 	std::map<util::h256, Json> storageLayoutByRuntimeCode;
+	/// Canonical ABI signature of the constructor, e.g. "constructor(uint256,(address,bool))"; empty if it takes
+	/// no arguments
+	std::string constructorSignature;
+	bool constructorPayable = false;
 };
 
 struct CompilerInput
@@ -127,9 +131,14 @@ public:
 		return m_compiler.yulIR(_contractName);
 	}
 	frontend::CompilerStack const& compilerStack() const { return m_compiler; }
+	/// The contract compileContract() returned; without an explicit name, the last deployable contract
+	/// of the last source unit
+	std::string const& deployedContractName() const { return m_deployedContractName; }
 private:
+	std::string defaultContractName() const;
 	frontend::CompilerStack m_compiler;
 	CompilerInput m_compilerInput;
+	std::string m_deployedContractName;
 };
 
 class EvmoneUtility

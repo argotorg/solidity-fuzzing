@@ -56,6 +56,8 @@ AflInput splitInput(std::string_view _input);
 /// Splits isoltest `==== Source: name ====` sections; nullopt for inputs we cannot compile as given
 /// (external sources).
 std::optional<StringMap> sourceUnits(std::string const& _source);
+/// sourceUnits() without dropping `pragma solidity` version constraints
+std::optional<StringMap> sourceUnitsVerbatim(std::string const& _source);
 
 struct PlannedCall
 {
@@ -72,7 +74,13 @@ struct CallPlan
 };
 
 /// Depends only on the source, the (config-independent) ABI and the entropy, so every config runs the same plan.
-CallPlan planCalls(AflInput const& _input, Json const& _methodIdentifiers);
+/// Without an isoltest constructor() line, arguments for @param _constructorSignature (CompilerOutput) are generated.
+CallPlan planCalls(
+	AflInput const& _input,
+	Json const& _methodIdentifiers,
+	std::string const& _constructorSignature = {},
+	bool _constructorPayable = false
+);
 
 struct CallObservation
 {
@@ -91,7 +99,11 @@ struct Execution
 	bool readsDeployedCode = false;
 };
 
-Execution execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan, int64_t _gasPerCall);
+/// Deployment gets the block gas limit: unoptimized real-world contracts cost millions in code deposit alone
+constexpr int64_t deployGas = 30'000'000;
+constexpr int64_t callGas = 10'000'000;
+
+Execution execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan);
 
 struct Comparison
 {

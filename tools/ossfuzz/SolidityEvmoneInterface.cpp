@@ -29,6 +29,32 @@ using namespace solidity::frontend;
 using namespace solidity::langutil;
 using namespace solidity::util;
 
+namespace
+{
+std::string canonicalAbiType(solidity::Json const& _param)
+{
+	std::string const type = _param["type"];
+	if (!type.starts_with("tuple"))
+		return type;
+	std::string members;
+	for (solidity::Json const& component: _param["components"])
+		members += (members.empty() ? "" : ",") + canonicalAbiType(component);
+	return "(" + members + ")" + type.substr(5);
+}
+}
+
+std::string SolidityCompilationFramework::defaultContractName() const
+{
+	std::vector<std::string> const sources = m_compiler.sourceNames();
+	if (sources.empty())
+		return {};
+	ContractDefinition const* last = nullptr;
+	for (auto const* contract: ASTNode::filteredNodes<ContractDefinition>(m_compiler.ast(sources.back()).nodes()))
+		if (contract->contractKind() == ContractKind::Contract && !contract->abstract())
+			last = contract;
+	return last ? last->fullyQualifiedName() : m_compiler.lastContractName();
+}
+
 std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 {
 	m_compiler.setSources(m_compilerInput.sourceCode);
@@ -55,11 +81,9 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 	}
 	else
 	{
-		std::string contractName;
-		if (m_compilerInput.contractName.empty())
-			contractName = m_compiler.lastContractName();
-		else
-			contractName = m_compilerInput.contractName;
+		std::string const contractName =
+			m_compilerInput.contractName.empty() ? defaultContractName() : m_compilerInput.contractName;
+		m_deployedContractName = contractName;
 		// A unit with no contract (only free functions, structs, interfaces...): nothing to deploy, and
 		// CompilerStack::object("") would solAssert
 		if (contractName.empty())
@@ -75,7 +99,18 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 			if (!runtimeCode.empty())
 				layoutByRuntimeCode.emplace(util::keccak256(runtimeCode), m_compiler.storageLayout(name));
 		}
-		return CompilerOutput{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
+		CompilerOutput output{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
+		for (solidity::Json const& entry: m_compiler.contractABI(contractName))
+			if (entry.value("type", "") == "constructor")
+			{
+				std::string params;
+				for (solidity::Json const& input: entry["inputs"])
+					params += (params.empty() ? "" : ",") + canonicalAbiType(input);
+				if (!params.empty())
+					output.constructorSignature = "constructor(" + params + ")";
+				output.constructorPayable = entry.value("stateMutability", "") == "payable";
+			}
+		return output;
 	}
 }
 

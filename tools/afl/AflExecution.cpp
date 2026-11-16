@@ -567,7 +567,35 @@ AflInput afl::splitInput(std::string_view _input)
 	return {std::string(_input), std::move(entropy), std::nullopt};
 }
 
+namespace
+{
+/// Version pragmas only gate compilation: real-world code pins versions this solc does not satisfy
+std::string withoutVersionPragmas(std::string _source)
+{
+	static std::string const pragma = "pragma solidity";
+	for (std::size_t pos = _source.find(pragma); pos != std::string::npos; pos = _source.find(pragma, pos))
+	{
+		std::size_t const end = _source.find(';', pos);
+		if (end == std::string::npos)
+			break;
+		for (std::size_t i = pos; i <= end; ++i)
+			if (_source[i] != '\n')
+				_source[i] = ' ';
+	}
+	return _source;
+}
+}
+
 std::optional<StringMap> afl::sourceUnits(std::string const& _source)
+{
+	std::optional<StringMap> units = sourceUnitsVerbatim(_source);
+	if (units)
+		for (auto& [_, source]: *units)
+			source = withoutVersionPragmas(std::move(source));
+	return units;
+}
+
+std::optional<StringMap> afl::sourceUnitsVerbatim(std::string const& _source)
 {
 	static std::string const marker = "==== Source:";
 	if (_source.find("==== ExternalSource:") != std::string::npos)
@@ -598,16 +626,33 @@ std::optional<StringMap> afl::sourceUnits(std::string const& _source)
 	return units;
 }
 
-CallPlan afl::planCalls(AflInput const& _input, Json const& _methodIdentifiers)
+CallPlan afl::planCalls(
+	AflInput const& _input,
+	Json const& _methodIdentifiers,
+	std::string const& _constructorSignature,
+	bool _constructorPayable
+)
 {
 	CallPlan plan;
+	bool scriptedConstructor = false;
 	for (ScriptCall& call: parseScript(_input.source))
 		if (call.signature == "constructor()")
+		{
 			plan.constructorArgs = std::move(call.args), plan.constructorValue = call.value;
+			scriptedConstructor = true;
+		}
 		else
 			plan.calls.push_back({call.signature, selectorOf(call.signature) + call.args, call.value});
 
 	Entropy entropy(_input.entropy);
+	if (!scriptedConstructor)
+	{
+		if (!_constructorSignature.empty())
+			if (auto args = encodeArgs(_constructorSignature, entropy))
+				plan.constructorArgs = std::move(*args);
+		if (_constructorPayable)
+			plan.constructorValue = entropy.byte();
+	}
 	std::size_t generated = 0;
 	if (_methodIdentifiers.is_object())
 		for (auto const& [signature, _]: _methodIdentifiers.items())
@@ -626,14 +671,14 @@ CallPlan afl::planCalls(AflInput const& _input, Json const& _methodIdentifiers)
 	return plan;
 }
 
-Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan, int64_t _gasPerCall)
+Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan)
 {
 	Execution out;
 	evmc::address const sender = _host.tx_context.tx_origin;
 	_host.accounts[sender].set_balance(std::numeric_limits<uint64_t>::max());
 
 	bytes const initCode = _bytecode + _plan.constructorArgs;
-	evmc_message create = EvmoneUtility::initializeMessage(initCode, _gasPerCall);
+	evmc_message create = EvmoneUtility::initializeMessage(initCode, deployGas);
 	create.kind = EVMC_CREATE;
 	create.sender = sender;
 	create.value = EVMHost::convertToEVMC(h256(_plan.constructorValue));
@@ -647,7 +692,7 @@ Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _
 	{
 		_host.newTransaction();
 		_host.m_subCallOutOfGas = false;
-		evmc_message msg = EvmoneUtility::initializeMessage(planned.calldata, _gasPerCall);
+		evmc_message msg = EvmoneUtility::initializeMessage(planned.calldata, callGas);
 		msg.kind = EVMC_CALL;
 		msg.sender = sender;
 		msg.recipient = contract;

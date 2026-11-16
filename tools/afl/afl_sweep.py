@@ -18,7 +18,29 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MODES = ["sol_afl_diff_runner", "sol_afl_diff_runner_viair", "sol_afl_diff_runner_viair_opt",
          "sol_afl_diff_runner_ssacfg"]
 WHAT_RE = re.compile(r"what\(\):\s*(.*)")
-CALL_RE = re.compile(r"^call #\d+ (.*): (\S+) / (\S+)$", re.MULTILINE)
+CALL_RE = re.compile(r"^call #\d+ (.*): (\S+) / (\S+)(?: [0-9a-f]*)?$", re.MULTILINE)
+STOP_RE = re.compile(r"^stop: (.*)$", re.MULTILINE)
+COMPILE_ERROR_RE = re.compile(r"^compile error: (.*)$", re.MULTILINE)
+DEPLOY_RE = re.compile(r"^deploy: (.+?) / (.+)$", re.MULTILINE)
+
+
+def stage(err: str, calls: list) -> str:
+    """How far an input got"""
+    if m := STOP_RE.search(err):
+        return m.group(1)
+    if m := DEPLOY_RE.search(err):
+        if m.group(1) != "success" or m.group(2) != "success":
+            return f"deploy {m.group(1)} / {m.group(2)}"
+        if not calls:
+            return "deployed, no calls"
+        if not any(a == "0" for _, a, _ in calls):
+            return "deployed, every call fails"
+        return "successful call"
+    return "other"
+
+
+def normalize_error(msg: str) -> str:
+    return re.sub(r'"[^"]*"', '"…"', msg)[:110]
 
 
 def collect(paths: list[Path], sample: int) -> list[Path]:
@@ -65,9 +87,14 @@ def main() -> int:
 
         hits: dict[str, list[Path]] = defaultdict(list)
         stats = Counter()
+        stages = Counter()
+        compile_errors = Counter()
         for f, (rc, err) in zip(files, results):
             stats["deployed"] += "deploy: success / success" in err
             calls = CALL_RE.findall(err)
+            stages[stage(err, calls)] += 1
+            if m := COMPILE_ERROR_RE.search(err):
+                compile_errors[normalize_error(m.group(1))] += 1
             ok = [c for c in calls if c[1] == c[2] == "0" and not c[0].startswith("<")]
             stats["calls"] += len(calls)
             stats["successful calls"] += len(ok)
@@ -81,6 +108,10 @@ def main() -> int:
 
         lines += ["", f"== {mode}: {sum(len(v) for v in hits.values())} aborts; "
                   + ", ".join(f"{k}={v}" for k, v in stats.items())]
+        lines.append("  where inputs stopped:")
+        lines += [f"    {n:5} {100 * n / len(files):5.1f}%  {k}" for k, n in stages.most_common()]
+        lines.append("  top compile errors:")
+        lines += [f"    {n:5}  {k}" for k, n in compile_errors.most_common(12)]
         for msg, fs in sorted(hits.items(), key=lambda kv: -len(kv[1])):
             lines.append(f"  [{len(fs)}] {msg}")
             lines += [f"      {f}" for f in fs[:3]]

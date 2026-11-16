@@ -71,7 +71,6 @@ using namespace solidity::util;
 /// LD_LIBRARY_PATH nor an absolute path is needed at runtime.
 static evmc::VM& evmone() { return EVMHost::getVM("libevmone.so"); }
 
-static constexpr int64_t s_gasLimit = 1000000;
 /// afl-ts splices keep growing inputs; real-world corpus entries routinely exceed the proto fuzzer's 3 KB
 static constexpr size_t s_maxSourceBytes = 16 * 1024;
 static constexpr size_t s_maxCalldataBytes = 64 * 1024;
@@ -97,6 +96,15 @@ static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", tr
 static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt", false, true}};
 #endif
 
+static bool verbose() { static bool const v = std::getenv("AFL_RUNNER_VERBOSE"); return v; }
+
+/// Where an input stopped, for afl_sweep.py
+static void stop(std::string const& _why)
+{
+	if (verbose())
+		std::cerr << "stop: " << _why << "\n";
+}
+
 static constexpr bool s_legacyVsIR = s_configs[0].viaIR != s_configs[1].viaIR;
 static constexpr bool s_legacyOptimizer = (!s_configs[0].viaIR && s_configs[0].optimize) ||
 	(!s_configs[1].viaIR && s_configs[1].optimize);
@@ -117,13 +125,20 @@ static std::optional<CompilerOutput> compile(StringMap const& _sources, Config c
 	{
 		SolidityCompilationFramework framework(input);
 		std::optional<CompilerOutput> output = framework.compileContract();
+		if (!output && verbose())
+			for (auto const& error: framework.compilerStack().errors())
+				if (langutil::Error::isError(error->severity()))
+				{
+					std::cerr << "compile error: " << langutil::Error::formatErrorType(error->type()) << ": "
+						<< (error->comment() ? *error->comment() : "") << "\n";
+					break;
+				}
 #if !defined(AFL_MODE_ICE)
 		if (output)
 			if (auto const reason = afl::configDependentSemantics(
 				framework.compilerStack(), s_legacyVsIR, s_legacyOptimizer))
 			{
-				if (std::getenv("AFL_RUNNER_VERBOSE"))
-					std::cerr << "skipped: " << *reason << "\n";
+				stop("semantics: " + *reason);
 				return std::nullopt;
 			}
 #endif
@@ -173,37 +188,40 @@ static void runOneInput(std::string_view _input)
 	// Inline assembly can break solc's invariants in ways that look like miscompiles; gas() differs by config.
 	// Substring matches on purpose: a false hit only costs one corpus entry.
 	if (input.source.find("assembly") != std::string::npos || input.source.find("gas()") != std::string::npos)
-		return;
+		return stop("static: assembly/gas");
 	// The compiled bytecode itself, which differs by config by design
 	if (input.source.find("creationCode") != std::string::npos || input.source.find("runtimeCode") != std::string::npos)
-		return;
+		return stop("static: bytecode introspection");
 #if defined(AFL_MODE_VIAIR)
 	// via-IR always uses ABI coder v2, which validates inputs v1 accepts; isoltest marks tests whose
 	// expectations hold for one codegen only
 	if (input.source.find("abicoder v1") != std::string::npos || input.source.find("compileViaYul:") != std::string::npos)
-		return;
+		return stop("static: legacy-only test");
 #endif
 	std::optional<StringMap> const sources = afl::sourceUnits(input.source);
 	if (!sources)
-		return;
+		return stop("static: source units");
 
 #if defined(AFL_MODE_ICE)
 	for (Config const& config: s_configs)
 		compile(*sources, config);
 #else
 	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0]);
-	if (!outA || outA->byteCode.empty())
-		return;
+	if (!outA)
+		return stop("compile A");
+	if (outA->byteCode.empty())
+		return stop("no bytecode");
 	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1]);
 	if (!outB || outB->byteCode.empty())
-		return;
+		return stop("compile B");
 
-	afl::CallPlan const plan = afl::planCalls(input, outA->methodIdentifiersInContract);
+	afl::CallPlan const plan =
+		afl::planCalls(input, outA->methodIdentifiersInContract, outA->constructorSignature, outA->constructorPayable);
 	langutil::EVMVersion const version = langutil::EVMVersion::current();
 	EVMHost hostA(version, evmone());
 	EVMHost hostB(version, evmone());
-	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan, s_gasLimit);
-	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan, s_gasLimit);
+	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan);
+	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan);
 	if (std::getenv("AFL_RUNNER_VERBOSE"))
 	{
 		std::cerr << "deploy: " << execA.deployStatus << " / " << execB.deployStatus << "\n";

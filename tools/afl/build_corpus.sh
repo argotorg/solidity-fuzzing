@@ -135,6 +135,8 @@ if [[ -d "$REALWORLD_DIR" ]]; then
         repo_name=$(basename "$repo_dir")
         ingest_tree "${repo_dir%/}" "rw_${repo_name}"
     done
+    # The raw files above import each other and rarely compile alone; the bundles carry their imports
+    python3 "$REPO_ROOT/tools/afl/bundle_realworld.py" --cache "$REALWORLD_DIR" --max-bytes "$MAX_BYTES" -o "$OUT"
 else
     echo "(realworld_cache/ not present — skipping. Run tools/afl/fetch_realworld.sh to populate.)"
 fi

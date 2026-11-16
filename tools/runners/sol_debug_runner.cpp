@@ -270,9 +270,7 @@ static ConfigRunResult runOnce(
 		{
 			result.bytecode = compOutput->byteCode;
 			result.storageLayouts = compOutput->storageLayoutByRuntimeCode;
-			actualContractName = contractName.empty()
-				? compiler.lastContractName()
-				: contractName;
+			actualContractName = compiler.deployedContractName();
 			// Extract Yul IR (only available when viaIR is enabled)
 			try
 			{
@@ -295,7 +293,7 @@ static ConfigRunResult runOnce(
 	evmc::Result evmResult{EVMC_INTERNAL_ERROR};
 	if (aflMode)
 	{
-		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan, s_gasLimit);
+		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan);
 		execution.state.storageLayouts = result.storageLayouts;
 		evmResult = evmc::Result{execution.deployStatus};
 		result.aflExecution = std::move(execution);
@@ -764,6 +762,8 @@ int main(int argc, char* argv[])
 	if (aflInput && timeoutSecs == 0)
 	{
 		Json methods = Json::object();
+		std::string constructorSignature;
+		bool constructorPayable = false;
 		for (auto const& config: configs)
 			try
 			{
@@ -771,11 +771,13 @@ int main(int argc, char* argv[])
 				if (auto out = SolidityCompilationFramework(input).compileContract())
 				{
 					methods = out->methodIdentifiersInContract;
+					constructorSignature = out->constructorSignature;
+					constructorPayable = out->constructorPayable;
 					break;
 				}
 			}
 			catch (...) {}
-		aflPlan = afl::planCalls(*aflIn, methods);
+		aflPlan = afl::planCalls(*aflIn, methods, constructorSignature, constructorPayable);
 		if (!quiet)
 		{
 			std::cout << "AFL call plan (" << aflPlan->calls.size() << " calls"

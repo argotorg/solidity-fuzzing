@@ -46,7 +46,7 @@ custom mutator), tree-sitter-solidity (grammar), tsgen (corpus generator).
 echo core | sudo tee /proc/sys/kernel/core_pattern   # one-time
 
 tools/afl/fetch_realworld.sh       # pull real-world projects
-tools/afl/build_corpus.sh          # -> corpus_afl/
+tools/afl/build_corpus.sh          # -> corpus_afl/, incl. rwb_* bundles (bundle_realworld.py: file + its imports)
 tools/afl/build_corpus_tsgen.sh    # grammar-driven extra surface
 cp corpus_tsgen/*.sol corpus_afl/
 
@@ -99,12 +99,13 @@ classes, groups ICEs by throw site):
 python3 run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl_diff_runner_viair -o triage_viair
 ```
 
-`AFL_RUNNER_VERBOSE=1 <runner> <input>` prints the plan and every call's status per config.
+`AFL_RUNNER_VERBOSE=1 <runner> <input>` prints where the input stopped, the plan and every call's status per
+config; `=2` adds each call's calldata.
 
 ## Sweeps
 
 `tools/afl/afl_sweep.py` runs inputs through the modes and reports aborts plus how much code executed
-(deployed, successful calls). Run it over a corpus sample after any harness change (false-positive check),
+(where each input stopped: static skip, compile error, deploy, calls). Run it over a corpus sample after any harness change (false-positive check),
 and over bug reproducers to see which modes catch them:
 
 ```bash
