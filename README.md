@@ -113,7 +113,7 @@ run_ice_crashes.py
 
 ```bash
 ./run_afl_crashes.py ./results/645-afl/findings/*/crashes # gives nice table, with backtrace
-./run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl_diff_runner_viair
+./run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl_diff_runner_viair  # buckets.txt: one line per root cause
 run_afl_hangs.py
 rerender_afl_hangs.py
 ```

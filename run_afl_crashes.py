@@ -259,11 +259,11 @@ def dedup_crashes(crashes: list[tuple[Path, Path]]) -> tuple[list[tuple[Path, Pa
     return unique, dropped
 
 
-def run_with_timeout(cmd: list[str], timeout_s: int) -> tuple[int | str, str]:
+def run_with_timeout(cmd: list[str], timeout_s: int, env: dict | None = None) -> tuple[int | str, str]:
     """Run a subprocess; return (returncode_or_'TIMEOUT', combined_output)."""
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, timeout=timeout_s, check=False,
+            cmd, capture_output=True, timeout=timeout_s, check=False, env=env,
         )
         out = (proc.stdout or b"") + (proc.stderr or b"")
         return proc.returncode, out.decode("utf-8", errors="replace")
@@ -274,6 +274,28 @@ def run_with_timeout(cmd: list[str], timeout_s: int) -> tuple[int | str, str]:
         if e.stderr:
             partial += e.stderr if isinstance(e.stderr, bytes) else e.stderr.encode()
         return "TIMEOUT", partial.decode("utf-8", errors="replace")
+
+
+WHAT_RE = re.compile(r"what\(\):\s*(?:[^:]*\):\s*)?(.*)")
+CALL_LINE_RE = re.compile(r"^call #(\d+) (.*?): \S+ / \S+", re.MULTILINE)
+
+
+def bucket_of(diff_cat: str, output: str) -> str:
+    """Root-cause signature: the first difference, with the call index replaced by that call's parameter types and
+    plan variant ([malformed], [again]), so re-discoveries through different functions and plans collapse"""
+    if not diff_cat.startswith("crash:abort:diff:"):
+        return diff_cat
+    m = WHAT_RE.search(output)
+    if not m:
+        return diff_cat
+    msg = m.group(1).strip()
+    calls = {int(i): sig for i, sig in CALL_LINE_RE.findall(output)}
+    call = re.match(r"call #(\d+) (.*)", msg)
+    if not call:
+        return msg
+    sig = calls.get(int(call.group(1)), "?")
+    params = sig[sig.find("("):] if "(" in sig else sig
+    return f"{call.group(2)} @ {params}"
 
 
 def process_one(crash: Path, findings_root: Path, out_dir: Path,
@@ -291,7 +313,8 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         pass
 
     # 1. Diff runner — this is the one AFL ran when it found the crash.
-    diff_rc, diff_out = run_with_timeout([str(DIFF_RUNNER), str(crash)], outer_timeout)
+    diff_rc, diff_out = run_with_timeout([str(DIFF_RUNNER), str(crash)], outer_timeout,
+                                         {**os.environ, "AFL_RUNNER_VERBOSE": "1"})
     (out_dir / "logs" / f"{key}.diff.log").write_text(diff_out)
     diff_cat, diff_detail = parse_diff_runner_outcome(diff_rc, diff_out)
     noise = ""
@@ -319,6 +342,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         "diff_cat": diff_cat,
         "diff_detail": diff_detail.replace("\t", " ").replace("\n", " ")[:200],
         "noise": noise,
+        "bucket": bucket_of(diff_cat, diff_out),
         "debug_rc": str(debug_rc),
         "debug_cat": debug_cat,
         "debug_detail": debug_detail.replace("\t", " ").replace("\n", " ")[:200],
@@ -327,7 +351,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
 
 HEADER = (
     "campaign", "crash", "size", "src_size", "calldata_size", "has_magic",
-    "diff_rc", "diff_cat", "diff_detail", "noise",
+    "diff_rc", "diff_cat", "diff_detail", "noise", "bucket",
     "debug_rc", "debug_cat", "debug_detail",
 )
 
@@ -351,6 +375,17 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
     for r in rows:
         k = (r["diff_cat"], r["debug_cat"])
         cross[k] = cross.get(k, 0) + 1
+
+    buckets: dict[str, list[dict]] = {}
+    for r in rows:
+        buckets.setdefault(r["bucket"], []).append(r)
+    with (out_dir / "buckets.txt").open("w") as fh:
+        fh.write(f"# {len(buckets)} buckets from {len(rows)} crashes; smallest source first in each\n\n")
+        for name, members in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
+            members.sort(key=lambda r: r["src_size"])
+            fh.write(f"[{len(members)}] {name}\n")
+            for r in members[:3]:
+                fh.write(f"      {r['src_size']:6d} B  sources/{r['key']}.sol\n")
 
     out = out_dir / "by_category.txt"
     with out.open("w") as fh:
@@ -488,6 +523,7 @@ def main() -> int:
 
     print(f"\nPer-crash TSV: {tsv_path}", file=sys.stderr)
     print(f"Summary:       {out_dir / 'by_category.txt'}", file=sys.stderr)
+    print(f"Buckets:       {out_dir / 'buckets.txt'}", file=sys.stderr)
     return 0
 
 
