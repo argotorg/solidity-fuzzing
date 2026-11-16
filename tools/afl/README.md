@@ -63,12 +63,20 @@ cp corpus_tsgen/*.sol corpus_afl/
 tools/afl/run_afl.sh               # single core (afl-ts mutator); MODE=<binary> picks the oracle
 tools/afl/run_afl_parallel.sh -j 8 # tmux: 1 main + N-1 secondaries, findings_afl_<mode>/
 
+# Minimize the seeds first: every instance executes all of them once, its peers' copies included
+setarch -R AFLplusplus/afl-cmin -T 8 -i corpus_afl -o corpus_min -- $PWD/build_afl/tools/afl/sol_afl_diff_runner_viair
+
 # Fixed-duration multi-mode campaign without tmux, then a per-fuzzer stats table (proto fuzzers allowed
-# too, for head-to-head comparisons):
-tools/afl/run_campaign.py --duration 3600 -o results/run1 \
-    sol_afl_diff_runner_viair=16 sol_afl_diff_runner_ssacfg=6 sol_afl_ice_runner=6 \
-    sol_proto_ossfuzz_evmone_viair=8
+# too, for head-to-head comparisons). Detach it (e.g. systemd-run --user, tmux) so it outlives the shell:
+tools/afl/run_campaign.py --duration 21600 --corpus corpus_min -o results/run1 \
+    sol_afl_diff_runner_optseq=3 sol_afl_diff_runner_legacy_knobs=2 sol_afl_diff_runner_ssacfg=2 \
+    sol_afl_diff_runner_viair=1 sol_afl_diff_runner_metamorphic=1 sol_afl_diff_runner_evmversion=1
 ```
+
+Measured per instance on a 12-core box (fork per input): legacy_knobs ~90 exec/s, IR modes 13-40 exec/s (the
+IR-opt compile dominates; execution is ~0.2 ms). The IR-vs-IR modes (optseq, ssacfg, viair_opt, evmversion,
+metamorphic) and legacy_knobs have no known false-positive classes; viair (legacy vs IR) needs the documented
+semantic-change skips and still finds the most.
 
 `run_afl.sh` loads `libts.so` as the custom mutator plus the grammar; set
 `AFL_TS_LIB=` to fall back to plain byte mutation.
