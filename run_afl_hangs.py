@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import re
 import subprocess
 import sys
@@ -361,6 +362,8 @@ def main() -> int:
                          "Default: %(default)d.")
     ap.add_argument("--limit", type=int, default=0,
                     help="process at most this many hangs (0 = all)")
+    ap.add_argument("--sample", type=int, default=0,
+                    help="process a random (seeded) sample of this many hangs (0 = all)")
     ap.add_argument("--top-n", type=int, default=100,
                     help="rows to print in the ranked summary tables (default 100)")
     args = ap.parse_args()
@@ -379,6 +382,8 @@ def main() -> int:
     (out_dir / "sources").mkdir(parents=True, exist_ok=True)
 
     hangs = find_hangs(findings_root)
+    if 0 < args.sample < len(hangs):
+        hangs = sorted(random.Random(0).sample(hangs, args.sample))
     if args.limit:
         hangs = hangs[: args.limit]
     total = len(hangs)
