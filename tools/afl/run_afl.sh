@@ -34,7 +34,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # Oracle mode: sol_afl_diff_runner (legacy vs legacy-opt), _viair (legacy-opt vs ir-opt), _viair_opt,
-# _ssacfg, or sol_afl_ice_runner (compile only, ICEs crash).
+# _ssacfg, _optseq, _evmversion, or sol_afl_ice_runner (compile only, ICEs crash).
 MODE="${MODE:-sol_afl_diff_runner_viair}"
 HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/$MODE}"
 CORPUS="${CORPUS:-$REPO_ROOT/corpus_afl}"

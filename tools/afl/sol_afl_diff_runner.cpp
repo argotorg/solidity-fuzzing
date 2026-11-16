@@ -29,6 +29,7 @@
 #include <liblangutil/Exceptions.h>
 #include <libyul/Exceptions.h>
 #include <libyul/YulString.h>
+#include <libyul/optimiser/Suite.h>
 #include <libsolutil/Keccak256.h>
 #include <libsolutil/CommonData.h>
 #include <libsolutil/CommonIO.h>
@@ -81,6 +82,10 @@ struct Config
 	bool viaIR;
 	bool optimize;
 	bool viaSSACFG = false;
+	/// Yul optimizer step sequence and `runs` drawn from the input
+	bool randomOptimizer = false;
+	/// Paris instead of the current EVM version: no PUSH0, MCOPY or transient storage, so different lowering
+	bool oldEVM = false;
 };
 
 #if defined(AFL_MODE_ICE)
@@ -92,6 +97,10 @@ static constexpr Config s_configs[] = {{"legacy-opt", false, true}, {"ir-opt", t
 static constexpr Config s_configs[] = {{"ir", true, false}, {"ir-opt", true, true}};
 #elif defined(AFL_MODE_SSACFG)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", true, true, true}};
+#elif defined(AFL_MODE_OPTSEQ)
+static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-random-steps", true, true, false, true}};
+#elif defined(AFL_MODE_EVMVERSION)
+static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-paris", true, true, false, false, true}};
 #else
 static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt", false, true}};
 #endif
@@ -109,13 +118,49 @@ static constexpr bool s_legacyVsIR = s_configs[0].viaIR != s_configs[1].viaIR;
 static constexpr bool s_legacyOptimizer = (!s_configs[0].viaIR && s_configs[0].optimize) ||
 	(!s_configs[1].viaIR && s_configs[1].optimize);
 
-static std::optional<CompilerOutput> compile(StringMap const& _sources, Config const& _config)
+static langutil::EVMVersion evmVersion(Config const& _config)
+{
+	return _config.oldEVM ? langutil::EVMVersion::paris() : langutil::EVMVersion::current();
+}
+
+/// Steps drawn from @param _seed (a hash of the input), so a source mutation also re-rolls the sequence
+static OptimiserSettings optimiserSettings(Config const& _config, util::h256 const& _seed)
+{
+	OptimiserSettings settings = _config.optimize ? OptimiserSettings::standard() : OptimiserSettings::minimal();
+	if (!_config.randomOptimizer)
+		return settings;
+	static std::string const steps = [] {
+		std::string all;
+		for (auto const& [abbreviation, _]: yul::OptimiserSuite::stepAbbreviationToNameMap())
+			all += abbreviation;
+		return all;
+	}();
+	util::h256 entropy = _seed;
+	std::string sequence;
+	std::size_t const length = 4 + entropy[0] % 28;
+	for (std::size_t i = 0; i < length; ++i)
+	{
+		if (i % 31 == 30)
+			entropy = util::keccak256(entropy.asBytes());
+		sequence += steps[entropy[1 + i % 31] % steps.size()];
+	}
+	settings.yulOptimiserSteps = sequence;
+	static constexpr std::size_t runs[] = {1, 200, 1000000};
+	settings.expectedExecutionsPerDeployment = runs[entropy[31] % 3];
+	if (verbose())
+		std::cerr << _config.name << ": --yul-optimizations '" << sequence << ":"
+			<< settings.yulOptimiserCleanupSteps << "' --optimize-runs "
+			<< settings.expectedExecutionsPerDeployment << "\n";
+	return settings;
+}
+
+static std::optional<CompilerOutput> compile(StringMap const& _sources, Config const& _config, util::h256 const& _seed = util::h256())
 {
 	CompilerInput input(
-		langutil::EVMVersion::current(),
+		evmVersion(_config),
 		_sources,
 		/*contractName=*/"",
-		_config.optimize ? OptimiserSettings::standard() : OptimiserSettings::minimal(),
+		optimiserSettings(_config, _seed),
 		{},
 		/*debugFailure=*/false,
 		_config.viaIR,
@@ -198,6 +243,11 @@ static void runOneInput(std::string_view _input)
 	if (input.source.find("abicoder v1") != std::string::npos || input.source.find("compileViaYul:") != std::string::npos)
 		return stop("static: legacy-only test");
 #endif
+#if defined(AFL_MODE_EVMVERSION)
+	// EIP-6780 (Cancun) changed what SELFDESTRUCT does
+	if (input.source.find("selfdestruct") != std::string::npos)
+		return stop("static: selfdestruct");
+#endif
 	std::optional<StringMap> const sources = afl::sourceUnits(input.source);
 	if (!sources)
 		return stop("static: source units");
@@ -211,14 +261,13 @@ static void runOneInput(std::string_view _input)
 		return stop("compile A");
 	if (outA->byteCode.empty())
 		return stop("no bytecode");
-	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1]);
+	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1], util::keccak256(input.source));
 	if (!outB || outB->byteCode.empty())
 		return stop("compile B");
 
 	afl::CallPlan const plan = afl::planCalls(input, afl::interfaceOf(*outA));
-	langutil::EVMVersion const version = langutil::EVMVersion::current();
-	EVMHost hostA(version, evmone());
-	EVMHost hostB(version, evmone());
+	EVMHost hostA(evmVersion(s_configs[0]), evmone());
+	EVMHost hostB(evmVersion(s_configs[1]), evmone());
 	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan);
 	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan);
 	if (std::getenv("AFL_RUNNER_VERBOSE"))

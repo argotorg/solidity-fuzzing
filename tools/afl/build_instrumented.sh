@@ -65,8 +65,9 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
 # '.../libevmone-standalone.a'" failure.
 cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target evmone_external
 cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target sol_afl_diff_runner sol_afl_diff_runner_viair \
-    sol_afl_diff_runner_viair_opt sol_afl_diff_runner_ssacfg sol_afl_ice_runner
+    sol_afl_diff_runner_viair_opt sol_afl_diff_runner_ssacfg sol_afl_diff_runner_optseq \
+    sol_afl_diff_runner_evmversion sol_afl_ice_runner
 
 echo
-echo "Built: $BUILD_DIR/tools/afl/sol_afl_{diff_runner{,_viair,_viair_opt,_ssacfg},ice_runner}"
+echo "Built: $BUILD_DIR/tools/afl/sol_afl_{diff_runner{,_viair,_viair_opt,_ssacfg,_optseq,_evmversion},ice_runner}"
 echo "Run with: tools/afl/run_afl.sh"
