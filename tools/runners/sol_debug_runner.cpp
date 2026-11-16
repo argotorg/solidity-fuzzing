@@ -29,6 +29,7 @@
  * on a contract called `C`.
  */
 
+#include <tools/afl/AflExecution.h>
 #include <tools/ossfuzz/FuzzerDiffCommon.h>
 #include <tools/ossfuzz/SolidityEvmoneInterface.h>
 #include <tools/common/EVMHost.h>
@@ -97,6 +98,8 @@ struct ConfigRunResult
 	/// to mask internal-function-pointer fields in the differential check.
 	std::map<h256, Json> storageLayouts;
 	std::map<evmc::address, h256> accountCodeHashes;
+	/// --afl: the shared call-plan execution sol_afl_diff_runner compares
+	std::optional<afl::Execution> aflExecution;
 };
 
 static std::string statusCodeToString(evmc_status_code _code)
@@ -229,7 +232,7 @@ static ConfigRunResult runOnce(
 	bool _viaIR,
 	bool _viaSSACFG = false,
 	std::string const& _extraCalldataHex = {},
-	std::optional<bytes> const& _aflRawCalldata = std::nullopt,
+	afl::CallPlan const* _aflPlan = nullptr,
 	bool _quiet = false
 )
 {
@@ -238,7 +241,7 @@ static ConfigRunResult runOnce(
 	// Give the sender initial balance (matching fuzzer)
 	hostContext.accounts[hostContext.tx_context.tx_origin].set_balance(0xffffffff);
 
-	bool const aflMode = _aflRawCalldata.has_value();
+	bool const aflMode = _aflPlan != nullptr;
 	// In AFL mode the contract name is unknown — let solc use the *last*
 	// contract in the source (matching sol_afl_diff_runner). Otherwise we
 	// stick with "C" and look up a test() selector via EvmoneUtility.
@@ -292,23 +295,10 @@ static ConfigRunResult runOnce(
 	evmc::Result evmResult{EVMC_INTERNAL_ERROR};
 	if (aflMode)
 	{
-		// Manual deploy + raw-calldata call. Mirrors sol_afl_diff_runner so
-		// the observable state matches what AFL saw when it found the crash.
-		evmc_message createMsg = EvmoneUtility::initializeMessage(result.bytecode, s_gasLimit);
-		createMsg.kind = EVMC_CREATE;
-		evmc::Result createResult = hostContext.call(createMsg);
-		if (createResult.status_code != EVMC_SUCCESS)
-		{
-			evmResult = std::move(createResult);
-		}
-		else
-		{
-			evmc_message callMsg = EvmoneUtility::initializeMessage(*_aflRawCalldata, s_gasLimit);
-			callMsg.kind = EVMC_CALL;
-			callMsg.recipient = createResult.create_address;
-			callMsg.code_address = createResult.create_address;
-			evmResult = hostContext.call(callMsg);
-		}
+		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan, s_gasLimit);
+		execution.state.storageLayouts = result.storageLayouts;
+		evmResult = evmc::Result{execution.deployStatus};
+		result.aflExecution = std::move(execution);
 	}
 	else
 	{
@@ -365,6 +355,13 @@ static void printRunResult(std::string const& _label, ConfigRunResult const& _ru
 	_out << "  Bytecode: " << toHexString(_run.bytecode) << std::endl;
 	_out << "  Status: " << statusCodeToString(_run.statusCode) << std::endl;
 	_out << "  Output (" << _run.output.size() << " bytes): " << toHexString(_run.output) << std::endl;
+	if (_run.aflExecution)
+		for (std::size_t i = 0; i < _run.aflExecution->calls.size(); ++i)
+		{
+			auto const& call = _run.aflExecution->calls[i];
+			_out << "  Call #" << i << ": " << statusCodeToString(call.status)
+				<< (call.subCallOutOfGas ? " (sub-call OOG)" : "") << " " << toHexString(call.output) << std::endl;
+		}
 
 	_out << "  Logs (" << _run.logs.size() << "):" << std::endl;
 	for (size_t i = 0; i < _run.logs.size(); i++)
@@ -419,6 +416,25 @@ static bool compareRuns(
 				<< _labelB << "=" << (_b.compilationFailed ? "yes" : "no") << ")"
 				<< std::endl;
 		return false;
+	}
+
+	if (_a.aflExecution && _b.aflExecution)
+	{
+		afl::Comparison const c = afl::compare(*_a.aflExecution, *_b.aflExecution);
+		if (!_quiet)
+		{
+			std::cout << "  Calls:   " << _a.aflExecution->calls.size() << " vs " << _b.aflExecution->calls.size() << std::endl;
+			if (c.skipped)
+				std::cout << "  " << YELLOW << "NOT COMPARED FURTHER: " << *c.skipped << RESET << std::endl;
+			if (c.storageUnmaskable)
+				std::cout << "  Storage: SKIPPED (unmaskable internal fp)" << std::endl;
+			for (std::string const& d: c.differences)
+				std::cout << "  " << RED << "DIFFER" << RESET << ": " << d << std::endl;
+			if (c.differences.empty())
+				std::cout << "  " << GREEN << "MATCH" << RESET << std::endl;
+			std::cout << std::endl;
+		}
+		return !c.differences.empty();
 	}
 
 	bool gasRelated =
@@ -604,36 +620,16 @@ int main(int argc, char* argv[])
 	}
 	std::string solSource{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
 
-	// AFL mode: mirror sol_afl_diff_runner's splitInput().
-	//   [src bytes][calldata bytes][u16 LE src_len][0xCA 0xFE]  (region-aware)
-	// or, when no magic trailer is present, fall back to keccak256(source) as
-	// the 32-byte calldata. Either way the source we feed to solc may be a
-	// strict prefix of the file; the calldata is sent raw to the deployed
-	// (last) contract. Without --afl we treat the file as a plain .sol source.
+	// --afl: same input split and call plan as sol_afl_diff_runner (tools/afl/AflExecution.h)
+	std::optional<afl::AflInput> aflIn;
 	std::optional<bytes> aflRawCalldata;
 	bool aflMagicSeen = false;
 	if (aflInput)
 	{
-		if (solSource.size() >= 4 &&
-			static_cast<unsigned char>(solSource[solSource.size() - 2]) == 0xCA &&
-			static_cast<unsigned char>(solSource[solSource.size() - 1]) == 0xFE)
-		{
-			size_t srcLen =
-				static_cast<unsigned char>(solSource[solSource.size() - 4]) |
-				(static_cast<size_t>(static_cast<unsigned char>(solSource[solSource.size() - 3])) << 8);
-			if (srcLen <= solSource.size() - 4)
-			{
-				bytes calldata(
-					solSource.begin() + static_cast<std::ptrdiff_t>(srcLen),
-					solSource.begin() + static_cast<std::ptrdiff_t>(solSource.size() - 4)
-				);
-				solSource.resize(srcLen);
-				aflRawCalldata = std::move(calldata);
-				aflMagicSeen = true;
-			}
-		}
-		if (!aflMagicSeen)
-			aflRawCalldata = keccak256(solSource).asBytes();
+		aflIn = afl::splitInput(solSource);
+		solSource = aflIn->source;
+		aflRawCalldata = aflIn->rawCalldata ? *aflIn->rawCalldata : aflIn->entropy;
+		aflMagicSeen = aflIn->rawCalldata.has_value();
 	}
 
 	// Auto-create output directory and copy input file into it
@@ -701,6 +697,16 @@ int main(int argc, char* argv[])
 
 	EVMVersion version = EVMVersion::current();
 	StringMap source({{"test.sol", solSource}});
+	if (aflInput)
+	{
+		std::optional<StringMap> units = afl::sourceUnits(solSource);
+		if (!units)
+		{
+			std::cerr << "Error: input uses isoltest external sources" << std::endl;
+			return 2;
+		}
+		source = std::move(*units);
+	}
 
 	// Run 5 configurations: 4 baseline {noOpt,opt} × {viaIR,!viaIR} plus one
 	// experimental SSA-CFG run (which forces viaIR=true per solc requirement).
@@ -753,6 +759,35 @@ int main(int argc, char* argv[])
 			solcBinary = self.substr(0, pos) + "/../../solidity/solc/solc";
 	}
 
+	// The plan depends only on the ABI, which every config shares: take it from the first that compiles.
+	std::optional<afl::CallPlan> aflPlan;
+	if (aflInput && timeoutSecs == 0)
+	{
+		Json methods = Json::object();
+		for (auto const& config: configs)
+			try
+			{
+				CompilerInput input(version, source, "", config.optimiser, {}, false, config.viaIR, config.viaSSACFG);
+				if (auto out = SolidityCompilationFramework(input).compileContract())
+				{
+					methods = out->methodIdentifiersInContract;
+					break;
+				}
+			}
+			catch (...) {}
+		aflPlan = afl::planCalls(*aflIn, methods);
+		if (!quiet)
+		{
+			std::cout << "AFL call plan (" << aflPlan->calls.size() << " calls"
+				<< (aflPlan->constructorArgs.empty() ? "" : ", constructor args " + toHex(aflPlan->constructorArgs))
+				<< "):" << std::endl;
+			for (std::size_t i = 0; i < aflPlan->calls.size(); ++i)
+				std::cout << "  #" << i << " " << aflPlan->calls[i].signature << " "
+					<< toHex(aflPlan->calls[i].calldata) << std::endl;
+			std::cout << std::endl;
+		}
+	}
+
 	std::vector<ConfigRunResult> results;
 	for (auto const& config : configs)
 	{
@@ -794,7 +829,7 @@ int main(int argc, char* argv[])
 		{
 			try
 			{
-				results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, config.viaSSACFG, extraCalldataHex, aflRawCalldata, quiet));
+				results.push_back(runOnce(evmVM, version, source, config.optimiser, config.viaIR, config.viaSSACFG, extraCalldataHex, aflPlan ? &*aflPlan : nullptr, quiet));
 			}
 			catch (evmasm::StackTooDeepException const&)
 			{

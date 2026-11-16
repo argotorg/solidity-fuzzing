@@ -1,5 +1,6 @@
 add_executable(sol_debug_runner
     sol_debug_runner.cpp
+    ../afl/AflExecution.cpp
     ${EVMHOST_CPP}
     ../ossfuzz/SolidityEvmoneInterface.cpp
     ../ossfuzz/FuzzerDiffCommon.cpp
