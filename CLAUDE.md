@@ -24,6 +24,10 @@ make -C build aflplusplus      # or: make -C AFLplusplus source-only NO_NYX=1
 tools/ossfuzz/build_ossfuzz.sh
 ```
 
+After a system clang/LLVM upgrade, rebuild AFL++ (`make -C AFLplusplus clean && make -C AFLplusplus source-only NO_NYX=1`): the stale pass plugin makes `afl-clang-fast` spin at 100% CPU with no output, so configuring `build_afl/` just hangs.
+
+`run_ossfuzz_afl.sh` keeps `-t 2000` per exec but sets `AFL_HANG_TMOUT=10000` (override via env), so only inputs slower than 10 s on re-run are saved as hangs.
+
 Prerequisites (Arch package names): `clang` + `llvm-dev` (to build AFL++'s LLVM mode), `protobuf` + `abseil` (system, libstdc++), `boost` (static, system), `cmake`, `ninja`, `make`, `git`, `protoc`, `ccache`. The script:
 
 1. builds `libprotobuf-mutator` static + PIC against the **system** protobuf into `deps_afl/` (skipped if `deps_afl/lib/libprotobuf-mutator.a` exists);
@@ -55,9 +59,10 @@ make -j$(nproc)
 - `tools/property/` — fuzztest-based property tests. Two build modes (see top-level `CMakeLists.txt` for the cmake option):
   - **Property mode** (default, `build/` tree, any compiler) — each `FUZZ_TEST` runs as a gtest case with a ~1s random-sampling budget. Useful for CI smoke checks. `--fuzz=...` / `--fuzz_for=...` are no-ops here because the binary lacks coverage instrumentation.
   - **Fuzzing mode** (`build_fuzztest/` tree, clang only) — `cmake -DFUZZTEST_FUZZING_MODE_ENABLED=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..` applies `-fsanitize=fuzzer-no-link` + ASan + coverage flags to the whole tree (yul, solidity submodule, and the property target). The resulting binary supports `--fuzz=<Suite>.<Test> [--fuzz_for=<duration>]` for continuous coverage-guided fuzzing with mutator-driven input generation.
-- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `check_diversity_and_errors.sh`). Crash-corpus categorizers live at the repo root: `yul_crash_categorizer.py`, `sol_crash_categorizer.py`, `sol_ice_crash_backtrace_categorizer.py`. `sol_crash_categorizer.py` labels each bucket with the known-noise class that explains it (`eval-order`, `precompile-stub`, `tuple-alias`, `no-repro`) and lists unclassified buckets first; `--all` expands the noise classes.
-- Root `run_*.py` + `sol_ice_crash_backtrace_categorizer.py` — crash/hang replay drivers over a findings dir: `run_sol_crashes.py` (differential sol+yul fuzzers, via the debug runners), `run_ice_crashes.py` and `sol_ice_crash_backtrace_categorizer.py` (both replay `sol_ice_ossfuzz` crashes through solc+gdb and bucket by backtrace signature), `run_afl_crashes.py`, `run_afl_hangs.py`, `rerender_afl_hangs.py`.
-- `tools/shuffler-fuzzer/` — standalone `stackshuffler` CLI.
+- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `check_diversity_and_errors.sh`). Crash-corpus categorizers live at the repo root: `yul_crash_categorizer.py`, `sol_crash_categorizer.py`, `sol_ice_crash_backtrace_categorizer.py`. `sol_crash_categorizer.py` labels each bucket with the known-noise class that explains it (`eval-order`, `precompile-stub`, `tuple-alias`, `no-repro`) and lists unclassified buckets first; `--all` expands the noise classes. `--verify` checks each `tuple-alias` crash by deleting the aliasing statements and re-running: still mismatching → `candidate`, deletion breaks compilation → `tuple-alias-unverified`. `sol_ice_crash_backtrace_categorizer.py` writes `<crash>.miss` (+ `misses.txt`) with the reason for every input that is not an ICE on the current solc.
+- Root `run_*.py` + `sol_ice_crash_backtrace_categorizer.py` — crash/hang replay drivers over a findings dir: `run_sol_crashes.py` (differential sol+yul fuzzers, via the debug runners), `run_ice_crashes.py` and `sol_ice_crash_backtrace_categorizer.py` (both replay `sol_ice_ossfuzz` crashes through solc+gdb and bucket by backtrace signature), `run_afl_crashes.py`, `run_afl_hangs.py` (`--sample N` for a random subset), `rerender_afl_hangs.py`, and `run_proto_hangs.py` (times proto-fuzzer hangs through the fuzzer binary itself, `--sample N` per campaign, dumps the slowest).
+- **Always pass absolute paths to `build_afl/` fuzzer binaries.** aflpp_driver reads `atoi(argv[1]) > 0` as a loop count, so a relative path like `7308677-fd3038a/...` drops it into persistent mode, where it SIGSTOPs itself (looks like a hang).
+- `tools/shuffler-fuzzer/` — standalone `stackshuffler` CLI (`.stack` format in its README).
 - `tools/afl/` — AFL-specific harnesses.
 - `cmake/` — overrides for `fmtlib`, `nlohmann-json`, `range-v3`, submodules. Prepended to `CMAKE_MODULE_PATH` because solidity's cmake modules use `CMAKE_SOURCE_DIR`, which points at *us* when built as a subdir.
 
@@ -67,18 +72,18 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 
 - `sol_proto_ossfuzz_evmone` and `sol_proto_ossfuzz_evmone_viair` — both built from `solProtoFuzzer2.cpp`; the `_viair` variant adds `-DFUZZER_MODE_VIAIR`.
 - `yul_proto_ossfuzz_evmone{,_ssacfg,_check_stack_alloc,_no_ssa}` and `yul_proto_ossfuzz_evmone_single_pass_<abbr>` (one per pass in `c S L M s r D`) — all built from `yulProtoFuzzerEvmone.cpp` with `FUZZER_MODE_*` defines. The single-pass variants additionally set `FUZZER_SINGLE_PASS_CHAR="<abbr>"` so the target pass is baked in at compile time (no env var).
-- `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError` + `StackTooDeep*` are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
+- `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError`, `StackTooDeep*` (langutil, evmasm and `yul::StackTooDeepError`, which escapes `CompilerStack` from via-IR codegen) and the `FixedPointType not implemented` ICE are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
 - `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits three aliasing shapes: DIRECT (`root=root.children[i]`), VIA_POINTER (through a `Node storage p` local), GRANDCHILD (`root=root.children[i].children[j]`). Primitive field types vary across `uint8..256 / int256 / address / bool / bytes32` to stress storage packing. Non-differential — `test()` returns a bitmask of mismatching fields; harness asserts zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
 - `sol_roundtrip_ossfuzz` — identity-oracle fuzzer (`solRoundtripProto.proto` + `protoToSolRoundtrip.cpp` + `solRoundtripFuzzer.cpp`). Each proto is a list of probes; each probe picks a type T, an op, and a seed. Ops: ABI round-trip, storage↔memory round-trip, delete-default, integer cast ladder. Same bitmask oracle: any violated identity sets a bit; harness asserts zero. Catches codegen/encoder bugs that corrupt the same way on both codegens (so differential fuzzers miss them).
-- `stack_shuffler_invariance_property` (`tools/property/stackShufflerInvariance.cpp`) — fuzztest-based property/regression target asserting that `trace(stack, target, spill) == trace(stack, target, spill')` for any `spill' ⊇ spill` whose extras don't appear in `target.args` or `liveOut`. Two FUZZ_TESTs: `TraceStable` (base = ∅) and `TraceStableUnderSuperset` (general `base ⊆ augmented`). Domain mirrors the existing proto shuffler harness (V/PHI/LIT/JUNK slot kinds, target top + tail set + padding). Run continuously via the fuzz-mode build:
+- `shuffler_proto_ossfuzz` — SSA stack shuffler (`stack::shuffle`, positional target + spill set). The oracle (`checkShuffle` in `tools/shuffler-fuzzer/StackShufflerTestCommon.h`, shared with the `stackshuffler` CLI) is independent of the shuffler's own helpers: completeness (StackTooDeep is a bug when spilling is allowed and there is no return label), spill-set monotonicity, op validity / depth bounds, replay == reported stack, positional target match, `sourceOf`. `FUZZER_MODE_STACK_TOO_DEEP_IS_BUG` makes any StackTooDeep a crash.
+- `tarjan_scc_property`, `tlsf_free_list_property` (`tools/property/`) — fuzztest property tests for libyul's TarjanSCC and the TLSF free list. Run continuously via the fuzz-mode build:
     ```
     mkdir build_fuzztest && cd build_fuzztest
     cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
              -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
              -DFUZZTEST_FUZZING_MODE_ENABLED=ON
-    make -j stack_shuffler_invariance_property
-    ./tools/property/stack_shuffler_invariance_property \
-        --fuzz=StackShufflerInvariance.TraceStable --fuzz_for=10m
+    make -j$(nproc) tarjan_scc_property
+    ./tools/property/tarjan_scc_property --fuzz=TarjanSCCProperty.SCCMatchesReachability --fuzz_for=10m
     ```
 
 ### Proto grammar → Solidity/Yul converters
