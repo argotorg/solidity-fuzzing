@@ -10,36 +10,33 @@ add_executable(const_opt_runner
 )
 target_link_libraries(const_opt_runner PRIVATE libsolc evmasm Boost::boost Boost::program_options)
 
-# AFL harness: differential compile/deploy/execute via EVMOne, abort() on diff.
-# Mirrors the sol_proto_ossfuzz_evmone pipeline. Runs in AFL++ persistent +
-# shared-memory mode under afl-fuzz; also accepts a filename arg as a
-# one-shot repro path for triage.
-add_executable(sol_afl_diff_runner
-    sol_afl_diff_runner.cpp
-    ${EVMHOST_CPP}
-    ../ossfuzz/SolidityEvmoneInterface.cpp
-    ../ossfuzz/FuzzerDiffCommon.cpp
-)
-target_link_libraries(sol_afl_diff_runner PRIVATE evmc solidity libsolc Boost::boost)
-
-if (NOT EVMONE_BUILD_SHARED)
-    # Static evmone (AFL build): link the standalone archive directly so
-    # AFL coverage instrumentation reaches inside the EVM. EVMHost picks up
-    # the static factory via -DEVMONE_STATIC.
-    target_compile_definitions(sol_afl_diff_runner PRIVATE EVMONE_STATIC)
-    target_link_libraries(sol_afl_diff_runner PRIVATE
-        ${EVMONE_LIB_DIR}/libevmone-standalone.a)
-    if (TARGET evmone_external)
-        add_dependencies(sol_afl_diff_runner evmone_external)
-    endif()
-elseif (EVMONE_LIB_DIR)
-    # Shared evmone path (would only matter if this harness were ever built
-    # outside an AFL tree). Same RPATH dance as tools/runners.
-    set_target_properties(sol_afl_diff_runner PROPERTIES
-        BUILD_RPATH "${EVMONE_LIB_DIR}"
-        INSTALL_RPATH "${EVMONE_LIB_DIR}"
+# AFL harness: one binary per oracle mode (see s_configs in sol_afl_diff_runner.cpp).
+function(add_afl_runner name)
+    add_executable(${name}
+        sol_afl_diff_runner.cpp
+        AflExecution.cpp
+        ${EVMHOST_CPP}
+        ../ossfuzz/SolidityEvmoneInterface.cpp
+        ../ossfuzz/FuzzerDiffCommon.cpp
     )
-    if (TARGET evmone_external)
-        add_dependencies(sol_afl_diff_runner evmone_external)
+    target_link_libraries(${name} PRIVATE evmc solidity libsolc Boost::boost)
+    if (ARGN)
+        target_compile_definitions(${name} PRIVATE ${ARGN})
     endif()
-endif()
+    if (NOT EVMONE_BUILD_SHARED)
+        # Static evmone (AFL build) so coverage instrumentation reaches inside the EVM.
+        target_compile_definitions(${name} PRIVATE EVMONE_STATIC)
+        target_link_libraries(${name} PRIVATE ${EVMONE_LIB_DIR}/libevmone-standalone.a)
+    elseif (EVMONE_LIB_DIR)
+        set_target_properties(${name} PROPERTIES BUILD_RPATH "${EVMONE_LIB_DIR}" INSTALL_RPATH "${EVMONE_LIB_DIR}")
+    endif()
+    if (TARGET evmone_external)
+        add_dependencies(${name} evmone_external)
+    endif()
+endfunction()
+
+add_afl_runner(sol_afl_diff_runner)                                  # legacy vs legacy-opt
+add_afl_runner(sol_afl_diff_runner_viair AFL_MODE_VIAIR)             # legacy-opt vs ir-opt
+add_afl_runner(sol_afl_diff_runner_viair_opt AFL_MODE_VIAIR_OPT)     # ir vs ir-opt
+add_afl_runner(sol_afl_diff_runner_ssacfg AFL_MODE_SSACFG)           # ir-opt vs ssacfg-opt
+add_afl_runner(sol_afl_ice_runner AFL_MODE_ICE)                      # compile only, ICEs escape

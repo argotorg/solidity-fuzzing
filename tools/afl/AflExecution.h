@@ -1,0 +1,103 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+/// What sol_afl_diff_runner executes for one input, shared with `sol_debug_runner --afl` so a crash
+/// replays exactly: deploy the last contract, run the source's isoltest call script (`// ----` section),
+/// then call every public function with ABI-encoded arguments drawn from the input's calldata region.
+
+#pragma once
+
+#include <tools/ossfuzz/FuzzerDiffCommon.h>
+#include <tools/common/EVMHost.h>
+
+#include <libsolutil/CommonData.h>
+#include <libsolutil/JSON.h>
+#include <libsolutil/Numeric.h>
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace solidity::test::fuzzer::afl
+{
+
+struct AflInput
+{
+	std::string source;
+	/// Raw calldata region of the region-aware format, else bytes derived from keccak256(source)
+	bytes entropy;
+	/// The calldata region verbatim, sent as an extra raw call (it is what AFL havoc mutates)
+	std::optional<bytes> rawCalldata;
+};
+
+/// [source][calldata][u16 LE source_len][0xCA 0xFE], or a plain source
+AflInput splitInput(std::string_view _input);
+
+/// Splits isoltest `==== Source: name ====` sections; nullopt for inputs we cannot compile as given
+/// (external sources).
+std::optional<StringMap> sourceUnits(std::string const& _source);
+
+struct PlannedCall
+{
+	std::string signature;
+	bytes calldata;
+	u256 value;
+};
+
+struct CallPlan
+{
+	bytes constructorArgs;
+	u256 constructorValue;
+	std::vector<PlannedCall> calls;
+};
+
+/// Depends only on the source, the (config-independent) ABI and the entropy, so every config runs the same plan.
+CallPlan planCalls(AflInput const& _input, Json const& _methodIdentifiers);
+
+struct CallObservation
+{
+	evmc_status_code status;
+	bytes output;
+	bool subCallOutOfGas;
+	std::map<evmc::address, TransientStorageMap> transientStorage;
+};
+
+struct Execution
+{
+	evmc_status_code deployStatus = EVMC_FAILURE;
+	std::vector<CallObservation> calls;
+	/// Final state, with the fields FuzzerDiffCommon compares
+	RunResult state;
+	bool readsDeployedCode = false;
+};
+
+Execution execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan, int64_t _gasPerCall);
+
+struct Comparison
+{
+	/// Why the runs were not (fully) compared: config-dependent observations such as gas or deployed bytecode
+	std::optional<std::string> skipped;
+	std::vector<std::string> differences;
+	/// Storage was not compared: an internal function pointer could not be masked
+	bool storageUnmaskable = false;
+};
+
+/// The differential oracle. `storageLayouts` must be set on both states.
+Comparison compare(Execution const& _a, Execution const& _b);
+
+}

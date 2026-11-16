@@ -1,0 +1,723 @@
+/*
+	This file is part of solidity.
+
+	solidity is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	solidity is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
+*/
+// SPDX-License-Identifier: GPL-3.0
+
+#include <tools/afl/AflExecution.h>
+
+#include <tools/ossfuzz/SolidityEvmoneInterface.h>
+
+#include <libsolutil/Keccak256.h>
+
+#include <algorithm>
+#include <cctype>
+#include <sstream>
+#include <string_view>
+
+using namespace solidity;
+using namespace solidity::util;
+using namespace solidity::test;
+using namespace solidity::test::fuzzer;
+using namespace solidity::test::fuzzer::afl;
+
+namespace
+{
+
+constexpr std::size_t maxScriptCalls = 32;
+constexpr std::size_t maxGeneratedFunctions = 16;
+constexpr std::size_t maxEncodedArgBytes = 4096;
+
+std::string_view trim(std::string_view _s)
+{
+	while (!_s.empty() && std::isspace(static_cast<unsigned char>(_s.front())))
+		_s.remove_prefix(1);
+	while (!_s.empty() && std::isspace(static_cast<unsigned char>(_s.back())))
+		_s.remove_suffix(1);
+	return _s;
+}
+
+/// Splits at top-level commas, respecting (), [] and "..."
+std::vector<std::string_view> splitTopLevel(std::string_view _s)
+{
+	std::vector<std::string_view> parts;
+	int depth = 0;
+	bool inString = false;
+	std::size_t start = 0;
+	for (std::size_t i = 0; i < _s.size(); ++i)
+	{
+		char const c = _s[i];
+		if (inString)
+		{
+			if (c == '\\')
+				++i;
+			else if (c == '"')
+				inString = false;
+			continue;
+		}
+		if (c == '"')
+			inString = true;
+		else if (c == '(' || c == '[')
+			++depth;
+		else if (c == ')' || c == ']')
+			--depth;
+		else if (c == ',' && depth == 0)
+		{
+			parts.push_back(trim(_s.substr(start, i - start)));
+			start = i + 1;
+		}
+	}
+	if (!trim(_s.substr(start)).empty() || !parts.empty())
+		parts.push_back(trim(_s.substr(start)));
+	return parts;
+}
+
+bytes selectorOf(std::string const& _signature)
+{
+	bytes const hash = keccak256(_signature).asBytes();
+	return bytes(hash.begin(), hash.begin() + 4);
+}
+
+bytes word(u256 const& _value)
+{
+	return toBigEndian(_value);
+}
+
+bytes leftAligned(bytes _data)
+{
+	_data.resize((_data.size() + 31) / 32 * 32, 0);
+	if (_data.empty())
+		_data.resize(32, 0);
+	return _data;
+}
+
+std::optional<u256> parseNumber(std::string_view _token)
+{
+	bool negative = false;
+	if (!_token.empty() && _token.front() == '-')
+		negative = true, _token.remove_prefix(1);
+	std::string digits;
+	for (char c: _token)
+		if (c != '_')
+			digits += c;
+	if (digits.empty())
+		return std::nullopt;
+	try
+	{
+		bool const hex = digits.size() > 2 && digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X');
+		if (hex ? digits.size() > 66 : !std::all_of(digits.begin(), digits.end(), ::isdigit))
+			return std::nullopt;
+		bigint const v(digits);
+		if (v >= bigint(1) << 256)
+			return std::nullopt;
+		return negative && v != 0 ? u256((bigint(1) << 256) - v) : u256(v);
+	}
+	catch (...)
+	{
+		return std::nullopt;
+	}
+}
+
+std::optional<bytes> parseStringLiteral(std::string_view _token)
+{
+	if (_token.size() < 2 || _token.front() != '"' || _token.back() != '"')
+		return std::nullopt;
+	bytes out;
+	for (std::size_t i = 1; i + 1 < _token.size(); ++i)
+	{
+		char c = _token[i];
+		if (c == '\\' && i + 2 < _token.size())
+		{
+			char const e = _token[++i];
+			c = e == 'n' ? '\n' : e == 't' ? '\t' : e == '0' ? '\0' : e;
+		}
+		out.push_back(static_cast<uint8_t>(c));
+	}
+	return out;
+}
+
+/// One isoltest argument as ABI words (isoltest arguments are literal words, not typed values)
+std::optional<bytes> encodeScriptArg(std::string_view _token)
+{
+	if (_token == "true")
+		return word(1);
+	if (_token == "false")
+		return word(0);
+	if (_token.starts_with("hex\""))
+	{
+		auto const s = parseStringLiteral(_token.substr(3));
+		if (!s || s->size() % 2)
+			return std::nullopt;
+		try
+		{
+			return leftAligned(fromHex(std::string(s->begin(), s->end())));
+		}
+		catch (...)
+		{
+			return std::nullopt;
+		}
+	}
+	if (_token.starts_with("\""))
+	{
+		auto const s = parseStringLiteral(_token);
+		return s ? std::optional<bytes>(leftAligned(*s)) : std::nullopt;
+	}
+	for (std::string_view const align: {"left(", "right("})
+		if (_token.starts_with(align) && _token.ends_with(")"))
+		{
+			auto const inner = encodeScriptArg(trim(_token.substr(align.size(), _token.size() - align.size() - 1)));
+			if (!inner || align == "right(")
+				return inner;
+			// left(): the value's significant bytes moved to the front of the word
+			bytes const& w = *inner;
+			auto const first = std::find_if(w.begin(), w.end(), [](uint8_t b) { return b != 0; });
+			bytes out(first, w.end());
+			return leftAligned(out);
+		}
+	if (auto const n = parseNumber(_token))
+		return word(*n);
+	return std::nullopt;
+}
+
+std::optional<u256> parseValue(std::string_view _s)
+{
+	_s = trim(_s);
+	auto const space = _s.find(' ');
+	if (space == std::string_view::npos)
+		return std::nullopt;
+	auto const amount = parseNumber(trim(_s.substr(0, space)));
+	auto const unit = trim(_s.substr(space + 1));
+	if (!amount)
+		return std::nullopt;
+	if (unit == "wei")
+		return *amount;
+	if (unit == "gwei")
+		return *amount * u256(1000000000);
+	if (unit == "ether")
+		return *amount * u256("1000000000000000000");
+	return std::nullopt;
+}
+
+struct ScriptCall
+{
+	std::string signature;
+	bytes args;
+	u256 value;
+};
+
+/// `sig[, N unit]: args -> expected`; expectations are ignored (the oracle is differential)
+std::vector<ScriptCall> parseScript(std::string const& _source)
+{
+	std::vector<ScriptCall> calls;
+	auto const marker = _source.find("// ----");
+	if (marker == std::string::npos)
+		return calls;
+	std::istringstream lines(_source.substr(marker + 7));
+	std::string raw;
+	while (std::getline(lines, raw) && calls.size() < maxScriptCalls)
+	{
+		std::string_view line = trim(raw);
+		if (!line.starts_with("//"))
+			continue;
+		line = trim(line.substr(2));
+		if (line.empty() || !(std::isalpha(static_cast<unsigned char>(line[0])) || line[0] == '_'))
+			continue;
+		auto const open = line.find('(');
+		if (open == std::string_view::npos)
+			continue;
+		int depth = 0;
+		std::size_t close = open;
+		for (; close < line.size(); ++close)
+		{
+			depth += line[close] == '(' ? 1 : line[close] == ')' ? -1 : 0;
+			if (depth == 0)
+				break;
+		}
+		if (close == line.size())
+			continue;
+		ScriptCall call{std::string(line.substr(0, close + 1)), {}, 0};
+		std::string_view rest = line.substr(close + 1);
+		std::string_view const head = trim(rest.substr(0, rest.find("->")));
+		std::string_view argText;
+		auto const colon = head.find(':');
+		std::string_view const valueText = trim(head.substr(0, colon));
+		if (colon != std::string_view::npos)
+			argText = trim(head.substr(colon + 1));
+		if (valueText.starts_with(","))
+		{
+			auto const v = parseValue(valueText.substr(1));
+			if (!v)
+				continue;
+			call.value = *v;
+		}
+		else if (!valueText.empty())
+			continue;
+		bool ok = true;
+		for (std::string_view arg: splitTopLevel(argText))
+			if (auto const encoded = encodeScriptArg(arg))
+				call.args += *encoded;
+			else
+				ok = false;
+		if (ok)
+			calls.push_back(std::move(call));
+	}
+	return calls;
+}
+
+class Entropy
+{
+public:
+	explicit Entropy(bytes const& _data): m_data(_data) {}
+	uint8_t byte() { return m_pos < m_data.size() ? m_data[m_pos++] : 0; }
+	bytes take(std::size_t _n)
+	{
+		bytes out;
+		for (std::size_t i = 0; i < _n; ++i)
+			out.push_back(byte());
+		return out;
+	}
+private:
+	bytes const& m_data;
+	std::size_t m_pos = 0;
+};
+
+struct AbiType
+{
+	enum class Kind { Uint, Int, Address, Bool, FixedBytes, Bytes, String, Array, Tuple };
+	Kind kind;
+	unsigned size = 0; ///< bits for Uint/Int, bytes for FixedBytes, length for a static Array (0 = dynamic)
+	std::vector<AbiType> members; ///< element type for Array, components for Tuple
+
+	bool isDynamic() const
+	{
+		switch (kind)
+		{
+		case Kind::Bytes:
+		case Kind::String:
+			return true;
+		case Kind::Array:
+			return size == 0 || members[0].isDynamic();
+		case Kind::Tuple:
+			return std::any_of(members.begin(), members.end(), [](AbiType const& _t) { return _t.isDynamic(); });
+		default:
+			return false;
+		}
+	}
+};
+
+std::optional<AbiType> parseType(std::string_view _s)
+{
+	_s = trim(_s);
+	if (_s.ends_with("]"))
+	{
+		auto const open = _s.rfind('[');
+		if (open == std::string_view::npos)
+			return std::nullopt;
+		auto element = parseType(_s.substr(0, open));
+		if (!element)
+			return std::nullopt;
+		std::string_view const len = _s.substr(open + 1, _s.size() - open - 2);
+		unsigned size = 0;
+		if (!len.empty())
+		{
+			auto const n = parseNumber(len);
+			if (!n || *n == 0 || *n > 64)
+				return std::nullopt;
+			size = static_cast<unsigned>(*n);
+		}
+		return AbiType{AbiType::Kind::Array, size, {std::move(*element)}};
+	}
+	if (_s.starts_with("(") && _s.ends_with(")"))
+	{
+		AbiType tuple{AbiType::Kind::Tuple, 0, {}};
+		for (std::string_view member: splitTopLevel(_s.substr(1, _s.size() - 2)))
+			if (auto t = parseType(member))
+				tuple.members.push_back(std::move(*t));
+			else
+				return std::nullopt;
+		return tuple;
+	}
+	auto const bits = [&](std::size_t _prefix, unsigned _default) -> std::optional<unsigned> {
+		if (_s.size() == _prefix)
+			return _default;
+		auto const n = parseNumber(_s.substr(_prefix));
+		return n ? std::optional<unsigned>(static_cast<unsigned>(*n)) : std::nullopt;
+	};
+	if (_s == "address")
+		return AbiType{AbiType::Kind::Address};
+	if (_s == "bool")
+		return AbiType{AbiType::Kind::Bool};
+	if (_s == "string")
+		return AbiType{AbiType::Kind::String};
+	if (_s == "bytes")
+		return AbiType{AbiType::Kind::Bytes};
+	if (_s.starts_with("bytes"))
+		if (auto const n = bits(5, 0); n && *n >= 1 && *n <= 32)
+			return AbiType{AbiType::Kind::FixedBytes, *n};
+	if (_s.starts_with("uint"))
+		if (auto const n = bits(4, 256); n && *n >= 8 && *n <= 256)
+			return AbiType{AbiType::Kind::Uint, *n};
+	if (_s.starts_with("int"))
+		if (auto const n = bits(3, 256); n && *n >= 8 && *n <= 256)
+			return AbiType{AbiType::Kind::Int, *n};
+	// fixed/ufixed and anything else: not generated
+	return std::nullopt;
+}
+
+/// Boundary-biased valid values, so the decoder accepts them and the function body runs
+u256 integer(Entropy& _e, unsigned _bits, bool _signed)
+{
+	bigint const range = bigint(1) << _bits;
+	bigint const maxU = range - 1;
+	bigint const maxS = (bigint(1) << (_bits - 1)) - 1;
+	bigint v;
+	switch (_e.byte() % 8)
+	{
+	case 0: v = 0; break;
+	case 1: v = 1; break;
+	case 2: v = _signed ? maxS : maxU; break;
+	case 3: v = _signed ? bigint(-maxS - 1) : bigint(2); break;
+	case 4: v = _e.byte() % 32; break;
+	case 5: v = _signed ? bigint(-1) : maxU - 1; break;
+	case 6: v = bigint(1) << (_e.byte() % _bits); break;
+	default:
+	{
+		bigint r = 0;
+		for (uint8_t b: _e.take(32))
+			r = (r << 8) | b;
+		v = r % range;
+		if (_signed && v > maxS)
+			v -= range;
+	}
+	}
+	return v < 0 ? u256((bigint(1) << 256) + v) : u256(v);
+}
+
+bytes encodeValue(AbiType const& _type, Entropy& _e);
+
+std::size_t staticSize(AbiType const& _type)
+{
+	switch (_type.kind)
+	{
+	case AbiType::Kind::Array: return _type.size * staticSize(_type.members[0]);
+	case AbiType::Kind::Tuple:
+	{
+		std::size_t total = 0;
+		for (AbiType const& m: _type.members)
+			total += staticSize(m);
+		return total;
+	}
+	default: return 32;
+	}
+}
+
+bytes encodeSequence(std::vector<AbiType> const& _types, Entropy& _e)
+{
+	std::vector<bytes> heads;
+	std::vector<bytes> tails;
+	std::size_t headSize = 0;
+	for (AbiType const& t: _types)
+		headSize += t.isDynamic() ? 32 : staticSize(t);
+	if (headSize > maxEncodedArgBytes)
+		throw std::length_error("encoding too large");
+	std::size_t tailOffset = headSize;
+	for (AbiType const& t: _types)
+	{
+		bytes encoded = encodeValue(t, _e);
+		if (t.isDynamic())
+		{
+			heads.push_back(word(tailOffset));
+			tailOffset += encoded.size();
+			tails.push_back(std::move(encoded));
+		}
+		else
+			heads.push_back(std::move(encoded));
+		if (tailOffset > maxEncodedArgBytes)
+			throw std::length_error("encoding too large");
+	}
+	bytes out;
+	for (bytes const& h: heads)
+		out += h;
+	for (bytes const& t: tails)
+		out += t;
+	return out;
+}
+
+bytes encodeValue(AbiType const& _type, Entropy& _e)
+{
+	switch (_type.kind)
+	{
+	case AbiType::Kind::Uint: return word(integer(_e, _type.size, false));
+	case AbiType::Kind::Int: return word(integer(_e, _type.size, true));
+	case AbiType::Kind::Address: return word(integer(_e, 160, false));
+	case AbiType::Kind::Bool: return word(_e.byte() & 1);
+	case AbiType::Kind::FixedBytes:
+	{
+		bytes b = _e.take(_type.size);
+		b.resize(32, 0);
+		return b;
+	}
+	case AbiType::Kind::Bytes:
+	case AbiType::Kind::String:
+	{
+		std::size_t const length = _e.byte() % 4 == 0 ? 0 : _e.byte() % 70;
+		bytes out = word(length);
+		if (length)
+			out += leftAligned(_e.take(length));
+		return out;
+	}
+	case AbiType::Kind::Array:
+	{
+		std::size_t const length = _type.size ? _type.size : _e.byte() % 4;
+		std::vector<AbiType> const elements(length, _type.members[0]);
+		bytes const body = encodeSequence(elements, _e);
+		return _type.size ? body : word(length) + body;
+	}
+	case AbiType::Kind::Tuple:
+		return encodeSequence(_type.members, _e);
+	}
+	solidity::util::unreachable();
+}
+
+/// Malformed variants of a valid encoding: what a decoder must reject (or clean), and where legacy and IR
+/// have disagreed before (non-canonical bool, dirty high bits, negative/huge/backward tail offsets)
+bytes corrupt(bytes _args, Entropy& _e)
+{
+	std::size_t const words = _args.size() / 32;
+	if (words == 0)
+		return _args;
+	std::size_t const n = 1 + _e.byte() % 2;
+	for (std::size_t k = 0; k < n; ++k)
+	{
+		std::size_t const at = (_e.byte() % words) * 32;
+		u256 const original = fromBigEndian<u256>(bytesConstRef(_args.data() + at, 32));
+		u256 replacement;
+		switch (_e.byte() % 7)
+		{
+		case 0: replacement = original | (u256(1) << 255); break;
+		case 1: replacement = 2; break;
+		case 2: replacement = original | (u256(1) << (8 + _e.byte() % 240)); break;
+		case 3: replacement = u256(0) - 32; break;
+		case 4: replacement = u256(_args.size()) + 32 * (_e.byte() % 4); break;
+		case 5: replacement = 0; break;
+		default: replacement = u256(1) << 64; break;
+		}
+		bytes const w = word(replacement);
+		std::copy(w.begin(), w.end(), _args.begin() + static_cast<std::ptrdiff_t>(at));
+	}
+	return _args;
+}
+
+std::optional<bytes> encodeArgs(std::string const& _signature, Entropy& _e)
+{
+	auto const open = _signature.find('(');
+	if (open == std::string::npos || _signature.back() != ')')
+		return std::nullopt;
+	std::vector<AbiType> types;
+	for (std::string_view param: splitTopLevel(std::string_view(_signature).substr(open + 1, _signature.size() - open - 2)))
+		if (auto t = parseType(param))
+			types.push_back(std::move(*t));
+		else
+			return std::nullopt;
+	try
+	{
+		return encodeSequence(types, _e);
+	}
+	catch (std::length_error const&)
+	{
+		return std::nullopt;
+	}
+}
+
+}
+
+AflInput afl::splitInput(std::string_view _input)
+{
+	if (_input.size() >= 4 &&
+		static_cast<unsigned char>(_input[_input.size() - 2]) == 0xCA &&
+		static_cast<unsigned char>(_input[_input.size() - 1]) == 0xFE)
+	{
+		std::size_t const srcLen =
+			static_cast<unsigned char>(_input[_input.size() - 4]) |
+			(static_cast<std::size_t>(static_cast<unsigned char>(_input[_input.size() - 3])) << 8);
+		if (srcLen <= _input.size() - 4)
+		{
+			bytes calldata(_input.begin() + static_cast<std::ptrdiff_t>(srcLen), _input.end() - 4);
+			return {std::string(_input.substr(0, srcLen)), calldata, calldata};
+		}
+	}
+	bytes entropy;
+	h256 h = keccak256(std::string(_input));
+	for (int i = 0; i < 8; ++i, h = keccak256(h.asBytes()))
+		entropy += h.asBytes();
+	return {std::string(_input), std::move(entropy), std::nullopt};
+}
+
+std::optional<StringMap> afl::sourceUnits(std::string const& _source)
+{
+	static std::string const marker = "==== Source:";
+	if (_source.find("==== ExternalSource:") != std::string::npos)
+		return std::nullopt;
+	if (_source.find(marker) == std::string::npos)
+		return StringMap{{"test.sol", _source}};
+	StringMap units;
+	std::string name = "test.sol";
+	std::string current;
+	std::istringstream lines(_source);
+	std::string line;
+	while (std::getline(lines, line))
+	{
+		if (line.starts_with(marker))
+		{
+			if (!current.empty() || units.empty())
+				units[name] += current;
+			current.clear();
+			auto const end = line.rfind("====");
+			name = std::string(trim(std::string_view(line).substr(marker.size(), end - marker.size())));
+			if (name.empty())
+				return std::nullopt;
+			continue;
+		}
+		current += line + "\n";
+	}
+	units[name] += current;
+	return units;
+}
+
+CallPlan afl::planCalls(AflInput const& _input, Json const& _methodIdentifiers)
+{
+	CallPlan plan;
+	for (ScriptCall& call: parseScript(_input.source))
+		if (call.signature == "constructor()")
+			plan.constructorArgs = std::move(call.args), plan.constructorValue = call.value;
+		else
+			plan.calls.push_back({call.signature, selectorOf(call.signature) + call.args, call.value});
+
+	Entropy entropy(_input.entropy);
+	std::size_t generated = 0;
+	if (_methodIdentifiers.is_object())
+		for (auto const& [signature, _]: _methodIdentifiers.items())
+		{
+			if (generated++ == maxGeneratedFunctions)
+				break;
+			if (auto args = encodeArgs(signature, entropy))
+			{
+				plan.calls.push_back({signature, selectorOf(signature) + *args, 0});
+				if (entropy.byte() % 2)
+					plan.calls.push_back({signature + " [malformed]", selectorOf(signature) + corrupt(*args, entropy), 0});
+			}
+		}
+	if (_input.rawCalldata)
+		plan.calls.push_back({"<raw calldata>", *_input.rawCalldata, 0});
+	return plan;
+}
+
+Execution afl::execute(EVMHost& _host, bytes const& _bytecode, CallPlan const& _plan, int64_t _gasPerCall)
+{
+	Execution out;
+	evmc::address const sender = _host.tx_context.tx_origin;
+	_host.accounts[sender].set_balance(std::numeric_limits<uint64_t>::max());
+
+	bytes const initCode = _bytecode + _plan.constructorArgs;
+	evmc_message create = EvmoneUtility::initializeMessage(initCode, _gasPerCall);
+	create.kind = EVMC_CREATE;
+	create.sender = sender;
+	create.value = EVMHost::convertToEVMC(h256(_plan.constructorValue));
+	evmc::Result created = _host.call(create);
+	out.deployStatus = created.status_code;
+	if (created.status_code != EVMC_SUCCESS)
+		return out;
+	evmc::address const contract = created.create_address;
+
+	for (PlannedCall const& planned: _plan.calls)
+	{
+		_host.newTransaction();
+		_host.m_subCallOutOfGas = false;
+		evmc_message msg = EvmoneUtility::initializeMessage(planned.calldata, _gasPerCall);
+		msg.kind = EVMC_CALL;
+		msg.sender = sender;
+		msg.recipient = contract;
+		msg.code_address = contract;
+		msg.value = EVMHost::convertToEVMC(h256(planned.value));
+		evmc::Result result = _host.call(msg);
+
+		CallObservation observation{result.status_code, bytes(result.output_data, result.output_data + result.output_size),
+			_host.m_subCallOutOfGas, {}};
+		for (auto const& [address, account]: _host.accounts)
+			if (!account.transient_storage.empty())
+				observation.transientStorage[address] = account.transient_storage;
+		out.calls.push_back(std::move(observation));
+		if (result.status_code == EVMC_OUT_OF_GAS || _host.m_subCallOutOfGas)
+			break;
+	}
+
+	out.readsDeployedCode = _host.m_readsDeployedCode;
+	out.state.result = std::move(created);
+	out.state.logs.assign(_host.recorded_logs.begin(), _host.recorded_logs.end());
+	for (auto const& [address, account]: _host.accounts)
+	{
+		if (!account.storage.empty())
+			out.state.storage[address] = account.storage;
+		if (!account.code.empty())
+			out.state.accountCodeHashes[address] = keccak256(bytes(account.code.begin(), account.code.end()));
+	}
+	out.state.contractCreationOrder = _host.m_contractCreationOrder;
+	return out;
+}
+
+Comparison afl::compare(Execution const& _a, Execution const& _b)
+{
+	Comparison out;
+	if (_a.readsDeployedCode || _b.readsDeployedCode)
+		return out.skipped = "contract read deployed bytecode", out;
+	if (_a.deployStatus == EVMC_OUT_OF_GAS || _b.deployStatus == EVMC_OUT_OF_GAS)
+		return out.skipped = "deploy out of gas", out;
+	if (_a.deployStatus != _b.deployStatus)
+		return out.differences.push_back("deploy status differs"), out;
+	if (_a.deployStatus != EVMC_SUCCESS)
+		return out;
+
+	auto const& orderA = _a.state.contractCreationOrder;
+	auto const& orderB = _b.state.contractCreationOrder;
+	for (std::size_t i = 0; i < std::min(_a.calls.size(), _b.calls.size()); ++i)
+	{
+		CallObservation const& a = _a.calls[i];
+		CallObservation const& b = _b.calls[i];
+		if (a.status == EVMC_OUT_OF_GAS || b.status == EVMC_OUT_OF_GAS || a.subCallOutOfGas || b.subCallOutOfGas)
+			return out.skipped = "out of gas in call #" + std::to_string(i), out;
+		std::string const call = "call #" + std::to_string(i);
+		if (a.status != b.status)
+			out.differences.push_back(call + " status differs (" + std::to_string(a.status) + " vs " +
+				std::to_string(b.status) + ")");
+		else if (!outputEqual(a.output.data(), a.output.size(), orderA, b.output.data(), b.output.size(), orderB))
+			out.differences.push_back(call + (a.status == EVMC_SUCCESS ? " output differs" : " revert data differs"));
+		if (!transientStorageEqual(a.transientStorage, orderA, b.transientStorage, orderB))
+			out.differences.push_back(call + " transient storage differs");
+	}
+	if (_a.calls.size() != _b.calls.size())
+		out.differences.push_back("number of executed calls differs");
+	if (!logsEqual(_a.state.logs, orderA, _b.state.logs, orderB))
+		out.differences.push_back("logs differ");
+
+	// Internal function pointers are PCs in legacy and IDs in IR and move with bytecode size
+	auto storageA = _a.state.storage;
+	auto storageB = _b.state.storage;
+	out.storageUnmaskable =
+		!maskInternalFunctionPointers(storageA, _a.state.storageLayouts, _a.state.accountCodeHashes) ||
+		!maskInternalFunctionPointers(storageB, _b.state.storageLayouts, _b.state.accountCodeHashes);
+	if (!out.storageUnmaskable && !storageEqual(storageA, orderA, storageB, orderB))
+		out.differences.push_back("storage differs");
+	return out;
+}

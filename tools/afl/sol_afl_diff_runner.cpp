@@ -15,40 +15,12 @@
 	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
 */
 // SPDX-License-Identifier: GPL-3.0
-/**
- * AFL++ harness for differential Solidity fuzzing against EVMOne.
- *
- * Runs in AFL++ persistent + shared-memory mode (see
- * AFLplusplus/instrumentation/README.persistent_mode.md): one process handles
- * up to 1000 inputs before AFL re-forks, amortising libsolc / libevmone
- * startup. Each iteration, for each of two optimiser settings ({minimal,
- * standard}):
- *   1. compiles the last contract in the source
- *   2. deploys it
- *   3. calls it with calldata bytes derived deterministically from the source
- *      (keccak256 of the source — gives different shapes per input without
- *       AFL having to mutate the call boundary itself)
- *   4. captures status / output / logs / storage / transient storage
- * On any cross-config mismatch, solAssert throws InternalCompilerError; we
- * deliberately let it propagate so std::terminate raises SIGABRT and AFL++
- * records a crash, restarting the persistent child for the next input.
- *
- * Repro path: `./sol_afl_diff_runner path/to/crash-xxxx` bypasses AFL
- * entirely, runs one input, and exits — works on a host (non-afl-clang-fast)
- * build for debugging.
- *
- * Designed to be driven by afl-fuzz with a corpus of real-world Solidity
- * contracts plus the solidity submodule's test suite. Works with afl-ts
- * (https://github.com/nowarp/afl-ts) as a custom mutator.
- *
- * Note vs sol_proto_ossfuzz_evmone: that fuzzer emits contract C { test(); }
- * and looks up the test() selector by name. We can't assume corpus entries
- * have a function called test() (most don't), so we send raw calldata bytes
- * to the deployed contract and let solc's dispatcher route them. Mismatched
- * selectors fall through to fallback() / receive() / revert — still useful
- * for differential testing.
- */
+/// AFL++ persistent-mode harness over tree-sitter-mutated Solidity. Compiles the source under the two
+/// configs of the build's mode (see s_configs), runs the same call plan on both (AflExecution.h) and
+/// solAsserts that deploy, every call's status/output/transient storage, logs and storage agree. The
+/// ICE mode only compiles, under four configs, and lets ICEs escape. A filename argument replays one input.
 
+#include <tools/afl/AflExecution.h>
 #include <tools/ossfuzz/SolidityEvmoneInterface.h>
 #include <tools/ossfuzz/FuzzerDiffCommon.h>
 #include <tools/common/EVMHost.h>
@@ -62,7 +34,11 @@
 #include <libsolutil/CommonIO.h>
 #include <libsolutil/JSON.h>
 
+#include <boost/exception/diagnostic_information.hpp>
+
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -95,275 +71,141 @@ using namespace solidity::util;
 /// LD_LIBRARY_PATH nor an absolute path is needed at runtime.
 static evmc::VM& evmone() { return EVMHost::getVM("libevmone.so"); }
 
-/// Matches the proto fuzzer; high enough to deploy and run small contracts,
-/// low enough to keep iterations fast.
 static constexpr int64_t s_gasLimit = 1000000;
-
-/// Bigger than the proto fuzzer's 3 KB cap because real-world corpus entries
-/// (OpenZeppelin etc.) routinely exceed 3 KB. afl-ts splices keep growing the
-/// input, so we still need *some* ceiling — 16 KB is a reasonable trade-off.
+/// afl-ts splices keep growing inputs; real-world corpus entries routinely exceed the proto fuzzer's 3 KB
 static constexpr size_t s_maxSourceBytes = 16 * 1024;
-
-/// Cap on the calldata region for the region-aware input format. Solidity
-/// calldata in practice is rarely larger than a few KB; 64 KB is a defensive
-/// upper bound that still lets AFL grow the buffer significantly via havoc.
 static constexpr size_t s_maxCalldataBytes = 64 * 1024;
 
-/// Indicates "skip this run" — caller compares two skips as equal so the
-/// outer differential bails cleanly.
-static RunResult skip()
+struct Config
 {
-	return RunResult{evmc::Result{EVMC_INTERNAL_ERROR}, false, {}, {}, {}, {}, {}};
-}
+	char const* name;
+	bool viaIR;
+	bool optimize;
+	bool viaSSACFG = false;
+};
 
-/// Compile the source, deploy the resulting bytecode, send `_calldata` to
-/// the deployment. Capture state for the differential check.
-///
-/// `_readsDeployedCode` is set to true if the contract performed
-/// EXTCODESIZE/EXTCODECOPY/EXTCODEHASH on any address it deployed. The
-/// caller uses this to skip the differential — those values depend on the
-/// (config-dependent) deployed bytecode and are not real bugs.
-static RunResult runOnce(
-	langutil::EVMVersion _version,
-	StringMap const& _source,
-	OptimiserSettings _optimiserSettings,
-	bool _viaIR,
-	bytes const& _calldata,
-	bool& _readsDeployedCode
-)
+#if defined(AFL_MODE_ICE)
+static constexpr Config s_configs[] = {
+	{"legacy", false, false}, {"legacy-opt", false, true}, {"ir", true, false}, {"ir-opt", true, true}};
+#elif defined(AFL_MODE_VIAIR)
+static constexpr Config s_configs[] = {{"legacy-opt", false, true}, {"ir-opt", true, true}};
+#elif defined(AFL_MODE_VIAIR_OPT)
+static constexpr Config s_configs[] = {{"ir", true, false}, {"ir-opt", true, true}};
+#elif defined(AFL_MODE_SSACFG)
+static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", true, true, true}};
+#else
+static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt", false, true}};
+#endif
+
+static std::optional<CompilerOutput> compile(StringMap const& _sources, Config const& _config)
 {
-	// Empty contractName lets SolidityCompilationFramework fall back to
-	// lastContractName(), which is what we want for arbitrary corpus entries
-	// where we can't predict the contract name.
-	CompilerInput cInput(
-		_version,
-		_source,
+	CompilerInput input(
+		langutil::EVMVersion::current(),
+		_sources,
 		/*contractName=*/"",
-		_optimiserSettings,
+		_config.optimize ? OptimiserSettings::standard() : OptimiserSettings::minimal(),
 		{},
 		/*debugFailure=*/false,
-		_viaIR
+		_config.viaIR,
+		_config.viaSSACFG
 	);
-
-	// Same exception-swallowing list as the proto fuzzer: known non-bugs and
-	// cases that belong to sol_ice_ossfuzz. Compilation does most of the work
-	// where these can fire. solAssert in the diff-checking code below also
-	// throws InternalCompilerError, but it never reaches THIS scope because
-	// the diff check runs in main() after we return — so there is no risk of
-	// swallowing a real diff here.
-	std::optional<CompilerOutput> compOut;
 	try
 	{
-		SolidityCompilationFramework compiler(cInput);
-		compOut = compiler.compileContract();
+		return SolidityCompilationFramework(input).compileContract();
 	}
-	// ICEs are not interesting bugs, skipped here.
-	catch (langutil::InternalCompilerError const&)     { return skip(); }
-	catch (langutil::UnimplementedFeatureError const&) { return skip(); }
-	catch (langutil::StackTooDeepError const&)         { return skip(); }
-	catch (evmasm::StackTooDeepException const&)       { return skip(); }
-	catch (yul::YulAssertion const&)                   { return skip(); }
-	catch (yul::YulException const&)                   { return skip(); }
-	// afl-ts ts-chaos can produce non-UTF-8 input bytes; solidity uses
-	// nlohmann::json internally and throws on malformed UTF-8. Not a solc
-	// bug — treat as a normal compile failure.
-	catch (Json::exception const&)                     { return skip(); }
-
-	if (!compOut.has_value() || compOut->byteCode.empty())
-		return skip();
-
-	EVMHost host(_version, evmone());
-	host.accounts[host.tx_context.tx_origin].set_balance(0xffffffff);
-
-	// Deploy.
-	evmc_message createMsg = EvmoneUtility::initializeMessage(compOut->byteCode, s_gasLimit);
-	createMsg.kind = EVMC_CREATE;
-	evmc::Result createResult = host.call(createMsg);
-	if (createResult.status_code != EVMC_SUCCESS)
-		return skip();
-
-	// Call with raw calldata. First 4 bytes act as selector if they happen
-	// to match a public function; otherwise solc's dispatcher falls through
-	// to fallback/receive or reverts. Either outcome is a valid differential
-	// observation as long as both configs agree.
-	evmc_message callMsg = EvmoneUtility::initializeMessage(_calldata, s_gasLimit);
-	callMsg.kind = EVMC_CALL;
-	callMsg.recipient = createResult.create_address;
-	callMsg.code_address = createResult.create_address;
-	evmc::Result execResult = host.call(callMsg);
-
-	_readsDeployedCode = host.m_readsDeployedCode;
-
-	std::vector<evmc::MockedHost::log_record> logs(host.recorded_logs.begin(), host.recorded_logs.end());
-
-	std::map<evmc::address, StorageMap> storage;
-	for (auto const& [addr, account] : host.accounts)
-		if (!account.storage.empty())
-			storage[addr] = account.storage;
-
-	std::map<evmc::address, TransientStorageMap> transientStorage;
-	for (auto const& [addr, account] : host.accounts)
-		if (!account.transient_storage.empty())
-			transientStorage[addr] = account.transient_storage;
-
-	std::map<evmc::address, h256> accountCodeHashes;
-	for (auto const& [addr, account] : host.accounts)
-		if (!account.code.empty())
-			accountCodeHashes[addr] = keccak256(bytes(account.code.begin(), account.code.end()));
-
-	return RunResult{
-		std::move(execResult),
-		host.m_subCallOutOfGas,
-		std::move(logs),
-		std::move(storage),
-		std::move(transientStorage),
-		host.m_contractCreationOrder,
-		// Carry the storage layouts so the differential check below can mask
-		// internal-function-pointer bytes (non-portable across optimiser modes)
-		// in every deployed contract, not just the main one.
-		compOut->storageLayoutByRuntimeCode,
-		std::move(accountCodeHashes)
-	};
-}
-
-/// Region-aware input format used together with the patched afl-ts:
-///
-///   [source bytes][calldata bytes][u16 LE source_len][0xCA 0xFE]
-///
-/// When the trailing magic 0xCA 0xFE is present, afl-ts mutates only the
-/// source slice via tree-sitter splice while AFL's regular havoc /
-/// bit-flipping freely mutates the calldata bytes. Inputs without magic
-/// fall back to keccak-derived calldata so the existing pure-Solidity
-/// corpus continues to work unchanged.
-static std::pair<std::string, bytes> splitInput(std::string const& _input)
-{
-	if (_input.size() >= 4 &&
-		static_cast<unsigned char>(_input[_input.size() - 2]) == 0xCA &&
-		static_cast<unsigned char>(_input[_input.size() - 1]) == 0xFE)
+	// Known non-bugs in every mode. A diff below throws InternalCompilerError too, but outside this scope.
+	catch (langutil::UnimplementedFeatureError const&) {}
+	catch (langutil::StackTooDeepError const&) {}
+	catch (evmasm::StackTooDeepException const&) {}
+	catch (yul::StackTooDeepError const&) {}
+	// afl-ts can produce non-UTF-8 bytes, which solc's JSON layer rejects
+	catch (Json::exception const&) {}
+#if defined(AFL_MODE_ICE)
+	catch (langutil::InternalCompilerError const& _e)
 	{
-		size_t srcLen =
-			static_cast<unsigned char>(_input[_input.size() - 4]) |
-			(static_cast<size_t>(static_cast<unsigned char>(_input[_input.size() - 3])) << 8);
-		if (srcLen <= _input.size() - 4)
+		if (std::string(_e.what()).find("FixedPointType not implemented") == std::string::npos)
 		{
-			std::string source = _input.substr(0, srcLen);
-			bytes calldata(
-				_input.begin() + static_cast<std::ptrdiff_t>(srcLen),
-				_input.begin() + static_cast<std::ptrdiff_t>(_input.size() - 4)
-			);
-			return {std::move(source), std::move(calldata)};
+			// The throw site (file:line, function) is what triage buckets ICEs by
+			std::cerr << boost::diagnostic_information(_e);
+			throw;
 		}
 	}
-	// No magic / invalid trailer: treat the whole input as source and
-	// derive 32 calldata bytes from its hash. Same behavior as before
-	// the region-aware format was introduced.
-	return {_input, keccak256(_input).asBytes()};
+	catch (boost::exception const& _e)
+	{
+		std::cerr << boost::diagnostic_information(_e);
+		throw;
+	}
+#else
+	// ICEs belong to the ICE mode
+	catch (langutil::InternalCompilerError const&) {}
+	catch (yul::YulAssertion const&) {}
+	catch (yul::YulException const&) {}
+#endif
+	return std::nullopt;
 }
 
-/// One full fuzz iteration: parse the AFL input bytes, run the two-config
-/// differential, and let any `solAssert` mismatch escape so the persistent
-/// child terminates and AFL records the crash. Returns to its caller for
-/// every non-bug skip path (oversize input, deploy failure, sub-call OOG,
-/// etc.) so the persistent loop can hand us the next input.
+/// One iteration. Any solAssert escapes so std::terminate aborts the persistent child and AFL records a crash.
 static void runOneInput(std::string_view _input)
 {
-	// Reset solc's only known process-wide cache. Mirrors what the proto
-	// fuzzers do at the top of every LLVMFuzzerTestOneInput call.
 	yul::YulStringRepository::reset();
 
 	if (_input.empty() || _input.size() > s_maxSourceBytes + s_maxCalldataBytes + 4)
 		return;
-	auto [source, calldata] = splitInput(std::string(_input));
-	if (source.empty() || source.size() > s_maxSourceBytes)
+	afl::AflInput const input = afl::splitInput(_input);
+	if (input.source.empty() || input.source.size() > s_maxSourceBytes)
 		return;
-	if (calldata.size() > s_maxCalldataBytes)
+	// Inline assembly can break solc's invariants in ways that look like miscompiles; gas() differs by config.
+	// Substring matches on purpose: a false hit only costs one corpus entry.
+	if (input.source.find("assembly") != std::string::npos || input.source.find("gas()") != std::string::npos)
+		return;
+	// The compiled bytecode itself, which differs by config by design
+	if (input.source.find("creationCode") != std::string::npos || input.source.find("runtimeCode") != std::string::npos)
+		return;
+#if defined(AFL_MODE_VIAIR)
+	// via-IR always uses ABI coder v2, which validates inputs v1 accepts; isoltest also marks legacy-only tests
+	if (input.source.find("abicoder v1") != std::string::npos || input.source.find("compileViaYul: false") != std::string::npos)
+		return;
+#endif
+	std::optional<StringMap> const sources = afl::sourceUnits(input.source);
+	if (!sources)
 		return;
 
-	// Skip any source containing inline assembly or a Yul gas() call.
-	// Inline-asm blocks can violate solc's documented invariants in ways
-	// that look like optimiser-induced output/storage mismatches but
-	// aren't real solc bugs; gas() observations legitimately differ
-	// between optimiser configurations. Plain substring matches are
-	// intentional — false positives (e.g. the word inside a string
-	// literal or comment) only cost us one skipped corpus entry.
-	if (source.find("assembly") != std::string::npos)
+#if defined(AFL_MODE_ICE)
+	for (Config const& config: s_configs)
+		compile(*sources, config);
+#else
+	std::optional<CompilerOutput> outA = compile(*sources, s_configs[0]);
+	if (!outA || outA->byteCode.empty())
 		return;
-	if (source.find("gas()") != std::string::npos)
+	std::optional<CompilerOutput> outB = compile(*sources, s_configs[1]);
+	if (!outB || outB->byteCode.empty())
 		return;
 
-	langutil::EVMVersion version = langutil::EVMVersion::current();
-	StringMap sources({{"test.sol", source}});
-
-	OptimiserSettings settingsA = OptimiserSettings::minimal();
-	OptimiserSettings settingsB = OptimiserSettings::standard();
-
-	// No outer try/catch on purpose. runOnce already swallows the known
-	// non-bug exceptions; any InternalCompilerError reaching this scope —
-	// including the one solAssert throws on a diff — must propagate so AFL
-	// records a SIGABRT crash via terminate().
-	bool const viaIR = false;
-	bool readsDeployedCodeA = false;
-	bool readsDeployedCodeB = false;
-	auto runA = runOnce(version, sources, settingsA, viaIR, calldata, readsDeployedCodeA);
-	auto runB = runOnce(version, sources, settingsB, viaIR, calldata, readsDeployedCodeB);
-
-	// Skip on deployment failure (matches proto fuzzer behavior).
-	// Also catches the bug-16642 invalid-opcode-codegen signature — covered, don't surface.
-	if (runA.result.status_code != EVMC_SUCCESS && runA.result.status_code != EVMC_REVERT) return;
-	if (runB.result.status_code != EVMC_SUCCESS && runB.result.status_code != EVMC_REVERT) return;
-
-	// Skip on sub-call OOG — legitimate cross-optimisation difference.
-	if (runA.subCallOutOfGas || runB.subCallOutOfGas) return;
-
-	// Skip when the contract introspected its own (or any deployed contract's)
-	// bytecode via EXTCODESIZE/EXTCODECOPY/EXTCODEHASH. The bytecode itself
-	// differs across optimiser/codegen modes by design, so any output or
-	// storage derived from those reads is a harness false positive.
-	if (readsDeployedCodeA || readsDeployedCodeB) return;
-
-	std::string const label = "Sol AFL diff fuzzer";
-
-	solAssert(
-		runA.result.status_code == runB.result.status_code,
-		label + ": status code differs (A=" + std::to_string(runA.result.status_code) +
-			" B=" + std::to_string(runB.result.status_code) + ")"
-	);
-
-	if (runA.result.status_code == EVMC_SUCCESS && runB.result.status_code == EVMC_SUCCESS)
+	afl::CallPlan const plan = afl::planCalls(input, outA->methodIdentifiersInContract);
+	langutil::EVMVersion const version = langutil::EVMVersion::current();
+	EVMHost hostA(version, evmone());
+	EVMHost hostB(version, evmone());
+	afl::Execution execA = afl::execute(hostA, outA->byteCode, plan, s_gasLimit);
+	afl::Execution execB = afl::execute(hostB, outB->byteCode, plan, s_gasLimit);
+	if (std::getenv("AFL_RUNNER_VERBOSE"))
 	{
-		solAssert(outputEqual(runA, runB), label + ": output differs");
-		solAssert(
-			logsEqual(runA.logs, runA.contractCreationOrder, runB.logs, runB.contractCreationOrder),
-			label + ": logs differ"
-		);
-		// Internal function pointers are encoded differently across legacy
-		// (PCs) and IR (function IDs) and across optimiser levels (PCs shift
-		// with bytecode size). Mask their storage bytes before the strict
-		// equality check — see TODO.md for the full rationale.
-		// Masks are computed per run and per account because dynamic-array
-		// masks depend on the array length read from that account's storage.
-		// If an internal fp cannot be masked (reachable only through a mapping,
-		// or in an account whose code we cannot attribute to a compiled
-		// contract), skip the storage comparison to avoid a false positive.
-		bool maskedA = maskInternalFunctionPointers(
-			runA.storage, runA.storageLayouts, runA.accountCodeHashes);
-		bool maskedB = maskInternalFunctionPointers(
-			runB.storage, runB.storageLayouts, runB.accountCodeHashes);
-		if (maskedA && maskedB)
-		{
-			solAssert(
-				storageEqual(runA.storage, runA.contractCreationOrder, runB.storage, runB.contractCreationOrder),
-				label + ": storage differs"
-			);
-		}
-		solAssert(
-			transientStorageEqual(runA.transientStorage, runA.contractCreationOrder, runB.transientStorage, runB.contractCreationOrder),
-			label + ": transient storage differs"
-		);
+		std::cerr << "deploy: " << execA.deployStatus << " / " << execB.deployStatus << "\n";
+		for (std::size_t i = 0; i < plan.calls.size(); ++i)
+			std::cerr << "call #" << i << " " << plan.calls[i].signature << ": "
+				<< (i < execA.calls.size() ? std::to_string(execA.calls[i].status) : "-") << " / "
+				<< (i < execB.calls.size() ? std::to_string(execB.calls[i].status) : "-") << "\n";
 	}
-
-	if (runA.result.status_code == EVMC_REVERT && runB.result.status_code == EVMC_REVERT)
-		solAssert(outputEqual(runA, runB), label + ": revert data differs");
+	execA.state.storageLayouts = outA->storageLayoutByRuntimeCode;
+	execB.state.storageLayouts = outB->storageLayoutByRuntimeCode;
+	afl::Comparison const comparison = afl::compare(execA, execB);
+	if (std::getenv("AFL_RUNNER_VERBOSE") && comparison.skipped)
+		std::cerr << "not compared further: " << *comparison.skipped << "\n";
+	solAssert(
+		comparison.differences.empty(),
+		std::string("Sol AFL diff fuzzer (") + s_configs[0].name + " vs " + s_configs[1].name + "): " +
+			(comparison.differences.empty() ? "" : comparison.differences.front())
+	);
+#endif
 }
 
 int main(int argc, char** argv)
