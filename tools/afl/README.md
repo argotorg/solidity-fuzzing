@@ -109,8 +109,9 @@ python3 run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl
 
 `AFL_RUNNER_VERBOSE=1 <runner> <input>...` prints where the input stopped, per-phase times, the plan and every
 call's status per config; `=2` adds each call's calldata. `AFL_RUNNER_LOOP=N` sets the persistent-loop count
-(default 1000); `1` forks a fresh child per input, which makes coverage deterministic (solc iterates
-pointer-keyed containers, so a long-lived child's heap layout changes ~20% of the edges).
+(default 1: a fresh child per input, which makes coverage deterministic; solc iterates pointer-keyed
+containers, so a long-lived child's heap layout changes ~20% of the edges, and AFL then spends most of its time
+calibrating).
 
 ## Sweeps
 

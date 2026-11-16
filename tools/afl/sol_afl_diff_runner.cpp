@@ -359,11 +359,12 @@ int main(int argc, char** argv)
 	// Must be assigned before __AFL_LOOP — see persistent_demo_new.c.
 	unsigned char const* buf = __AFL_FUZZ_TESTCASE_BUF;
 
-	// AFL_RUNNER_LOOP=1 forks a fresh child per input: solc iterates pointer-keyed containers, so in a long-lived
-	// persistent child the heap layout, and with it ~20% of the coverage, differs from run to run
+	// A fresh child per input by default: solc iterates pointer-keyed containers, so in a long-lived persistent
+	// child the heap layout, and with it ~20% of the coverage, differs from run to run. That instability made
+	// AFL calibrate ~85% of the time; forking per input executed 1.9x more inputs. AFL_RUNNER_LOOP=N overrides.
 	static unsigned const loops = [] {
 		char const* env = std::getenv("AFL_RUNNER_LOOP");
-		return env ? static_cast<unsigned>(std::max(1, std::atoi(env))) : 1000u;
+		return env ? static_cast<unsigned>(std::max(1, std::atoi(env))) : 1u;
 	}();
 	while (__AFL_LOOP(loops))
 	{
