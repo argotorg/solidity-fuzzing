@@ -168,6 +168,9 @@ export AFL_CUSTOM_MUTATOR_LIBRARY="${MUTATOR}"
 export AFL_CUSTOM_MUTATOR_ONLY=1
 export AFL_SKIP_CPUFREQ=1
 export AFL_DISABLE_TRIM=1
+# Execs still time out at -t 2000; a hang is only saved if it also exceeds this on re-run.
+# At 2 s nearly every saved "hang" was just a slow-but-normal compile.
+export AFL_HANG_TMOUT="${AFL_HANG_TMOUT:-10000}"
 # afl-fuzz refuses to run with LD_PRELOAD/ASan unless told the target is ASan-aware.
 export AFL_USE_ASAN=1
 export AFL_PRELOAD="${ASAN_RT}"          # ASan into the target children too (harmless)
@@ -189,7 +192,7 @@ fi
 # --- parallel: 1 master + (JOBS-1) secondaries in tmux ----------------------
 command -v tmux >/dev/null || { echo "JOBS>1 needs tmux" >&2; exit 1; }
 ENVX="AFL_CUSTOM_MUTATOR_LIBRARY='${MUTATOR}' AFL_CUSTOM_MUTATOR_ONLY=1"
-ENVX="$ENVX AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1 AFL_USE_ASAN=1"
+ENVX="$ENVX AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1 AFL_USE_ASAN=1 AFL_HANG_TMOUT=$AFL_HANG_TMOUT"
 ENVX="$ENVX AFL_PRELOAD='${ASAN_RT}' LD_PRELOAD='${ASAN_RT}' ASAN_OPTIONS='${ASAN_OPTS}'"
 SESSION="aflasan_${FUZZER}"
 

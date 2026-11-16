@@ -62,6 +62,9 @@ export AFL_SKIP_CPUFREQ=1
 # with "Error parsing text-format ... Program". We don't implement the custom
 # trim API, so just disable trimming; LPM keeps inputs minimal anyway.
 export AFL_DISABLE_TRIM=1
+# Execs still time out at -t 2000; a hang is only saved if it also exceeds this on re-run.
+# At 2 s nearly every saved "hang" was just a slow-but-normal compile.
+export AFL_HANG_TMOUT="${AFL_HANG_TMOUT:-10000}"
 
 AFL="${ROOTDIR}/AFLplusplus/afl-fuzz"
 BIN="${ROOTDIR}/build_afl/tools/ossfuzz/${FUZZER}"
@@ -77,7 +80,7 @@ fi
 # a tmux server with a stale environment is already running.
 command -v tmux >/dev/null || { echo "JOBS>1 needs tmux" >&2; exit 1; }
 ENVX="AFL_CUSTOM_MUTATOR_LIBRARY='$AFL_CUSTOM_MUTATOR_LIBRARY'"
-ENVX="$ENVX AFL_CUSTOM_MUTATOR_ONLY=1 AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1"
+ENVX="$ENVX AFL_CUSTOM_MUTATOR_ONLY=1 AFL_SKIP_CPUFREQ=1 AFL_DISABLE_TRIM=1 AFL_HANG_TMOUT=$AFL_HANG_TMOUT"
 SESSION="afl_${FUZZER}"
 
 tmux new-session -d -s "$SESSION" -n m00 \
