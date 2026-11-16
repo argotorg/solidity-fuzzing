@@ -63,8 +63,8 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
 # ExternalProject byproduct has no make rule when the linking target is built
 # in isolation — so building it up front avoids a "No rule to make target
 # '.../libevmone-standalone.a'" failure.
-cmake --build "$BUILD_DIR" -j$(nproc) --target evmone_external
-cmake --build "$BUILD_DIR" -j$(nproc) --target sol_afl_diff_runner sol_afl_diff_runner_viair \
+cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target evmone_external
+cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target sol_afl_diff_runner sol_afl_diff_runner_viair \
     sol_afl_diff_runner_viair_opt sol_afl_diff_runner_ssacfg sol_afl_ice_runner
 
 echo

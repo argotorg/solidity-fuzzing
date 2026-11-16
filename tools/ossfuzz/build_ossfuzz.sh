@@ -53,7 +53,7 @@ build_lpm() {
     -DLIB_PROTO_MUTATOR_DOWNLOAD_PROTOBUF=OFF \
     -DLIB_PROTO_MUTATOR_TESTING=OFF -DLIB_PROTO_MUTATOR_EXAMPLES=OFF \
     -DCMAKE_INSTALL_PREFIX="${DEPS}"
-  cmake --build "${build}" -j"$(nproc)"
+  cmake --build "${build}" -j"${BUILD_JOBS:-$(nproc)}"
   cmake --install "${build}"
 }
 
@@ -104,8 +104,8 @@ build_fuzzers() {
   # the build set). Building it explicitly here creates the archive so the
   # subsequent harness link finds it, instead of failing with
   # "No rule to make target '.../libevmone-standalone.a'".
-  cmake --build "${BUILDDIR}" -j"$(nproc)" --target evmone_external
-  cmake --build "${BUILDDIR}" -j"$(nproc)" --target ossfuzz_proto ossfuzz_abiv2
+  cmake --build "${BUILDDIR}" -j"${BUILD_JOBS:-$(nproc)}" --target evmone_external
+  cmake --build "${BUILDDIR}" -j"${BUILD_JOBS:-$(nproc)}" --target ossfuzz_proto ossfuzz_abiv2
 }
 
 build_lpm

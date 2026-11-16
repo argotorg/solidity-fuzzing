@@ -24,5 +24,5 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DCMAKE_CXX_FLAGS="-fno-omit-frame-pointer" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-cmake --build "$BUILD_DIR" -j"$(nproc)" \
+cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" \
     --target sol_afl_diff_runner aflplusplus afl_ts tree_sitter_solidity
