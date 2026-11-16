@@ -17,8 +17,8 @@
 #                                 findings dir, each in its own tmux window
 #                                 (session "afl_diff"). Default 1 = single
 #                                 foreground instance (unchanged).
-#   HARNESS=path/to/binary        Override sol_afl_diff_runner location
-#                                 (default: build_afl/tools/afl/sol_afl_diff_runner).
+#   MODE=<runner name>            Oracle mode binary (default: sol_afl_diff_runner_viair).
+#   HARNESS=path/to/binary        Override the runner path entirely.
 #   CORPUS=path/to/corpus_dir     Default: corpus_afl/
 #   AFL_FUZZ_BIN=path/to/afl-fuzz Default: AFLplusplus/afl-fuzz (vendored).
 #   AFL_TS_LIB=path/to/libts.so   Default: afl-ts/libts.so (vendored).
@@ -33,9 +33,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/sol_afl_diff_runner}"
+# Oracle mode: sol_afl_diff_runner (legacy vs legacy-opt), _viair (legacy-opt vs ir-opt), _viair_opt,
+# _ssacfg, or sol_afl_ice_runner (compile only, ICEs crash).
+MODE="${MODE:-sol_afl_diff_runner_viair}"
+HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/$MODE}"
 CORPUS="${CORPUS:-$REPO_ROOT/corpus_afl}"
-FINDINGS="${1:-$REPO_ROOT/findings_afl}"
+FINDINGS="${1:-$REPO_ROOT/findings_afl_${MODE#sol_afl_}}"
 AFL_FUZZ_BIN="${AFL_FUZZ_BIN:-$REPO_ROOT/AFLplusplus/afl-fuzz}"
 AFL_TS_LIB="${AFL_TS_LIB-$REPO_ROOT/afl-ts/libts.so}"
 TS_GRAMMAR="${TS_GRAMMAR-$REPO_ROOT/tree-sitter-solidity/libtree-sitter-solidity.so}"
@@ -92,6 +95,8 @@ fi
 # timing. AFL_SKIP_CRASHES=0 (default) is fine — the core_pattern note in the
 # README is the only real prereq.
 AFL_TS_ENV+=("AFL_SKIP_CPUFREQ=1")
+# Only save hangs that are still slow at 10 s on re-run (execs still time out at -t).
+AFL_TS_ENV+=("AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}")
 
 mkdir -p "$FINDINGS"
 

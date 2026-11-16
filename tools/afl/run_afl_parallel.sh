@@ -21,13 +21,16 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/sol_afl_diff_runner}"
+# Oracle mode: sol_afl_diff_runner (legacy vs legacy-opt), _viair (legacy-opt vs ir-opt), _viair_opt,
+# _ssacfg, or sol_afl_ice_runner (compile only, ICEs crash).
+MODE="${MODE:-sol_afl_diff_runner_viair}"
+HARNESS="${HARNESS:-$REPO_ROOT/build_afl/tools/afl/$MODE}"
 CORPUS="${CORPUS:-$REPO_ROOT/corpus_afl}"
 AFL_FUZZ_BIN="${AFL_FUZZ_BIN:-$REPO_ROOT/AFLplusplus/afl-fuzz}"
 AFL_TS_LIB="${AFL_TS_LIB-$REPO_ROOT/afl-ts/libts.so}"
 TS_GRAMMAR="${TS_GRAMMAR-$REPO_ROOT/tree-sitter-solidity/libtree-sitter-solidity.so}"
 AFL_TIMEOUT_MS="${AFL_TIMEOUT_MS:-1000}"
-SESSION="${SESSION:-solfuzz}"
+SESSION="${SESSION:-solfuzz_${MODE#sol_afl_}}"
 
 JOBS=""
 FINDINGS=""
@@ -42,7 +45,7 @@ done
 
 [[ -n "$JOBS" ]] || JOBS=$(( $(nproc) - 1 ))
 (( JOBS >= 1 )) || JOBS=1
-FINDINGS="${FINDINGS:-$REPO_ROOT/findings_afl}"
+FINDINGS="${FINDINGS:-$REPO_ROOT/findings_afl_${MODE#sol_afl_}}"
 
 # Pre-flight (same checks as run_afl.sh, plus tmux + watch for the dashboard).
 command -v tmux  >/dev/null 2>&1 || { echo "ERROR: tmux not in PATH." >&2; exit 1; }
@@ -79,7 +82,7 @@ SECONDARY_PROFILES=(
 # AFL_SKIP_CPUFREQ: AFL++ refuses to start unless the CPU governor is
 # "performance"; setting this lets fuzzing run at the cost of slightly
 # noisier timing. The proper fix is `sudo cpupower frequency-set -g performance`.
-declare -a TS_ENV=(AFL_SKIP_CPUFREQ=1)
+declare -a TS_ENV=(AFL_SKIP_CPUFREQ=1 "AFL_HANG_TMOUT=${AFL_HANG_TMOUT:-10000}")
 if [[ -n "$AFL_TS_LIB" ]]; then
     TS_ENV+=(
         "AFL_CUSTOM_MUTATOR_LIBRARY=$AFL_TS_LIB"

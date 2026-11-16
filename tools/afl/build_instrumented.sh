@@ -64,8 +64,9 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
 # in isolation — so building it up front avoids a "No rule to make target
 # '.../libevmone-standalone.a'" failure.
 cmake --build "$BUILD_DIR" -j$(nproc) --target evmone_external
-cmake --build "$BUILD_DIR" -j$(nproc) --target sol_afl_diff_runner
+cmake --build "$BUILD_DIR" -j$(nproc) --target sol_afl_diff_runner sol_afl_diff_runner_viair \
+    sol_afl_diff_runner_viair_opt sol_afl_diff_runner_ssacfg sol_afl_ice_runner
 
 echo
-echo "Built: $BUILD_DIR/tools/afl/sol_afl_diff_runner"
+echo "Built: $BUILD_DIR/tools/afl/sol_afl_{diff_runner{,_viair,_viair_opt,_ssacfg},ice_runner}"
 echo "Run with: tools/afl/run_afl.sh"
