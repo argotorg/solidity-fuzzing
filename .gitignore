@@ -46,3 +46,4 @@ findings.*
 
 # crash reports
 unique_*
+/bootstrap_logs

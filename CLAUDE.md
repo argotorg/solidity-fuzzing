@@ -15,6 +15,17 @@ Both trees build natively on the host — **no Docker.** The fuzz build uses AFL
 
 The proto grammars are mutated by LPM, not AFL's byte-level havoc: `tools/ossfuzz/build_ossfuzz.sh` builds one AFL++ custom-mutator `.so` per grammar (`tools/ossfuzz/lpm_afl_mutator.cc`), and `tools/ossfuzz/run_ossfuzz_afl.sh` wires the matching `.so` into `afl-fuzz` via `AFL_CUSTOM_MUTATOR_LIBRARY` + `AFL_CUSTOM_MUTATOR_ONLY=1`.
 
+### Everything at once (nix)
+
+`flake.nix` provides the whole toolchain (make, cmake, GCC, clang/LLVM 21 + lld for AFL++, protobuf + abseil, static Boost, Rust for tsgen, gdb, python). On a machine with nix:
+
+```bash
+nix develop --command python3 tools/bootstrap.py            # AFL++, build/, build_afl/ proto fuzzers + AFL harness, corpus
+nix develop --command python3 tools/bootstrap.py --steps host,proto -j 8
+```
+
+`bootstrap.py` sizes `-j` to min(physical cores, available RAM / 1.5 GB) and passes it on as `BUILD_JOBS`, which `build_ossfuzz.sh`, `build_instrumented.sh` and `build_afl.sh` honour (default `$(nproc)`). Logs go to `bootstrap_logs/<step>.log`.
+
 ### Building fuzzers (build_afl/) — native AFL++
 
 ```bash
