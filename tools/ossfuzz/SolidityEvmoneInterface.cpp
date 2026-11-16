@@ -60,6 +60,10 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 			contractName = m_compiler.lastContractName();
 		else
 			contractName = m_compilerInput.contractName;
+		// A unit with no contract (only free functions, structs, interfaces...): nothing to deploy, and
+		// CompilerStack::object("") would solAssert
+		if (contractName.empty())
+			return {};
 		evmasm::LinkerObject obj = m_compiler.object(contractName);
 		Json methodIdentifiers = m_compiler.interfaceSymbols(contractName)["methods"];
 		Json storageLayout = m_compiler.storageLayout(contractName);
