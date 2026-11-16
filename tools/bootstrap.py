@@ -69,7 +69,10 @@ def main() -> int:
     if not (REPO / "solidity" / "CMakeLists.txt").is_file():
         run("submodules", [["git", "submodule", "update", "--init", "--recursive"]], env, logs)
     if "afl" in steps:
-        run("afl", [["make", "-C", "AFLplusplus", f"-j{jobs}", "source-only", "NO_NYX=1"]], env, logs)
+        # Always from clean: make keeps an afl-cc / pass plugins built against another toolchain (copied
+        # checkout, LLVM upgrade), which then exec /usr/bin/clang or load a libstdc++ that is not there.
+        run("afl", [["make", "-C", "AFLplusplus", "clean"],
+                    ["make", "-C", "AFLplusplus", f"-j{jobs}", "source-only", "NO_NYX=1"]], env, logs)
     if "host" in steps:
         (REPO / "build").mkdir(exist_ok=True)
         run("host", [
