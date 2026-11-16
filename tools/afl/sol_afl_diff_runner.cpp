@@ -215,8 +215,7 @@ static void runOneInput(std::string_view _input)
 	if (!outB || outB->byteCode.empty())
 		return stop("compile B");
 
-	afl::CallPlan const plan =
-		afl::planCalls(input, outA->methodIdentifiersInContract, outA->constructorSignature, outA->constructorPayable);
+	afl::CallPlan const plan = afl::planCalls(input, afl::interfaceOf(*outA));
 	langutil::EVMVersion const version = langutil::EVMVersion::current();
 	EVMHost hostA(version, evmone());
 	EVMHost hostB(version, evmone());

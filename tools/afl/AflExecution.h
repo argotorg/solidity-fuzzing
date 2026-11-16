@@ -29,6 +29,7 @@
 #include <libsolutil/Numeric.h>
 
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -36,6 +37,11 @@
 namespace solidity::frontend
 {
 class CompilerStack;
+}
+
+namespace solidity::test::fuzzer
+{
+struct CompilerOutput;
 }
 
 namespace solidity::test::fuzzer::afl
@@ -74,13 +80,19 @@ struct CallPlan
 };
 
 /// Depends only on the source, the (config-independent) ABI and the entropy, so every config runs the same plan.
-/// Without an isoltest constructor() line, arguments for @param _constructorSignature (CompilerOutput) are generated.
-CallPlan planCalls(
-	AflInput const& _input,
-	Json const& _methodIdentifiers,
-	std::string const& _constructorSignature = {},
-	bool _constructorPayable = false
-);
+/// What the call plan needs from the compiled contract; the same in every config
+struct ContractInterface
+{
+	Json methodIdentifiers;
+	/// Canonical, e.g. "constructor(uint256,(address,bool))"; empty if it takes no arguments
+	std::string constructorSignature;
+	bool constructorPayable = false;
+	std::set<std::string> payableFunctions;
+};
+
+/// Without an isoltest constructor() line, constructor arguments are generated too.
+CallPlan planCalls(AflInput const& _input, ContractInterface const& _interface);
+ContractInterface interfaceOf(CompilerOutput const& _output);
 
 struct CallObservation
 {

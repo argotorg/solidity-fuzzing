@@ -626,12 +626,13 @@ std::optional<StringMap> afl::sourceUnitsVerbatim(std::string const& _source)
 	return units;
 }
 
-CallPlan afl::planCalls(
-	AflInput const& _input,
-	Json const& _methodIdentifiers,
-	std::string const& _constructorSignature,
-	bool _constructorPayable
-)
+ContractInterface afl::interfaceOf(CompilerOutput const& _output)
+{
+	return {_output.methodIdentifiersInContract, _output.constructorSignature, _output.constructorPayable,
+		_output.payableFunctions};
+}
+
+CallPlan afl::planCalls(AflInput const& _input, ContractInterface const& _interface)
 {
 	CallPlan plan;
 	bool scriptedConstructor = false;
@@ -647,25 +648,34 @@ CallPlan afl::planCalls(
 	Entropy entropy(_input.entropy);
 	if (!scriptedConstructor)
 	{
-		if (!_constructorSignature.empty())
-			if (auto args = encodeArgs(_constructorSignature, entropy))
+		if (!_interface.constructorSignature.empty())
+			if (auto args = encodeArgs(_interface.constructorSignature, entropy))
 				plan.constructorArgs = std::move(*args);
-		if (_constructorPayable)
+		if (_interface.constructorPayable)
 			plan.constructorValue = entropy.byte();
 	}
-	std::size_t generated = 0;
-	if (_methodIdentifiers.is_object())
-		for (auto const& [signature, _]: _methodIdentifiers.items())
+
+	std::vector<std::string> signatures;
+	if (_interface.methodIdentifiers.is_object())
+		for (auto const& [signature, _]: _interface.methodIdentifiers.items())
+			if (signatures.size() < maxGeneratedFunctions)
+				signatures.push_back(signature);
+	auto value = [&](std::string const& _signature) -> u256 {
+		return _interface.payableFunctions.contains(_signature) ? u256(entropy.byte()) : u256(0);
+	};
+	for (std::string const& signature: signatures)
+		if (auto args = encodeArgs(signature, entropy))
 		{
-			if (generated++ == maxGeneratedFunctions)
-				break;
-			if (auto args = encodeArgs(signature, entropy))
-			{
-				plan.calls.push_back({signature, selectorOf(signature) + *args, 0});
-				if (entropy.byte() % 2)
-					plan.calls.push_back({signature + " [malformed]", selectorOf(signature) + corrupt(*args, entropy), 0});
-			}
+			plan.calls.push_back({signature, selectorOf(signature) + *args, value(signature)});
+			if (entropy.byte() % 2)
+				plan.calls.push_back({signature + " [malformed]", selectorOf(signature) + corrupt(*args, entropy), 0});
 		}
+	// Second pass in an input-chosen order with fresh arguments, so functions also see state that others wrote
+	for (std::size_t i = signatures.size(); i > 1; --i)
+		std::swap(signatures[i - 1], signatures[entropy.byte() % i]);
+	for (std::string const& signature: signatures)
+		if (auto args = encodeArgs(signature, entropy))
+			plan.calls.push_back({signature + " [again]", selectorOf(signature) + *args, value(signature)});
 	if (_input.rawCalldata)
 		plan.calls.push_back({"<raw calldata>", *_input.rawCalldata, 0});
 	return plan;

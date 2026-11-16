@@ -761,23 +761,19 @@ int main(int argc, char* argv[])
 	std::optional<afl::CallPlan> aflPlan;
 	if (aflInput && timeoutSecs == 0)
 	{
-		Json methods = Json::object();
-		std::string constructorSignature;
-		bool constructorPayable = false;
+		afl::ContractInterface interface;
 		for (auto const& config: configs)
 			try
 			{
 				CompilerInput input(version, source, "", config.optimiser, {}, false, config.viaIR, config.viaSSACFG);
 				if (auto out = SolidityCompilationFramework(input).compileContract())
 				{
-					methods = out->methodIdentifiersInContract;
-					constructorSignature = out->constructorSignature;
-					constructorPayable = out->constructorPayable;
+					interface = afl::interfaceOf(*out);
 					break;
 				}
 			}
 			catch (...) {}
-		aflPlan = afl::planCalls(*aflIn, methods, constructorSignature, constructorPayable);
+		aflPlan = afl::planCalls(*aflIn, interface);
 		if (!quiet)
 		{
 			std::cout << "AFL call plan (" << aflPlan->calls.size() << " calls"
