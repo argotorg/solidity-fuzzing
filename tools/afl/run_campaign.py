@@ -111,6 +111,8 @@ def main() -> int:
     ap.add_argument("--corpus", type=Path, default=REPO / "corpus_afl")
     ap.add_argument("--proto-corpus", type=Path, default=None, help="default: OUT/proto_seed")
     ap.add_argument("--timeout-ms", type=int, default=2000, help="afl-fuzz -t per exec")
+    ap.add_argument("--loop", type=int, default=None,
+                    help="AFL_RUNNER_LOOP for the sol_afl runners (persistent iterations per child; 1 = fork per input)")
     ap.add_argument("--stats-only", action="store_true")
     args = ap.parse_args()
 
@@ -128,6 +130,8 @@ def main() -> int:
     for spec in args.alloc:
         name, _, cores = spec.partition("=")
         binary, corpus, extra_env = fuzzer_setup(name, args.corpus.resolve(), proto_corpus)
+        if args.loop is not None and name.startswith("sol_afl_"):
+            extra_env["AFL_RUNNER_LOOP"] = str(args.loop)
         for path in (binary, Path(extra_env["AFL_CUSTOM_MUTATOR_LIBRARY"]), AFL_FUZZ):
             if not path.is_file():
                 sys.exit(f"missing: {path}")

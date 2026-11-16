@@ -284,7 +284,19 @@ class Entropy
 {
 public:
 	explicit Entropy(bytes const& _data): m_data(_data) {}
-	uint8_t byte() { return m_pos < m_data.size() ? m_data[m_pos++] : 0; }
+	/// Past the end, a keccak chain over the data: three call passes otherwise run out and pass all-zero arguments
+	uint8_t byte()
+	{
+		if (m_pos < m_data.size())
+			return m_data[m_pos++];
+		if (m_extensionPos == m_extension.size())
+		{
+			m_chain = keccak256(m_extension.empty() ? m_data : m_chain.asBytes());
+			m_extension = m_chain.asBytes();
+			m_extensionPos = 0;
+		}
+		return m_extension[m_extensionPos++];
+	}
 	bytes take(std::size_t _n)
 	{
 		bytes out;
@@ -295,6 +307,9 @@ public:
 private:
 	bytes const& m_data;
 	std::size_t m_pos = 0;
+	h256 m_chain;
+	bytes m_extension;
+	std::size_t m_extensionPos = 0;
 };
 
 struct AbiType
@@ -465,7 +480,8 @@ bytes encodeValue(AbiType const& _type, Entropy& _e)
 	{
 	case AbiType::Kind::Uint: return word(integer(_e, _type.size, false));
 	case AbiType::Kind::Int: return word(integer(_e, _type.size, true));
-	case AbiType::Kind::Address: return word(integer(_e, 160, false));
+	// The sender, often required to be nonzero or the owner, is EVMHost's tx_origin
+	case AbiType::Kind::Address: return word(_e.byte() % 4 == 0 ? u256("0x9292929292929292929292929292929292929292") : integer(_e, 160, false));
 	case AbiType::Kind::Bool: return word(_e.byte() & 1);
 	case AbiType::Kind::FixedBytes:
 	{
