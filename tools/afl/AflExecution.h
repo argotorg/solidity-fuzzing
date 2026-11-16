@@ -89,6 +89,9 @@ struct ContractInterface
 	std::string constructorSignature;
 	bool constructorPayable = false;
 	std::set<std::string> payableFunctions;
+	bool hasReceive = false;
+	bool hasFallback = false;
+	bool fallbackPayable = false;
 };
 
 /// Without an isoltest constructor() line, constructor arguments are generated too.

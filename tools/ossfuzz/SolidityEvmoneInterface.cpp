@@ -110,6 +110,13 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 					output.constructorSignature = "constructor(" + params + ")";
 				output.constructorPayable = entry.value("stateMutability", "") == "payable";
 			}
+			else if (entry.value("type", "") == "receive")
+				output.hasReceive = true;
+			else if (entry.value("type", "") == "fallback")
+			{
+				output.hasFallback = true;
+				output.fallbackPayable = entry.value("stateMutability", "") == "payable";
+			}
 			else if (entry.value("type", "") == "function" && entry.value("stateMutability", "") == "payable")
 			{
 				std::string params;

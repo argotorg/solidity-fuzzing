@@ -648,7 +648,7 @@ std::optional<StringMap> afl::sourceUnitsVerbatim(std::string const& _source)
 ContractInterface afl::interfaceOf(CompilerOutput const& _output)
 {
 	return {_output.methodIdentifiersInContract, _output.constructorSignature, _output.constructorPayable,
-		_output.payableFunctions};
+		_output.payableFunctions, _output.hasReceive, _output.hasFallback, _output.fallbackPayable};
 }
 
 CallPlan afl::planCalls(AflInput const& _input, ContractInterface const& _interface)
@@ -699,6 +699,10 @@ CallPlan afl::planCalls(AflInput const& _input, ContractInterface const& _interf
 			if (auto args = encodeArgs(signature, entropy))
 				plan.calls.push_back({signature + " [again]", selectorOf(signature) + *args, value(signature)});
 	}
+	if (_interface.hasReceive || _interface.hasFallback)
+		plan.calls.push_back({"<empty calldata>", {}, (_interface.hasReceive || _interface.fallbackPayable) ? u256(1 + entropy.byte()) : u256(0)});
+	if (_interface.hasFallback)
+		plan.calls.push_back({"<fallback>", bytes{0xff, 0xff, 0xff, 0xff} + entropy.take(entropy.byte() % 70), _interface.fallbackPayable ? u256(entropy.byte()) : u256(0)});
 	if (_input.rawCalldata)
 		plan.calls.push_back({"<raw calldata>", *_input.rawCalldata, 0});
 	return plan;

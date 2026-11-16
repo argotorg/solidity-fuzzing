@@ -53,6 +53,9 @@ struct CompilerOutput
 	bool constructorPayable = false;
 	/// Canonical signatures of the payable functions
 	std::set<std::string> payableFunctions;
+	bool hasReceive = false;
+	bool hasFallback = false;
+	bool fallbackPayable = false;
 };
 
 struct CompilerInput
