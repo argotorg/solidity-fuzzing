@@ -66,8 +66,8 @@ cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
 cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target evmone_external
 cmake --build "$BUILD_DIR" -j"${BUILD_JOBS:-$(nproc)}" --target sol_afl_diff_runner sol_afl_diff_runner_viair \
     sol_afl_diff_runner_viair_opt sol_afl_diff_runner_ssacfg sol_afl_diff_runner_optseq \
-    sol_afl_diff_runner_evmversion sol_afl_diff_runner_metamorphic sol_afl_ice_runner
+    sol_afl_diff_runner_evmversion sol_afl_diff_runner_metamorphic sol_afl_diff_runner_legacy_knobs sol_afl_ice_runner
 
 echo
-echo "Built: $BUILD_DIR/tools/afl/sol_afl_{diff_runner{,_viair,_viair_opt,_ssacfg,_optseq,_evmversion,_metamorphic},ice_runner}"
+echo "Built: $BUILD_DIR/tools/afl/sol_afl_{diff_runner{,_viair,_viair_opt,_ssacfg,_optseq,_evmversion,_metamorphic,_legacy_knobs},ice_runner}"
 echo "Run with: tools/afl/run_afl.sh"

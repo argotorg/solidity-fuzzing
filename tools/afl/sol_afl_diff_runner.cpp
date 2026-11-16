@@ -101,6 +101,8 @@ static constexpr Config s_configs[] = {{"ir", true, false}, {"ir-opt", true, tru
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", true, true, true}};
 #elif defined(AFL_MODE_OPTSEQ)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-random-steps", true, true, false, true}};
+#elif defined(AFL_MODE_LEGACY_KNOBS)
+static constexpr Config s_configs[] = {{"legacy", false, false}, {"legacy-opt-random-passes", false, true, false, true}};
 #elif defined(AFL_MODE_METAMORPHIC)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-identity-wrapped", true, true}};
 #elif defined(AFL_MODE_EVMVERSION)
@@ -153,9 +155,7 @@ static OptimiserSettings optimiserSettings(Config const& _config, util::h256 con
 			entropy = util::keccak256(entropy.asBytes());
 		sequence += steps[entropy[1 + i % 31] % steps.size()];
 	}
-	// Sometimes repeat a middle part until it reaches a fixpoint
-	if (entropy[30] % 4 == 0 && sequence.size() >= 4)
-		sequence = sequence.substr(0, 2) + "[" + sequence.substr(2, sequence.size() - 4) + "]" + sequence.substr(sequence.size() - 2);
+	// No `[...]` (repeat until the code stops changing): some step mixes then run for minutes
 	settings.yulOptimiserSteps = sequence;
 	util::h256 const knobs = util::keccak256(entropy.asBytes());
 	std::string cleanup;
