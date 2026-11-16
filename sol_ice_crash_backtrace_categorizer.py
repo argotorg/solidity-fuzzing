@@ -6,9 +6,13 @@ backtraces from solc, then group them by crash signature.
 For each crash-* input file given on the command line:
   1. Run sol_ice_ossfuzz with PROTO_FUZZER_DUMP_PATH=<crash>.sol so the
      protobuf input is serialized into a Solidity source file.
-  2. Run ./build/solidity/solc/solc under gdb (batch mode) on that .sol
-     file, capturing the full gdb report into <crash>.backtrace and solc's
-     own stderr into <crash>.output.
+  2. Compile that .sol with ./build/solidity/solc/solc using the input's own
+     via_ir / optimize fields (as the harness does). An ICE is captured from
+     solc's stderr; only a signal crash is re-run under gdb (batch mode) for a
+     backtrace. The report goes to <crash>.backtrace, solc's stderr to
+     <crash>.output. An input that is not an ICE -- by the same allowlist the
+     harness applies -- keeps its .sol and gets <crash>.miss with the reason;
+     the summary groups those and lists them in misses.txt.
   3. After all inputs are processed (or with --summary-only), scan every
      *.backtrace next to the inputs, compute a signature for each, and print
      the unique buckets.
@@ -42,7 +46,6 @@ MAX_EXAMPLES = 3
 
 ICE_MARKERS = (
     "Internal compiler error",
-    "UnimplementedFeatureError",
     "Solidity assertion failed",
     "Assertion `",
     "AddressSanitizer",
@@ -59,7 +62,7 @@ STDERR_SPLIT_RE = re.compile(r"^=== STDERR ===$", re.MULTILINE)
 
 def is_crash_input(p: Path) -> bool:
     """Reject our own artifacts and AFL's README, so `crashes/*` stays usable."""
-    return not p.name.endswith((".sol", ".backtrace", ".output")) and p.name != "README.txt"
+    return not p.name.endswith((".sol", ".backtrace", ".output", ".miss")) and p.name != "README.txt"
 
 
 def collect_inputs(paths: list[Path]) -> tuple[list[Path], int]:
@@ -109,7 +112,48 @@ def dump_sol(dumper: Path, crash: Path, sol_out: Path, timeout: int) -> None:
         pass
 
 
-def run_gdb(solc: Path, sol_in: Path, timeout: int):
+# Mirrors what sol_ice_ossfuzz.cpp swallows or skips, so a replay verdict matches the harness's.
+KNOWN_NON_BUG_ICES = ("FixedPointType not implemented",)
+HARNESS_MAX_SOURCE = 8000
+ERROR_LINE_RE = re.compile(r"^(?:Error|\w+Error|TIMEOUT)\b.*$", re.MULTILINE)
+
+TOP_FLAG_RE = re.compile(r"^(via_ir|optimize):\s*(true|false)\s*$", re.MULTILINE)
+
+
+def solc_flags(crash: Path) -> list[str]:
+    """The harness compiles with the proto's top-level via_ir / optimize fields."""
+    try:
+        text = crash.read_text(errors="replace")
+    except OSError:
+        text = ""
+    fields = dict(TOP_FLAG_RE.findall(text))
+    flags = ["--bin", "--no-cbor-metadata"]
+    if fields.get("optimize", "true") == "true":
+        flags.append("--optimize")
+    if fields.get("via_ir", "true") == "true":
+        flags.append("--via-ir")
+    return flags
+
+
+def run_solc(solc: Path, sol_in: Path, flags: list[str], timeout: int):
+    """Return (crashed, report, solc_stderr). gdb only for signal crashes."""
+    cmd = [str(solc), *flags, str(sol_in)]
+    try:
+        result = run_limited(cmd, timeout, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.PIPE, text=True)
+    except subprocess.TimeoutExpired as exc:
+        stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        return False, f"TIMEOUT after {timeout}s\n", stderr
+    got_ice = any(m in result.stderr for m in ICE_MARKERS) and \
+        not any(m in result.stderr for m in KNOWN_NON_BUG_ICES)
+    if result.returncode >= 0:
+        report = (f"=== solc {' '.join(flags)} exit code: {result.returncode} ===\n"
+                  f"=== STDOUT ===\n\n=== STDERR ===\n{result.stderr}\n")
+        return got_ice, report, result.stderr
+    return run_gdb(solc, sol_in, flags, timeout)
+
+
+def run_gdb(solc: Path, sol_in: Path, flags: list[str], timeout: int):
     """Return (crashed, report, solc_stderr)."""
     cmd = [
         "gdb",
@@ -123,8 +167,7 @@ def run_gdb(solc: Path, sol_in: Path, timeout: int):
         "-ex", "quit",
         "--args",
         str(solc),
-        "--optimize",
-        "--via-ir",
+        *flags,
         str(sol_in),
     ]
     try:
@@ -169,13 +212,20 @@ def process(crash: Path, dumper: Path, solc: Path, timeout: int) -> tuple[bool, 
         sol_out.unlink(missing_ok=True)
         return False, f"FAIL {crash.name}: could not dump .sol"
 
-    crashed, report, solc_stderr = run_gdb(solc, sol_out, timeout)
+    miss_out = Path(str(crash) + ".miss")
+    if sol_out.stat().st_size > HARNESS_MAX_SOURCE:
+        crashed, reason = False, f"harness skips sources > {HARNESS_MAX_SOURCE} bytes"
+    else:
+        crashed, report, solc_stderr = run_solc(solc, sol_out, solc_flags(crash), timeout)
+        m = ERROR_LINE_RE.search(solc_stderr) or ERROR_LINE_RE.search(report)
+        reason = m.group(0).strip() if m else "solc reported no error"
     if not crashed:
-        sol_out.unlink(missing_ok=True)
         backtrace_out.unlink(missing_ok=True)
         output_out.unlink(missing_ok=True)
-        return False, f"MISS {crash.name}: did not crash solc — artifacts discarded"
+        miss_out.write_text(reason + "\n")
+        return False, f"MISS {crash}: {reason[:120]}"
 
+    miss_out.unlink(missing_ok=True)
     backtrace_out.write_text(report)
     output_out.write_text(solc_stderr)
     return True, f"OK   {crash.name}"
@@ -249,8 +299,8 @@ def backfill_output(backtrace_path: Path) -> None:
 def summarize(dirs: list[Path]) -> int:
     """Group every *.backtrace under `dirs` by signature; print + write a summary."""
     backtraces = sorted({bt for d in dirs for bt in d.glob("*.backtrace")})
-    if not backtraces:
-        print(f"No *.backtrace files found in: {', '.join(str(d) for d in dirs)}", file=sys.stderr)
+    if not backtraces and not any(d.glob("*.miss") for d in dirs):
+        print(f"No *.backtrace / *.miss files found in: {', '.join(str(d) for d in dirs)}", file=sys.stderr)
         return 1
 
     buckets: dict[str, list[str]] = defaultdict(list)
@@ -280,6 +330,18 @@ def summarize(dirs: list[Path]) -> int:
             suffix = f" (+{hidden} more)" if hidden else ""
             lines.append("    others: " + ", ".join(others) + suffix)
 
+    misses = sorted({m for d in dirs for m in d.glob("*.miss")})
+    if misses:
+        by_reason: dict[str, list[Path]] = defaultdict(list)
+        for m in misses:
+            reason = m.read_text(errors="replace").strip()
+            by_reason[re.sub(r"\d+", "N", re.sub(r"\b(?:Variable|Slot)\s+\S+|\[.*", "X", reason))[:100]].append(m)
+        lines += ["", f"=== Not an ICE on this solc: {len(misses)} inputs (paths in misses.txt) ==="]
+        for reason, ms in sorted(by_reason.items(), key=lambda kv: -len(kv[1])):
+            lines.append(f"[{len(ms)}] {reason}")
+        (Path.cwd() / "misses.txt").write_text(
+            "".join(f"{str(m).removesuffix('.miss')}\t{m.read_text(errors='replace').strip()}\n" for m in misses))
+
     text = "\n".join(lines) + "\n"
     print(text)
     out = Path.cwd() / "unique_crashes.txt"
@@ -297,7 +359,7 @@ def main() -> int:
     parser.add_argument("--solc", default=str(DEFAULT_SOLC),
                         help=f"Path to solc (default: {DEFAULT_SOLC})")
     parser.add_argument("--timeout", type=int, default=120,
-                        help="Per-file gdb timeout in seconds (default: 120)")
+                        help="Per-file solc/gdb timeout in seconds (default: 120)")
     parser.add_argument("-j", "--jobs", type=int, default=DEFAULT_JOBS,
                         help=f"Crash files to process concurrently (default: {DEFAULT_JOBS})")
     parser.add_argument("--summary-only", action="store_true",
