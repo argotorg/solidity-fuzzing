@@ -15,6 +15,7 @@ yul_debug_out*/
 crash-*
 fuzz-*.log
 /build_afl
+/build_old
 /corpus_afl
 /my_corpus*
 /realworld_cache
@@ -34,7 +35,7 @@ fuzz-*.log
 # tools/ossfuzz/build_ossfuzz.sh (system protoc), so not committed.
 /tools/ossfuzz/*.pb.cc
 /tools/ossfuzz/*.pb.h
-/__pycache__
+__pycache__/
 /corpus_sol
 /corpus_yul
 /team-meeting.txt
