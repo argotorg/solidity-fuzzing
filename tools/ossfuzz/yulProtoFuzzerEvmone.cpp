@@ -282,6 +282,9 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		std::ofstream of(dump_path);
 		of.write(content.data(), static_cast<std::streamsize>(content.size()));
 	}
+	// The executed calldata, i.e. after protoToYul's sanitization -- not the raw proto bytes.
+	if (const char* dump_path = getenv("PROTO_FUZZER_DUMP_CALLDATA_PATH"))
+		std::ofstream(dump_path) << util::toHex(calldata) << "\n";
 
 	YulStringRepository::reset();
 

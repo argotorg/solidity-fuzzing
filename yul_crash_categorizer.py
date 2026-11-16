@@ -5,9 +5,10 @@ Group a yul fuzzer crash corpus into unique bugs.
 For each crash input:
   1. Replay it through the matching fuzzer binary with PROTO_FUZZER_DUMP_PATH /
      PROTO_FUZZER_DUMP_SEQ_PATH set, writing <crash>.yul, <crash>.seq and the
-     fuzzer's own stderr to <crash>.err.  The calldata is read straight out of
-     the (text-format) protobuf input into <crash>.calldata -- the fuzzer does
-     not dump it, and without it the replay executes a different program.
+     fuzzer's own stderr to <crash>.err.  The fuzzer dumps the calldata it actually
+     executes (sanitized by protoToYul) to <crash>.calldata via
+     PROTO_FUZZER_DUMP_CALLDATA_PATH; without it the replay executes a
+     different program.
   2. Derive a signature from (a) the assertion text the harness threw and
      (b) a hash of the Yul source with literals and identifier numbering
      normalized away, so re-discoveries of the same bug collapse together.
@@ -162,7 +163,10 @@ def dump(crash: Path, dumper: Path, sel: str, timeout: int) -> str:
     """Run the fuzzer on the input; write the artifacts, return its stderr."""
     yul_out = Path(f"{crash}.yul")
     seq_out = Path(f"{crash}.seq")
-    env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(yul_out)}
+    cd_out = Path(f"{crash}.calldata")
+    cd_out.unlink(missing_ok=True)
+    env = {**os.environ, "PROTO_FUZZER_DUMP_PATH": str(yul_out),
+           "PROTO_FUZZER_DUMP_CALLDATA_PATH": str(cd_out)}
     if sel not in VALID_PASSES:
         env["PROTO_FUZZER_DUMP_SEQ_PATH"] = str(seq_out)
     try:
@@ -177,7 +181,9 @@ def dump(crash: Path, dumper: Path, sel: str, timeout: int) -> str:
             partial = partial.decode(errors="replace")
         err = partial + f"\nTIMEOUT after {timeout}s\n"
     Path(f"{crash}.err").write_text(err)
-    Path(f"{crash}.calldata").write_text(calldata_of(crash) + "\n")
+    if not cd_out.is_file():
+        # Older fuzzer build without the calldata dump: raw proto bytes, unsanitized.
+        cd_out.write_text(calldata_of(crash) + "\n")
     return err
 
 
@@ -194,7 +200,8 @@ def replay(crash: Path, sel: str, timeout: int, work_root: Path) -> int | None:
         seq_args = ["--optimizer-sequence", seq, "--optimizer-cleanup-sequence", cleanup]
     else:
         seq_args = []
-    calldata = calldata_of(crash)
+    cd_path = Path(f"{crash}.calldata")
+    calldata = cd_path.read_text().strip() if cd_path.is_file() else calldata_of(crash)
     cd_args = ["--calldata", calldata] if calldata else []
     cmd = [str(RUNNER), "--verbose", *seq_args, *cd_args, str(yul_out.resolve())]
     # Per-task cwd: parallel runners would otherwise collide on yul_debug_output-N.
