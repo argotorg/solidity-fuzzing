@@ -23,6 +23,7 @@
 
 #include <tools/ossfuzz/FuzzerDiffCommon.h>
 #include <tools/common/EVMHost.h>
+#include <tools/ossfuzz/SolidityEvmoneInterface.h>
 
 #include <libsolutil/CommonData.h>
 #include <libsolutil/FixedHash.h>
@@ -38,11 +39,6 @@
 namespace solidity::frontend
 {
 class CompilerStack;
-}
-
-namespace solidity::test::fuzzer
-{
-struct CompilerOutput;
 }
 
 namespace solidity::test::fuzzer::afl
@@ -125,14 +121,14 @@ struct Execution
 constexpr int64_t deployGas = 30'000'000;
 constexpr int64_t callGas = 10'000'000;
 
-/// Deploys the @param _libraries first (in name order, so both configs create them alike) and links them into
-/// @param _bytecode at @param _linkReferences
+/// Deploys @param _libraries at fixed addresses derived from their names, links them into each other and into
+/// @param _bytecode (at @param _linkReferences), then deploys that
 Execution execute(
 	EVMHost& _host,
 	bytes const& _bytecode,
 	CallPlan const& _plan,
 	std::map<std::size_t, std::string> const& _linkReferences = {},
-	std::map<std::string, bytes> const& _libraries = {}
+	std::map<std::string, CompilerOutput::Library> const& _libraries = {}
 );
 
 struct Comparison

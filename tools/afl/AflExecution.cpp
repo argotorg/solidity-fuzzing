@@ -26,6 +26,7 @@
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
+#include <iostream>
 #include <limits>
 #include <random>
 #include <cctype>
@@ -713,29 +714,37 @@ Execution afl::execute(
 	bytes const& _bytecode,
 	CallPlan const& _plan,
 	std::map<std::size_t, std::string> const& _linkReferences,
-	std::map<std::string, bytes> const& _libraries
+	std::map<std::string, CompilerOutput::Library> const& _libraries
 )
 {
 	Execution out;
 	evmc::address const sender = _host.tx_context.tx_origin;
 	_host.accounts[sender].set_balance(std::numeric_limits<uint64_t>::max());
 
-	bytes linked = _bytecode;
-	if (!_linkReferences.empty())
+	auto addressOf = [](std::string const& _name) {
+		evmc::address address;
+		h256 const hash = keccak256("afl library " + _name);
+		std::copy(hash.data() + 12, hash.data() + 32, address.bytes);
+		return address;
+	};
+	auto link = [&](bytes _code, std::map<std::size_t, std::string> const& _references) {
+		for (auto const& [offset, name]: _references)
+			if (_libraries.contains(name) && offset + 20 <= _code.size())
+			{
+				evmc::address const address = addressOf(name);
+				std::copy(address.bytes, address.bytes + 20, _code.begin() + static_cast<std::ptrdiff_t>(offset));
+			}
+		return _code;
+	};
+	for (auto const& [name, library]: _libraries)
 	{
-		std::map<std::string, evmc::address> addresses;
-		for (auto const& [name, code]: _libraries)
-		{
-			evmc_message deploy = EvmoneUtility::initializeMessage(code, deployGas);
-			deploy.kind = EVMC_CREATE;
-			deploy.sender = sender;
-			evmc::Result result = _host.call(deploy);
-			if (result.status_code == EVMC_SUCCESS)
-				addresses[name] = result.create_address;
-		}
-		for (auto const& [offset, name]: _linkReferences)
-			if (auto it = addresses.find(name); it != addresses.end() && offset + 20 <= linked.size())
-				std::copy(it->second.bytes, it->second.bytes + 20, linked.begin() + static_cast<std::ptrdiff_t>(offset));
+		evmc::Result result = _host.deployAt(addressOf(name), link(library.byteCode, library.linkReferences), deployGas);
+		if (std::getenv("AFL_RUNNER_VERBOSE"))
+			std::cerr << "library " << name << ": " << result.status_code << ", " << library.byteCode.size() << " bytes\n";
+	}
+	bytes const linked = link(_bytecode, _linkReferences);
+	if (!_libraries.empty())
+	{
 		_host.newTransaction();
 		_host.m_subCalls.clear();
 	}
@@ -870,7 +879,16 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 		else if (!outputEqual(a.output.data(), a.output.size(), orderA, b.output.data(), b.output.size(), orderB))
 			out.differences.push_back(call + (a.status == EVMC_SUCCESS ? " output differs" : " revert data differs"));
 		if (a.status == b.status && normalizedSubCalls(a.subCalls, orderA) != normalizedSubCalls(b.subCalls, orderB))
+		{
 			out.differences.push_back(call + " outgoing calls differ");
+			if (char const* v = std::getenv("AFL_RUNNER_VERBOSE"); v && std::string(v) == "3")
+				for (auto const* calls: {&a.subCalls, &b.subCalls})
+				{
+					std::cerr << call << " outgoing calls (kind:depth:value:recipient:input):\n";
+					for (auto const& key: normalizedSubCalls(*calls, calls == &a.subCalls ? orderA : orderB))
+						std::cerr << "  " << key << "\n";
+				}
+		}
 		if (!transientStorageEqual(a.transientStorage, orderA, b.transientStorage, orderB))
 			out.differences.push_back(call + " transient storage differs");
 		if (a.storage && b.storage)

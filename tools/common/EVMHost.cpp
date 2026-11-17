@@ -1512,3 +1512,22 @@ void EVMHostPrinter::callRecords()
 			<< m_host.convertFromEVMC(record.value)
 			<< std::endl;
 }
+
+evmc::Result EVMHost::deployAt(evmc::address const& _address, bytes const& _initCode, int64_t _gas) noexcept
+{
+	evmc_message message{};
+	message.kind = EVMC_CREATE;
+	message.gas = _gas;
+	message.sender = tx_context.tx_origin;
+	message.recipient = _address;
+	accounts.try_emplace(message.sender);
+	accounts[_address].nonce = 1;
+	evmc::Result result = m_vm.execute(*this, m_evmRevision, message, _initCode.data(), _initCode.size());
+	if (result.status_code == EVMC_SUCCESS)
+	{
+		auto& account = accounts[_address];
+		account.code = evmc::bytes(result.output_data, result.output_data + result.output_size);
+		account.codehash = convertToEVMC(keccak256({result.output_data, result.output_size}));
+	}
+	return result;
+}

@@ -77,6 +77,8 @@ DIFF_ASSERT_BUCKETS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"transient storage differs"), "diff:tstorage"),
     (re.compile(r"storage differs"),      "diff:storage"),
     (re.compile(r"revert data differs"),  "diff:revert"),
+    (re.compile(r"outgoing calls differ"), "diff:outgoing-calls"),
+    (re.compile(r"balances differ"),      "diff:balances"),
 ]
 
 # Common solc-internal assertion / exception strings for further sub-bucketing

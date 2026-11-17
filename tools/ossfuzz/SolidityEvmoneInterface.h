@@ -58,8 +58,13 @@ struct CompilerOutput
 	bool fallbackPayable = false;
 	/// Unlinked library references in byteCode: offset -> fully qualified library name
 	std::map<size_t, std::string> linkReferences;
-	/// Bytecode of each referenced library that needs no linking itself
-	std::map<std::string, solidity::bytes> libraries;
+	struct Library
+	{
+		solidity::bytes byteCode;
+		std::map<size_t, std::string> linkReferences;
+	};
+	/// Every library of the compilation, if byteCode references any
+	std::map<std::string, Library> libraries;
 };
 
 struct CompilerInput

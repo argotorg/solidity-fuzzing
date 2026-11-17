@@ -64,6 +64,11 @@ public:
 	// Modified features of MockedHost.
 	bool selfdestruct(evmc::address const& _addr, evmc::address const& _beneficiary) noexcept final;
 	evmc::Result call(evmc_message const& _message) noexcept final;
+
+	/// Runs @param _initCode as a creation at the fixed address @param _address and installs the returned code there,
+	/// outside the creation order: for libraries, whose CREATE address would otherwise depend on how many of them a
+	/// config's bytecode happens to reference.
+	evmc::Result deployAt(evmc::address const& _address, bytes const& _initCode, int64_t _gas) noexcept;
 	evmc::bytes32 get_block_hash(int64_t number) const noexcept final;
 	size_t get_code_size(evmc::address const& _addr) const noexcept final;
 	evmc::bytes32 get_code_hash(evmc::address const& _addr) const noexcept final;

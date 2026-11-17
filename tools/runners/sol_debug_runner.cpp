@@ -98,7 +98,7 @@ struct ConfigRunResult
 	/// to mask internal-function-pointer fields in the differential check.
 	std::map<h256, Json> storageLayouts;
 	std::map<size_t, std::string> linkReferences;
-	std::map<std::string, bytes> libraries;
+	std::map<std::string, CompilerOutput::Library> libraries;
 	std::map<evmc::address, h256> accountCodeHashes;
 	/// --afl: the shared call-plan execution sol_afl_diff_runner compares
 	std::optional<afl::Execution> aflExecution;

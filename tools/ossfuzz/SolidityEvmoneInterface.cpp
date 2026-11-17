@@ -101,9 +101,12 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 		}
 		CompilerOutput output{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
 		output.linkReferences = obj.linkReferences;
-		for (auto const& [_, library]: obj.linkReferences)
-			if (!output.libraries.contains(library) && m_compiler.object(library).linkReferences.empty())
-				output.libraries[library] = m_compiler.object(library).bytecode;
+		// Every library, not just the referenced ones: which libraries a bytecode references depends on the optimizer
+		// (a dead reference may survive)
+		if (!obj.linkReferences.empty())
+			for (std::string const& name: m_compiler.contractNames())
+				if (m_compiler.contractDefinition(name).isLibrary())
+					output.libraries[name] = {m_compiler.object(name).bytecode, m_compiler.object(name).linkReferences};
 		for (solidity::Json const& entry: m_compiler.contractABI(contractName))
 			if (entry.value("type", "") == "constructor")
 			{
