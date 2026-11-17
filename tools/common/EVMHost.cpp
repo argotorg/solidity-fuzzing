@@ -220,6 +220,7 @@ void EVMHost::reset()
 	recorded_account_accesses.clear();
 	m_newlyCreatedAccounts.clear();
 	m_contractCreationOrder.clear();
+	m_fixedAddressDeployments.clear();
 	m_subCalls.clear();
 	m_totalCodeDepositGas = 0;
 	m_subCallOutOfGas = false;
@@ -547,14 +548,14 @@ bool isDeployedContract(
 size_t EVMHost::get_code_size(evmc::address const& _addr) const noexcept
 {
 	size_t const size = MockedHost::get_code_size(_addr);
-	if (size != 0 && isDeployedContract(m_contractCreationOrder, _addr))
+	if (size != 0 && (isDeployedContract(m_contractCreationOrder, _addr) || isDeployedContract(m_fixedAddressDeployments, _addr)))
 		return 24576;
 	return size;
 }
 
 evmc::bytes32 EVMHost::get_code_hash(evmc::address const& _addr) const noexcept
 {
-	if (isDeployedContract(m_contractCreationOrder, _addr))
+	if (isDeployedContract(m_contractCreationOrder, _addr) || isDeployedContract(m_fixedAddressDeployments, _addr))
 		m_readsDeployedCode = true;
 	return MockedHost::get_code_hash(_addr);
 }
@@ -569,7 +570,7 @@ size_t EVMHost::copy_code(
 	// evmone reads the first 23 bytes of every call target to look for an EIP-7702 delegation
 	// designator (lib/evmone/delegation.cpp); that is not the contract observing its bytecode.
 	bool const delegationCheck = _code_offset == 0 && _buffer_size == 23;
-	if (!delegationCheck && isDeployedContract(m_contractCreationOrder, _addr))
+	if (!delegationCheck && (isDeployedContract(m_contractCreationOrder, _addr) || isDeployedContract(m_fixedAddressDeployments, _addr)))
 		m_readsDeployedCode = true;
 	return MockedHost::copy_code(_addr, _code_offset, _buffer_data, _buffer_size);
 }
@@ -1522,6 +1523,7 @@ evmc::Result EVMHost::deployAt(evmc::address const& _address, bytes const& _init
 	message.recipient = _address;
 	accounts.try_emplace(message.sender);
 	accounts[_address].nonce = 1;
+	m_fixedAddressDeployments.push_back(_address);
 	evmc::Result result = m_vm.execute(*this, m_evmRevision, message, _initCode.data(), _initCode.size());
 	if (result.status_code == EVMC_SUCCESS)
 	{

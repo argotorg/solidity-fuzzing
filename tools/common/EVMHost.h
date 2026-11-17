@@ -133,6 +133,8 @@ public:
 	/// Used for semantic storage comparison: different bytecodes produce different CREATE2 addresses,
 	/// so we compare storage by creation index rather than by sorted address.
 	std::vector<evmc::address> m_contractCreationOrder;
+	/// Contracts installed by deployAt(); their code differs by config just like the created ones'
+	std::vector<evmc::address> m_fixedAddressDeployments;
 
 	/// True if the running contract performed code introspection
 	/// (EXTCODESIZE / EXTCODECOPY / EXTCODEHASH) on any address that we
