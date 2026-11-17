@@ -88,9 +88,6 @@ include_directories(${CMAKE_SOURCE_DIR}/solidity)
 # Our own EVMHost with fuzzing-specific extensions (m_subCallOutOfGas, m_contractCreationOrder)
 set(EVMHOST_CPP ${CMAKE_SOURCE_DIR}/tools/common/EVMHost.cpp)
 
-# Path to TestCaseReader.cpp in the solidity submodule
-set(TESTCASEREADER_CPP ${CMAKE_SOURCE_DIR}/solidity/test/TestCaseReader.cpp)
-
 # --- evmc ABI consistency between solidity and evmone ---
 # EVMHost.cpp is compiled against solidity's vendored evmc headers but executes on evmone,
 # which vendors its own copy. Both must agree: EVMC_ABI_VERSION gates the struct layouts, and

@@ -29,8 +29,7 @@ Binary: `yul_proto_ossfuzz_evmone_single_pass_<abbr>` — one per pass, with the
 ### 2. libevmasm Peephole Optimizer Differential
 
 `libevmasm/PeepholeOptimiser.cpp` + `CommonSubexpressionEliminator.cpp` +
-`BlockDeduplicator.cpp` operate on EVM assembly items (below Yul level). The
-existing `const_opt_ossfuzz` only covers ConstantOptimiser.
+`BlockDeduplicator.cpp` operate on EVM assembly items (below Yul level).
 
 Approach: generate Assembly items (from compiling random Yul), run with peephole
 on vs off, compare evmone execution. Tests the lowest-level optimization layer.

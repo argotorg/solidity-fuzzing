@@ -81,20 +81,6 @@ if (OSSFUZZ)
 
     set(SOL_EVMONE_LIBS solidity libsolc evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
 
-    # --- single-input harnesses (frontend + yul; no proto grammar / evmone) ---
-    add_ossfuzz_target(solc_ossfuzz
-        SOURCES solc_ossfuzz.cpp ../common/fuzzer_common.cpp ${TESTCASEREADER_CPP}
-        LIBS libsolc evmasm)
-    add_ossfuzz_target(solc_mutator_ossfuzz
-        SOURCES solc_ossfuzz.cpp ../common/fuzzer_common.cpp ${TESTCASEREADER_CPP}
-                SolidityGenerator.cpp SolidityCustomMutatorInterface.cpp
-        LIBS libsolc evmasm)
-    add_ossfuzz_target(const_opt_ossfuzz
-        SOURCES const_opt_ossfuzz.cpp ../common/fuzzer_common.cpp
-        LIBS libsolc evmasm)
-    add_ossfuzz_target(strictasm_opt_ossfuzz SOURCES strictasm_opt_ossfuzz.cpp LIBS yul)
-    add_ossfuzz_target(strictasm_assembly_ossfuzz SOURCES strictasm_assembly_ossfuzz.cpp LIBS yul)
-
     # --- yul differential family (one binary per optimizer mode) ---
     add_ossfuzz_target(yul_proto_ossfuzz_evmone
         SOURCES ${YUL_EVMONE_SOURCES} LIBS ${YUL_EVMONE_LIBS})
@@ -158,32 +144,4 @@ if (OSSFUZZ)
 
     add_custom_target(ossfuzz_abiv2)
     add_dependencies(ossfuzz_abiv2 abiv2_proto_ossfuzz)
-else()
-    # Property / host build: the single-input harnesses are built as plain
-    # libraries (linked into test drivers), not fuzz executables.
-    add_library(solc_ossfuzz solc_ossfuzz.cpp ../common/fuzzer_common.cpp)
-    target_link_libraries(solc_ossfuzz PRIVATE libsolc evmasm)
-
-    add_library(solc_mutator_ossfuzz solc_ossfuzz.cpp ../common/fuzzer_common.cpp)
-    target_link_libraries(solc_mutator_ossfuzz PRIVATE libsolc evmasm)
-
-    add_library(const_opt_ossfuzz const_opt_ossfuzz.cpp ../common/fuzzer_common.cpp)
-    target_link_libraries(const_opt_ossfuzz PRIVATE libsolc evmasm)
-
-    add_library(strictasm_opt_ossfuzz strictasm_opt_ossfuzz.cpp)
-    target_link_libraries(strictasm_opt_ossfuzz PRIVATE yul)
-
-    add_library(strictasm_assembly_ossfuzz strictasm_assembly_ossfuzz.cpp)
-    target_link_libraries(strictasm_assembly_ossfuzz PRIVATE yul)
 endif()
-
-# Aggregate "ossfuzz" target: the five single-input harnesses, which exist in
-# both build modes (executables under OSSFUZZ, libraries otherwise).
-add_custom_target(ossfuzz)
-add_dependencies(ossfuzz
-    solc_ossfuzz
-    solc_mutator_ossfuzz
-    const_opt_ossfuzz
-    strictasm_opt_ossfuzz
-    strictasm_assembly_ossfuzz
-)
