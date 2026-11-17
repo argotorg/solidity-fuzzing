@@ -26,6 +26,7 @@
 #include <libsolutil/Keccak256.h>
 
 #include <algorithm>
+#include <set>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -1018,6 +1019,88 @@ bool reachesInlineAssembly(CompilerStack const& _compiler)
 }
 }
 
+namespace
+{
+/// Variables an expression writes (assignment, ++/--, delete) and reads
+struct Accesses: ASTConstVisitor
+{
+	std::set<Declaration const*> written;
+	std::set<Declaration const*> read;
+	static Declaration const* variable(Expression const& _e)
+	{
+		if (auto const* identifier = dynamic_cast<Identifier const*>(&_e))
+			return identifier->annotation().referencedDeclaration;
+		return nullptr;
+	}
+	bool visit(Assignment const& _assignment) override
+	{
+		if (auto const* var = variable(_assignment.leftHandSide()))
+			written.insert(var);
+		return true;
+	}
+	bool visit(UnaryOperation const& _operation) override
+	{
+		if (_operation.getOperator() == langutil::Token::Inc || _operation.getOperator() == langutil::Token::Dec ||
+			_operation.getOperator() == langutil::Token::Delete)
+			if (auto const* var = variable(_operation.subExpression()))
+				written.insert(var);
+		return true;
+	}
+	bool visit(Identifier const& _identifier) override
+	{
+		if (!_identifier.annotation().willBeWrittenTo)
+			read.insert(_identifier.annotation().referencedDeclaration);
+		return false;
+	}
+};
+
+/// Legacy and IR evaluate operands, arguments and tuple components in different orders (the order is unspecified),
+/// which is observable when one of them writes a variable another one reads
+struct OrderSensitive: ASTConstVisitor
+{
+	bool found = false;
+	void check(std::vector<Expression const*> const& _parts)
+	{
+		std::vector<Accesses> accesses(_parts.size());
+		for (std::size_t i = 0; i < _parts.size(); ++i)
+			if (_parts[i])
+				_parts[i]->accept(accesses[i]);
+		for (std::size_t i = 0; i < _parts.size(); ++i)
+			for (std::size_t j = 0; j < _parts.size(); ++j)
+				if (i != j)
+					for (auto const* var: accesses[i].written)
+						if (accesses[j].read.contains(var) || accesses[j].written.contains(var))
+							found = true;
+	}
+	bool visit(BinaryOperation const& _operation) override
+	{
+		check({&_operation.leftExpression(), &_operation.rightExpression()});
+		return !found;
+	}
+	bool visit(FunctionCall const& _call) override
+	{
+		std::vector<Expression const*> parts{&_call.expression()};
+		for (auto const& argument: _call.arguments())
+			parts.push_back(argument.get());
+		check(parts);
+		return !found;
+	}
+	bool visit(TupleExpression const& _tuple) override
+	{
+		std::vector<Expression const*> parts;
+		for (auto const& component: _tuple.components())
+			parts.push_back(component.get());
+		check(parts);
+		return !found;
+	}
+	bool visit(Assignment const& _assignment) override
+	{
+		check({&_assignment.leftHandSide(), &_assignment.rightHandSide()});
+		return !found;
+	}
+};
+}
+
 std::optional<std::string> afl::configDependentSemantics(
 	CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer)
 {
@@ -1029,6 +1112,13 @@ std::optional<std::string> afl::configDependentSemantics(
 				return "compares internal function pointers";
 	if (!_legacyVsIR)
 		return std::nullopt;
+	for (std::string const& source: _compiler.sourceNames())
+	{
+		OrderSensitive order;
+		_compiler.ast(source).accept(order);
+		if (order.found)
+			return "an operand writes a variable another operand reads (evaluation order)";
+	}
 	for (std::string const& name: _compiler.contractNames())
 	{
 		// Legacy runs each contract's initializers right before its constructor, base first; IR runs all
