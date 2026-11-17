@@ -110,7 +110,8 @@ def main() -> int:
     ap.add_argument("--duration", type=int, default=3600, help="seconds (afl-fuzz -V)")
     ap.add_argument("--corpus", type=Path, default=REPO / "corpus_afl")
     ap.add_argument("--proto-corpus", type=Path, default=None, help="default: OUT/proto_seed")
-    ap.add_argument("--timeout-ms", type=int, default=2000, help="afl-fuzz -t per exec")
+    ap.add_argument("--timeout-ms", type=int, default=5000,
+                    help="afl-fuzz -t per exec (real-world bundles take >1 s to compile via IR)")
     ap.add_argument("--loop", type=int, default=None,
                     help="AFL_RUNNER_LOOP for the sol_afl runners (persistent iterations per child; 1 = fork per input)")
     ap.add_argument("--stats-only", action="store_true")
