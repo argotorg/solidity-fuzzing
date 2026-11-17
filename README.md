@@ -80,9 +80,7 @@ fuzzers into `build_afl/`. See [tools/ossfuzz](tools/ossfuzz/README.md).
 echo core | sudo tee /proc/sys/kernel/core_pattern   # one-time, AFL needs it
 
 # Protobuf fuzzers — afl-fuzz + the matching LPM grammar mutator:
-tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone corpus_sol
 tools/ossfuzz/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone corpus_yul
-tools/ossfuzz/run_ossfuzz_afl.sh sol_ice_ossfuzz seeds_sol_ice
 
 # Differential .sol fuzzer (afl-ts AST mutator); MODE picks the oracle, default
 # sol_afl_diff_runner_viair (legacy vs via-IR), see tools/afl/README.md:
@@ -90,22 +88,18 @@ tools/afl/run_afl.sh                 # or run_afl_parallel.sh -j 8
 
 # Fixed-duration campaign over several fuzzers at once, then a stats table:
 tools/afl/run_campaign.py --duration 3600 -o results/run1 \
-    sol_afl_diff_runner_viair=16 sol_afl_ice_runner=6 sol_proto_ossfuzz_evmone_viair=8
+    sol_afl_diff_runner_viair=16 sol_afl_ice_runner=6 yul_proto_ossfuzz_evmone=8
 ```
 
 ## Generative fuzzer ("ossfuzz") triage
 
 ```bash
 ./yul_crash_categorizer.py results/639-yul_proto_ossfuzz_evmone_ssacfg/findings/*/crashes/
-./sol_crash_categorizer.py results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
-./sol_ice_crash_backtrace_categorizer.py results/643-sol_ice_ossfuzz/findings/*/crashes
 ```
 
 Without categorization:
 ```bash
-run_ice_crashes.py
-./run_sol_crashes.py --fuzzer build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
-./run_yul_crashes.py ./results/637-sol_proto_ossfuzz_evmone_viair/findings/*/crashes/
+./run_yul_crashes.py ./results/639-yul_proto_ossfuzz_evmone_ssacfg/findings/*/crashes/
 ```
 
 

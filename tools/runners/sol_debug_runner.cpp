@@ -16,7 +16,7 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 /**
- * Standalone debug tool that reproduces the sol_proto_ossfuzz_evmone fuzzer's
+ * Standalone debug tool that reproduces the differential
  * compile-deploy-execute flow on a .sol file. Runs all 4 configurations
  * ({noOpt, opt} x {viaIR=true, viaIR=false}) and dumps bytecodes, logs,
  * storage, and output for debugging differential testing failures.

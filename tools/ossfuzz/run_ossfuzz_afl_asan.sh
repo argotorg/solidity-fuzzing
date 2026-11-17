@@ -67,9 +67,7 @@ fi
 # --- fuzzer -> grammar base, and base -> fully-qualified message type --------
 # (bases + types kept in sync with tools/ossfuzz/build_ossfuzz.sh)
 case "$FUZZER" in
-  sol_proto_ossfuzz_evmone*|sol_ice_ossfuzz*) BASE=sol2Proto ;;
   yul_proto_ossfuzz_evmone*)                 BASE=yulProto ;;
-  sol_proto_ossfuzz_nondiff)                 BASE=solProto ;;
   shuffler_proto_ossfuzz)                    BASE=shufflerProto ;;
   sol_recstruct_alias_ossfuzz)               BASE=solRecStructAliasProto ;;
   sol_roundtrip_ossfuzz)                     BASE=solRoundtripProto ;;
@@ -77,9 +75,7 @@ case "$FUZZER" in
   *) echo "unknown fuzzer: $FUZZER" >&2; exit 1 ;;
 esac
 case "$BASE" in
-  sol2Proto)              TYPE="solidity::test::sol2protofuzzer::Program" ;;
   yulProto)               TYPE="solidity::yul::test::yul_fuzzer::Program" ;;
-  solProto)               TYPE="solidity::test::solprotofuzzer::Program" ;;
   shufflerProto)          TYPE="solidity::yul::test::shuffler_fuzzer::ShuffleInput" ;;
   solRecStructAliasProto) TYPE="solidity::test::solrecstructalias::Program" ;;
   solRoundtripProto)      TYPE="solidity::test::solroundtrip::Program" ;;

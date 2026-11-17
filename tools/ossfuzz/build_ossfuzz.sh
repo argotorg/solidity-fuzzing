@@ -30,9 +30,7 @@ fi
 # Each proto grammar: <basename> <fully-qualified top message type>. The
 # harnesses share these grammars; one mutator .so is built per grammar.
 GRAMMARS=(
-  "sol2Proto solidity::test::sol2protofuzzer::Program"
   "yulProto solidity::yul::test::yul_fuzzer::Program"
-  "solProto solidity::test::solprotofuzzer::Program"
   "shufflerProto solidity::yul::test::shuffler_fuzzer::ShuffleInput"
   "solRecStructAliasProto solidity::test::solrecstructalias::Program"
   "solRoundtripProto solidity::test::solroundtrip::Program"

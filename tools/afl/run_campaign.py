@@ -3,13 +3,13 @@
 
 Usage:
   tools/afl/run_campaign.py --duration 3600 -o OUT sol_afl_diff_runner_viair=16 sol_afl_ice_runner=6 \\
-      sol_proto_ossfuzz_evmone_viair=8
+      yul_proto_ossfuzz_evmone=8
   tools/afl/run_campaign.py --stats-only -o OUT
 
 Each NAME=CORES gets one -M main plus CORES-1 -S secondaries syncing through OUT/NAME. `sol_afl_*` names run
 the tree-sitter mutator over --corpus; anything else is a proto fuzzer from build_afl/tools/ossfuzz with its
-LPM mutator. Triage afterwards: run_afl_crashes.py OUT/<sol_afl mode> --mode <mode>, sol_crash_categorizer.py /
-sol_ice_crash_backtrace_categorizer.py for the proto ones.
+LPM mutator. Triage afterwards: run_afl_crashes.py OUT/<sol_afl mode> --mode <mode>, run_yul_crashes.py for
+the yul proto ones.
 """
 import argparse
 import os
@@ -22,8 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 AFL_FUZZ = REPO / "AFLplusplus" / "afl-fuzz"
-LPM_GRAMMAR = [("sol_proto_ossfuzz_evmone", "sol2Proto"), ("sol_ice_ossfuzz", "sol2Proto"),
-               ("yul_proto_ossfuzz_evmone", "yulProto"), ("sol_proto_ossfuzz_nondiff", "solProto"),
+LPM_GRAMMAR = [("yul_proto_ossfuzz_evmone", "yulProto"),
                ("shuffler_proto_ossfuzz", "shufflerProto"), ("sol_recstruct_alias_ossfuzz", "solRecStructAliasProto"),
                ("sol_roundtrip_ossfuzz", "solRoundtripProto"), ("abiv2_proto_ossfuzz", "abiV2Proto")]
 STAT_KEYS = ["execs_done", "execs_per_sec", "corpus_count", "bitmap_cvg", "saved_crashes", "saved_hangs", "stability"]

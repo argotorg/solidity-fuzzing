@@ -5,7 +5,7 @@
 #   tools/ossfuzz/run_ossfuzz_afl.sh --resume <fuzzer> [findings_dir]
 #
 # <fuzzer> is the binary name under build_afl/tools/ossfuzz/, e.g.
-# sol_proto_ossfuzz_evmone. The corpus dir must hold at least one non-empty
+# yul_proto_ossfuzz_evmone. The corpus dir must hold at least one non-empty
 # seed. With --resume, AFL re-reads its own findings dir (afl-fuzz -i-) and
 # continues from the existing queue — no corpus dir needed.
 #
@@ -44,9 +44,7 @@ fi
 
 # Map fuzzer -> grammar -> mutator .so.
 case "$FUZZER" in
-  sol_proto_ossfuzz_evmone*|sol_ice_ossfuzz*) base=sol2Proto ;;
   yul_proto_ossfuzz_evmone*)                 base=yulProto ;;
-  sol_proto_ossfuzz_nondiff)                 base=solProto ;;
   shuffler_proto_ossfuzz)                    base=shufflerProto ;;
   sol_recstruct_alias_ossfuzz)               base=solRecStructAliasProto ;;
   sol_roundtrip_ossfuzz)                     base=solRoundtripProto ;;

@@ -48,7 +48,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import sol_crash_categorizer  # noqa: E402
+import sol_noise_classes  # noqa: E402
 
 AFL_BIN_DIR = Path("./build/tools/afl").resolve()
 DIFF_RUNNER = AFL_BIN_DIR / "sol_afl_diff_runner"
@@ -323,8 +323,8 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
     diff_cat, diff_detail = parse_diff_runner_outcome(diff_rc, diff_out)
     noise = ""
     if diff_cat.startswith("crash:abort:diff:"):
-        noise = sol_crash_categorizer.noise_class("", src.decode("utf-8", errors="replace"))
-        noise = "" if noise == sol_crash_categorizer.CANDIDATE else noise
+        noise = sol_noise_classes.noise_class("", src.decode("utf-8", errors="replace"))
+        noise = "" if noise == sol_noise_classes.CANDIDATE else noise
 
     # 2. Debug runner — multi-config cross-check.
     debug_cmd = [str(DEBUG_RUNNER), "--afl", "--quiet", str(crash)]
@@ -366,7 +366,7 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
     for r in rows:
         # Joint category — the diff runner's verdict is primary; the debug
         # runner's verdict is appended for cross-check.
-        # Known-noise classes (sol_crash_categorizer.NOISE_CLASSES) sort after the candidates
+        # Known-noise classes (sol_noise_classes.NOISE_CLASSES) sort after the candidates
         cat = r["diff_cat"] + (f" [noise:{r['noise']}]" if r.get("noise") else "")
         counts[cat] = counts.get(cat, 0) + 1
         by_cat.setdefault(cat, []).append(r)

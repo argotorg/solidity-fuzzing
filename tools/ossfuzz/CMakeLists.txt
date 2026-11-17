@@ -74,15 +74,11 @@ if (OSSFUZZ)
         endif()
     endfunction()
 
-    # Shared source / library sets for the two big differential families.
     set(YUL_EVMONE_SOURCES
         yulProtoFuzzerEvmone.cpp FuzzerDiffCommon.cpp protoToYul.cpp
         yulProto.pb.cc ${EVMHOST_CPP} YulEvmoneInterface.cpp)
     set(YUL_EVMONE_LIBS yul evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
 
-    set(SOL2_EVMONE_SOURCES
-        solProtoFuzzer2.cpp FuzzerDiffCommon.cpp SolidityEvmoneInterface.cpp
-        protoToSol2.cpp sol2Proto.pb.cc ${EVMHOST_CPP})
     set(SOL_EVMONE_LIBS solidity libsolc evmc ${FUZZ_EVMONE_LIBS} ${FUZZ_PROTO_LIBS})
 
     # --- single-input harnesses (frontend + yul; no proto grammar / evmone) ---
@@ -118,28 +114,6 @@ if (OSSFUZZ)
             DEFINES FUZZER_MODE_SINGLE_PASS FUZZER_SINGLE_PASS_CHAR="${pass}")
     endforeach()
 
-    # --- sol differential family (sol2 grammar) ---
-    add_ossfuzz_target(sol_proto_ossfuzz_evmone
-        SOURCES ${SOL2_EVMONE_SOURCES} LIBS ${SOL_EVMONE_LIBS})
-    add_ossfuzz_target(sol_proto_ossfuzz_evmone_viair
-        SOURCES ${SOL2_EVMONE_SOURCES} LIBS ${SOL_EVMONE_LIBS} DEFINES FUZZER_MODE_VIAIR)
-
-    # frontend-ICE hunter: compile-only, no evmone, no differential (see README).
-    add_ossfuzz_target(sol_ice_ossfuzz
-        SOURCES sol_ice_ossfuzz.cpp protoToSol2.cpp sol2Proto.pb.cc
-        LIBS solidity libsolc ${FUZZ_PROTO_LIBS})
-    # ...and the same hunter driving the experimental SSA-CFG EVM backend
-    # (equivalent to solc `--experimental --via-ssa-cfg`), baked in at compile time.
-    add_ossfuzz_target(sol_ice_ossfuzz_ssacfg
-        SOURCES sol_ice_ossfuzz.cpp protoToSol2.cpp sol2Proto.pb.cc
-        LIBS solidity libsolc ${FUZZ_PROTO_LIBS} DEFINES FUZZER_MODE_SSACFG)
-
-    # legacy non-differential sol fuzzer (older solProto grammar).
-    add_ossfuzz_target(sol_proto_ossfuzz_nondiff
-        SOURCES solProtoFuzzer.cpp SolidityEvmoneInterface.cpp protoToSol.cpp
-                solProto.pb.cc ${EVMHOST_CPP}
-        LIBS ${SOL_EVMONE_LIBS})
-
     # narrow report-#1392 recursive-struct aliasing harness (in-contract oracle).
     add_ossfuzz_target(sol_recstruct_alias_ossfuzz
         SOURCES solRecStructAliasFuzzer.cpp SolidityEvmoneInterface.cpp
@@ -166,11 +140,6 @@ if (OSSFUZZ)
     # Aggregate targets driven by tools/ossfuzz/build_ossfuzz.sh.
     add_custom_target(ossfuzz_proto)
     add_dependencies(ossfuzz_proto
-        sol_proto_ossfuzz_nondiff
-        sol_proto_ossfuzz_evmone
-        sol_proto_ossfuzz_evmone_viair
-        sol_ice_ossfuzz
-        sol_ice_ossfuzz_ssacfg
         yul_proto_ossfuzz_evmone
         yul_proto_ossfuzz_evmone_ssacfg
         yul_proto_ossfuzz_evmone_check_stack_alloc

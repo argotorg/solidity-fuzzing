@@ -66,12 +66,12 @@ make -j$(nproc)
 - `evmone/` — git submodule; built as an `ExternalProject`. Runners `dlopen` `libevmone.so` at runtime; its directory is baked into the runner RPATH so `LD_LIBRARY_PATH` is not needed.
 - `tools/common/EVMHost.{cpp,h}` — fuzz-specific extensions of solidity's EVMHost (`m_subCallOutOfGas`, `m_contractCreationOrder`). Everything links against this copy, not the one in the solidity submodule.
 - `tools/ossfuzz/` — the proto-fuzzer harnesses (run under AFL++ + LPM) and their proto grammars, plus `lpm_afl_mutator.cc` (the LPM→AFL custom-mutator bridge). See `tools/ossfuzz/README.md` for the per-binary breakdown.
-- `tools/ossfuzz/FuzzerDiffCommon.{cpp,h}` — the differential oracle shared by `solProtoFuzzer2`, `yulProtoFuzzerEvmone`, `sol_afl_diff_runner` and `sol_debug_runner`: creation-order storage matching, deployed-address normalization of return data/logs/slot values, and internal-function-pointer storage masking. Compare logic belongs here, not duplicated into a runner.
+- `tools/ossfuzz/FuzzerDiffCommon.{cpp,h}` — the differential oracle shared by `yulProtoFuzzerEvmone`, `sol_afl_diff_runner` and `sol_debug_runner`: creation-order storage matching, deployed-address normalization of return data/logs/slot values, and internal-function-pointer storage masking. Compare logic belongs here, not duplicated into a runner.
 - `tools/property/` — fuzztest-based property tests. Two build modes (see top-level `CMakeLists.txt` for the cmake option):
   - **Property mode** (default, `build/` tree, any compiler) — each `FUZZ_TEST` runs as a gtest case with a ~1s random-sampling budget. Useful for CI smoke checks. `--fuzz=...` / `--fuzz_for=...` are no-ops here because the binary lacks coverage instrumentation.
   - **Fuzzing mode** (`build_fuzztest/` tree, clang only) — `cmake -DFUZZTEST_FUZZING_MODE_ENABLED=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..` applies `-fsanitize=fuzzer-no-link` + ASan + coverage flags to the whole tree (yul, solidity submodule, and the property target). The resulting binary supports `--fuzz=<Suite>.<Test> [--fuzz_for=<duration>]` for continuous coverage-guided fuzzing with mutator-driven input generation.
-- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`, `check_diversity_and_errors.sh`). Crash-corpus categorizers live at the repo root: `yul_crash_categorizer.py`, `sol_crash_categorizer.py`, `sol_ice_crash_backtrace_categorizer.py`. `sol_crash_categorizer.py` labels each bucket with the known-noise class that explains it (`eval-order`, `precompile-stub`, `tuple-alias`, `no-repro`) and lists unclassified buckets first; `--all` expands the noise classes. `--verify` checks each `tuple-alias` crash by deleting the aliasing statements and re-running: still mismatching → `candidate`, deletion breaks compilation → `tuple-alias-unverified`. `sol_ice_crash_backtrace_categorizer.py` writes `<crash>.miss` (+ `misses.txt`) with the reason for every input that is not an ICE on the current solc.
-- Root `run_*.py` + `sol_ice_crash_backtrace_categorizer.py` — crash/hang replay drivers over a findings dir: `run_sol_crashes.py` (differential sol+yul fuzzers, via the debug runners), `run_ice_crashes.py` and `sol_ice_crash_backtrace_categorizer.py` (both replay `sol_ice_ossfuzz` crashes through solc+gdb and bucket by backtrace signature), `run_afl_crashes.py` (`--mode <runner>`, else inferred from a `findings_afl_<mode>` path; labels noise classes, buckets ICE-mode crashes by throw site), `run_afl_hangs.py` (`--sample N` for a random subset), `rerender_afl_hangs.py`, and `run_proto_hangs.py` (times proto-fuzzer hangs through the fuzzer binary itself, `--sample N` per campaign, dumps the slowest).
+- `tools/runners/` — standalone reproducers (`sol_debug_runner`, `yul_debug_runner`). `yul_crash_categorizer.py` (repo root) buckets yul proto crashes. `sol_noise_classes.py` holds the source-text noise classes (`eval-order`, `precompile-stub`, `tuple-alias`) that `run_afl_crashes.py` labels crashes with.
+- Root `run_*.py` — crash/hang replay drivers over a findings dir: `run_yul_crashes.py` (yul proto fuzzers, via `yul_debug_runner`), `run_afl_crashes.py` (`--mode <runner>`, else inferred from a `findings_afl_<mode>` path; labels noise classes, buckets ICE-mode crashes by throw site), `run_afl_hangs.py` (`--sample N` for a random subset), `rerender_afl_hangs.py`, and `run_proto_hangs.py` (times proto-fuzzer hangs through the fuzzer binary itself, `--sample N` per campaign, dumps the slowest).
 - **Always pass absolute paths to `build_afl/` fuzzer binaries.** aflpp_driver reads `atoi(argv[1]) > 0` as a loop count, so a relative path like `7308677-fd3038a/...` drops it into persistent mode, where it SIGSTOPs itself (looks like a hang).
 - `tools/shuffler-fuzzer/` — standalone `stackshuffler` CLI (`.stack` format in its README).
 - `tools/afl/` — the tree-sitter (afl-ts) AFL harness `sol_afl_diff_runner*` / `sol_afl_ice_runner` (see its README): one binary per oracle mode (legacy, viair, viair_opt, ssacfg, optseq, evmversion, metamorphic), all running the shared call plan in `AflExecution.{h,cpp}` (deploy with generated constructor args, isoltest call script, every public function with generated + malformed ABI args, then two more passes in input-chosen orders) and comparing via `afl::compare` (status, output, outgoing calls, transient storage, logs, storage), which `sol_debug_runner --afl` reuses. Documented legacy/IR semantic changes, reachable inline assembly and warning 3075 are skipped in `afl::configDependentSemantics` (AST/call graph based). `AFL_RUNNER_VERBOSE=1` prints where an input stopped and per-phase times. `afl_sweep.py` (false-positive / PoC sweeps + where inputs stop), `run_campaign.py` (fixed-duration multi-mode campaigns + stats; run it via `systemd-run --user --unit=...` so it outlives the shell), `bundle_realworld.py` (real-world files + their imports as multi-source inputs; called by `build_corpus.sh`). Minimize the corpus before campaigns: `setarch -R AFLplusplus/afl-cmin -T 8 -i corpus_afl -o corpus_min -- $PWD/build_afl/tools/afl/sol_afl_diff_runner_viair`.
@@ -81,9 +81,7 @@ make -j$(nproc)
 
 Most `*_ossfuzz_*` binaries share a source file and are differentiated by compile definitions (see `tools/ossfuzz/CMakeLists.txt` and the table in `tools/ossfuzz/README.md`):
 
-- `sol_proto_ossfuzz_evmone` and `sol_proto_ossfuzz_evmone_viair` — both built from `solProtoFuzzer2.cpp`; the `_viair` variant adds `-DFUZZER_MODE_VIAIR`.
 - `yul_proto_ossfuzz_evmone{,_ssacfg,_check_stack_alloc,_no_ssa}` and `yul_proto_ossfuzz_evmone_single_pass_<abbr>` (one per pass in `c S L M s r D`) — all built from `yulProtoFuzzerEvmone.cpp` with `FUZZER_MODE_*` defines. The single-pass variants additionally set `FUZZER_SINGLE_PASS_CHAR="<abbr>"` so the target pass is baked in at compile time (no env var).
-- `sol_ice_ossfuzz` — frontend-ICE hunter. **Deliberately** lets `InternalCompilerError`, `solAssert`, and boost assertions escape; only `UnimplementedFeatureError`, `StackTooDeep*` (langutil, evmasm and `yul::StackTooDeepError`, which escapes `CompilerStack` from via-IR codegen) and the `FixedPointType not implemented` ICE are caught as known non-bugs. Other `sol_proto_*` fuzzers should ignore ICE and leave it to this one.
 - `sol_recstruct_alias_ossfuzz` — narrow harness for report #1392 (recursive struct storage-copy aliasing). Uses a dedicated grammar (`solRecStructAliasProto.proto` + `protoToSolRecStructAlias.cpp`) that emits three aliasing shapes: DIRECT (`root=root.children[i]`), VIA_POINTER (through a `Node storage p` local), GRANDCHILD (`root=root.children[i].children[j]`). Primitive field types vary across `uint8..256 / int256 / address / bool / bytes32` to stress storage packing. Non-differential — `test()` returns a bitmask of mismatching fields; harness asserts zero. Both legacy and IR carry the bug, so cross-config differential would not flag it.
 - `sol_roundtrip_ossfuzz` — identity-oracle fuzzer (`solRoundtripProto.proto` + `protoToSolRoundtrip.cpp` + `solRoundtripFuzzer.cpp`). Each proto is a list of probes; each probe picks a type T, an op, and a seed. Ops: ABI round-trip, storage↔memory round-trip, delete-default, integer cast ladder. Same bitmask oracle: any violated identity sets a bit; harness asserts zero. Catches codegen/encoder bugs that corrupt the same way on both codegens (so differential fuzzers miss them).
 - `shuffler_proto_ossfuzz` — SSA stack shuffler (`stack::shuffle`, positional target + spill set). The oracle (`checkShuffle` in `tools/shuffler-fuzzer/StackShufflerTestCommon.h`, shared with the `stackshuffler` CLI) is independent of the shuffler's own helpers: completeness (StackTooDeep is a bug when spilling is allowed and there is no return label), spill-set monotonicity, op validity / depth bounds, replay == reported stack, positional target match, `sourceOf`. `FUZZER_MODE_STACK_TOO_DEEP_IS_BUG` makes any StackTooDeep a crash.
@@ -99,13 +97,11 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 
 ### Proto grammar → Solidity/Yul converters
 
-- `protoToSol.cpp` / `protoToSol.h` + `solProto.proto` — used by the legacy `sol_proto_ossfuzz_nondiff`.
-- `protoToSol2.cpp` / `protoToSol2.h` + `sol2Proto.proto` — newer grammar used by the differential `sol_proto_ossfuzz_evmone*` and by `sol_ice_ossfuzz`.
 - `protoToSolRecStructAlias.cpp` / `.h` + `solRecStructAliasProto.proto` — aliasing-shape grammar for `sol_recstruct_alias_ossfuzz`.
 - `protoToSolRoundtrip.cpp` / `.h` + `solRoundtripProto.proto` — identity-probe grammar for `sol_roundtrip_ossfuzz`.
 - `protoToYul.cpp` + `yulProto.proto` — Yul grammar.
 
-### Differential flow (`solProtoFuzzer2.cpp`, `yulProtoFuzzerEvmone.cpp`)
+### Differential flow (`yulProtoFuzzerEvmone.cpp`)
 
 1. Convert the protobuf input to a source string.
 2. Call `runOnce()` twice with two different optimizer / viaIR settings.
@@ -117,11 +113,6 @@ Most `*_ossfuzz_*` binaries share a source file and are differentiated by compil
 Crash inputs are raw protobuf; to inspect/debug, dump them to text first using env vars the fuzzer recognises, then replay with the appropriate runner:
 
 ```bash
-# Sol:
-PROTO_FUZZER_DUMP_PATH=bad.sol \
-  ./build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-<hash>
-./build/tools/runners/sol_debug_runner bad.sol
-
 # Yul (also supports optimizer sequence dump):
 PROTO_FUZZER_DUMP_PATH=bad.yul PROTO_FUZZER_DUMP_SEQ_PATH=bad.seq \
   ./build_afl/tools/ossfuzz/yul_proto_ossfuzz_evmone crash-<hash>
@@ -145,17 +136,6 @@ PROTO_FUZZER_DUMP_PATH=bad.stack \
 | 3    | Internal compiler error (assertion failure, crash)         |
 
 Both runners accept `--quiet` (used by delta debuggers) and `--output-dir` (write per-config `.bytecode.hex` and `.log`).
-
-## Corpus diversity check
-
-```bash
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone 300
-# Or specify a non-default fuzzer binary:
-./tools/runners/check_diversity_and_errors.sh my_corpus_sol_proto_ossfuzz_evmone_viair 300 \
-  ./build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone_viair
-```
-
-Wraps `check_sol_proto_files.py` — dumps N random corpus entries via the given fuzzer binary, compiles each with `./build/solidity/solc/solc`, and tallies language-feature coverage. Requires both build trees.
 
 ## Parallel fuzzing for `single_pass`
 

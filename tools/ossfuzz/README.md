@@ -1,8 +1,9 @@
 # Protobuf fuzzers (AFL++ + libprotobuf-mutator)
 
-LPM harnesses for solc and Yul. Each uses `DEFINE_PROTO_FUZZER`: a
-protobuf grammar is converted to Solidity/Yul, compiled, deployed on
-evmone, and checked. They run under AFL++ — the harness stays
+LPM harnesses for Yul and a few narrow Solidity properties. Each uses
+`DEFINE_PROTO_FUZZER`: a protobuf grammar is converted to Yul/Solidity,
+compiled, deployed on evmone, and checked. General Solidity fuzzing is the
+afl-ts harness in `tools/afl/`. They run under AFL++ — the harness stays
 engine-agnostic (libFuzzer-style `LLVMFuzzerTestOneInput`), and AFL drives
 LPM through a per-grammar custom mutator (below).
 
@@ -10,7 +11,7 @@ LPM through a per-grammar custom mutator (below).
 
 ```bash
 tools/ossfuzz/build_ossfuzz.sh                                   # -> build_afl/
-tools/ossfuzz/run_ossfuzz_afl.sh sol_proto_ossfuzz_evmone seeds_sol_proto
+tools/ossfuzz/run_ossfuzz_afl.sh yul_proto_ossfuzz_evmone seeds_yul
 ```
 
 `run_ossfuzz_afl.sh` picks the matching mutator and sets
@@ -23,7 +24,7 @@ message) is enough; the mutator grows structure from there. Solidity
 Resume a stopped run from its own findings dir (no corpus dir needed):
 
 ```bash
-tools/ossfuzz/run_ossfuzz_afl.sh --resume sol_proto_ossfuzz_evmone
+tools/ossfuzz/run_ossfuzz_afl.sh --resume yul_proto_ossfuzz_evmone
 ```
 
 ## LPM ↔ AFL mutator
@@ -41,46 +42,15 @@ compile-time `-D`). The engine is AFL++'s `libAFLDriver.a`
 Differential — unopt vs opt, deployed on evmone, comparing status /
 output / logs / storage:
 
-- `sol_proto_ossfuzz_evmone` — Solidity, same viaIR on both sides
-- `sol_proto_ossfuzz_evmone_viair` — legacy vs IR
-- `sol_proto_ossfuzz_nondiff` — legacy non-differential (older solProto grammar)
 - `yul_proto_ossfuzz_evmone[_ssacfg,_no_ssa,_check_stack_alloc]` — Yul
 - `yul_proto_ossfuzz_evmone_single_pass_<c S L M s r D>` — one pass
 
 Non-differential / crash-only:
 
-- `sol_ice_ossfuzz` — frontend ICE hunter (see below)
-- `sol_ice_ossfuzz_ssacfg` — same, driving the experimental SSA-CFG backend
 - `sol_recstruct_alias_ossfuzz` — recursive-struct alias copy (#1392)
 - `sol_roundtrip_ossfuzz` — primitive identity oracles
 - `shuffler_proto_ossfuzz` — SSA stack shuffler
 - `abiv2_proto_ossfuzz` — ABIv2 coder
-
-## `sol_ice_ossfuzz` — frontend ICE hunter
-
-Compile-only, non-differential: converts a `sol2Proto` program to Solidity and
-calls `CompilerStack::compile()` once (no evmone), so it iterates far faster
-than the differential fuzzers. It hunts *internal* compiler errors — it lets
-`InternalCompilerError`, `solAssert`, and boost assertions escape as crashes
-and swallows only known non-bugs (`UnimplementedFeatureError`, stack-too-deep),
-matching `test/tools/fuzzer_common.cpp`. The other `sol_proto_*` fuzzers should
-ignore ICE and leave it to this one. viaIR/optimizer come from the proto, so
-one binary covers legacy + IR + opt/unopt; sources over 8 KB are skipped.
-
-```bash
-tools/ossfuzz/run_ossfuzz_afl.sh sol_ice_ossfuzz seeds_sol_ice
-```
-
-`sol_ice_ossfuzz_ssacfg` is the same harness with the experimental SSA-CFG
-backend baked in (`-DFUZZER_MODE_SSACFG`, same pattern as the `_viair` variant),
-forcing `setExperimental(true)` + `setViaIR(true)` + `setViaSSACFG(true)` — the
-CLI's `--experimental --via-ssa-cfg`. `build_ossfuzz.sh` builds both. Reproduce
-via solc, not the (differential) debug runners:
-
-```bash
-PROTO_FUZZER_DUMP_PATH=bad.sol build_afl/tools/ossfuzz/sol_ice_ossfuzz_ssacfg crash-file
-build/solidity/solc/solc --experimental --via-ssa-cfg bad.sol
-```
 
 ## Reproduce
 
@@ -89,12 +59,11 @@ dump env var to write out the human-readable source, then replay that with
 the matching debug runner. Fuzzers live in `build_afl/`, runners in
 `build/` — you need both build trees (see the top-level CLAUDE.md).
 
-**Solidity** (`sol_proto_ossfuzz_evmone`, `sol_ice_ossfuzz`,
-`sol_recstruct_alias_ossfuzz`, `sol_roundtrip_ossfuzz`, …):
+**Solidity** (`sol_recstruct_alias_ossfuzz`, `sol_roundtrip_ossfuzz`):
 
 ```bash
 PROTO_FUZZER_DUMP_PATH=bad.sol \
-  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone crash-file
+  build_afl/tools/ossfuzz/sol_roundtrip_ossfuzz crash-file
 build/tools/runners/sol_debug_runner bad.sol
 ```
 
@@ -127,12 +96,3 @@ and storage. Common flags:
 
 `shuffler_proto_ossfuzz` instead dumps a `.stack` file — replay with
 `stackshuffler` (see ../shuffler-fuzzer).
-
-## Corpus check
-
-```bash
-tools/runners/check_diversity_and_errors.sh corpus_dir 300 \
-  build_afl/tools/ossfuzz/sol_proto_ossfuzz_evmone
-```
-
-Dumps N entries, compiles each with solc, tallies language features.

@@ -20,7 +20,7 @@
  *
  * Generates Yul code from protobuf, compiles it twice, deploys both versions
  * on evmone, executes with the same calldata, and compares output, logs, and
- * storage — similar to sol_proto_ossfuzz_evmone but for Yul.
+ * storage.
  *
  * Modes (controlled by compile definition):
  * - Default (yul_proto_ossfuzz_evmone): unoptimized vs optimized, both legacy codegen
