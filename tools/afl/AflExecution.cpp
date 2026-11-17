@@ -1101,11 +1101,37 @@ struct OrderSensitive: ASTConstVisitor
 };
 }
 
+namespace
+{
+/// `x = x` on a state variable: optimized code drops the store, and with it the revert it causes inside a STATICCALL
+struct StateSelfAssignment: ASTConstVisitor
+{
+	bool found = false;
+	bool visit(Assignment const& _assignment) override
+	{
+		auto const* lhs = dynamic_cast<Identifier const*>(&_assignment.leftHandSide());
+		auto const* rhs = dynamic_cast<Identifier const*>(&_assignment.rightHandSide());
+		if (lhs && rhs && _assignment.assignmentOperator() == langutil::Token::Assign &&
+			lhs->annotation().referencedDeclaration == rhs->annotation().referencedDeclaration)
+			if (auto const* var = dynamic_cast<VariableDeclaration const*>(lhs->annotation().referencedDeclaration))
+				found = found || var->isStateVariable();
+		return !found;
+	}
+};
+}
+
 std::optional<std::string> afl::configDependentSemantics(
 	CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer)
 {
 	if (reachesInlineAssembly(_compiler))
 		return "reachable inline assembly";
+	for (std::string const& source: _compiler.sourceNames())
+	{
+		StateSelfAssignment selfAssignment;
+		_compiler.ast(source).accept(selfAssignment);
+		if (selfAssignment.found)
+			return "state variable assigned to itself (optimizer drops the store)";
+	}
 	if (_legacyOptimizer)
 		for (auto const& error: _compiler.errors())
 			if (error->errorId() == langutil::ErrorId{3075})
