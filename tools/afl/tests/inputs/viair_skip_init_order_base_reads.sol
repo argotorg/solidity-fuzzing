@@ -1,4 +1,4 @@
-// Regression input: the reverse of skip_init_order_derived_reads.sol, A's constructor reads B's immutable through a
+// Regression input: the reverse of viair_skip_init_order_derived_reads.sol, A's constructor reads B's immutable through a
 // virtual call before legacy has initialized it.
 abstract contract A {
 	uint public t;

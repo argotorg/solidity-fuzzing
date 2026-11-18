@@ -51,6 +51,7 @@ struct CompilerOutput
 	/// no arguments
 	std::string constructorSignature;
 	bool constructorPayable = false;
+	bool isLibrary = false;
 	/// Canonical signatures of the payable functions
 	std::set<std::string> payableFunctions;
 	bool hasReceive = false;

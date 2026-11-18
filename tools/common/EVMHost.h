@@ -124,7 +124,8 @@ public:
 	static util::h256 convertFromEVMC(evmc::bytes32 const& _data);
 	static evmc::bytes32 convertToEVMC(util::h256 const& _data);
 
-	/// True if any sub-call during execution returned EVMC_OUT_OF_GAS or EVMC_STACK_OVERFLOW.
+	/// True if any sub-call during execution returned EVMC_OUT_OF_GAS, EVMC_STACK_OVERFLOW or
+	/// EVMC_STATIC_MODE_VIOLATION.
 	/// Useful for differential testing: when this is set, log/output differences
 	/// across optimization levels are expected (gas and stack use vary).
 	bool m_subCallOutOfGas = false;

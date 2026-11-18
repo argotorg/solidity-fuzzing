@@ -28,7 +28,8 @@ the [src][calldata][lenLE][0xCA 0xFE] trailer used by the AFL diff harness):
      logic as the C++ harness, writes the .sol for human review.
 
 Outputs:
-  <out_dir>/per_crash.tsv         one row per crash
+  <out_dir>/per_crash.tsv         one row per crash (outputs: the two differing outputs decoded, e.g.
+                                  "Panic(0x12) vs Panic(0x11)"; nearest_known: closest --known PoC)
   <out_dir>/by_category.txt       grouped counts + samples
   <out_dir>/logs/<key>.diff.log   raw sol_afl_diff_runner stderr+stdout
   <out_dir>/logs/<key>.debug.log  raw sol_debug_runner stderr+stdout
@@ -280,6 +281,43 @@ def run_with_timeout(cmd: list[str], timeout_s: int, env: dict | None = None) ->
 
 WHAT_RE = re.compile(r"what\(\):\s*(?:[^:]*\):\s*)?(.*)")
 CALL_LINE_RE = re.compile(r"^call #(\d+) (.*?): \S+ / \S+", re.MULTILINE)
+# Printed by the runner (AFL_RUNNER_VERBOSE) for each config when outputs / revert data differ
+OUTPUT_LINE_RE = re.compile(r"^call #\d+ output: ([0-9a-f]*)$", re.MULTILINE)
+TOKEN_RE = re.compile(r"[A-Za-z_]\w*|\d+|\S")
+COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
+
+
+def decode_output(hex_output: str) -> str:
+    """Panic(0x..), Error(string), a 4-byte selector, or empty"""
+    if not hex_output:
+        return "empty"
+    if hex_output.startswith("4e487b71") and len(hex_output) == 72:
+        return f"Panic(0x{int(hex_output[8:], 16):x})"
+    if hex_output.startswith("08c379a0"):
+        return "Error(string)"
+    return f"0x{hex_output[:8]}"
+
+
+def decoded_outputs(output: str) -> str:
+    """The two configs' revert data, decoded; empty unless revert data differs"""
+    m = WHAT_RE.search(output)
+    if not m or "revert data differs" not in m.group(1):
+        return ""
+    outs = OUTPUT_LINE_RE.findall(output)[:2]
+    return " vs ".join(decode_output(o) for o in outs) if len(outs) == 2 else ""
+
+
+def tokens(source: str) -> set[str]:
+    return set(TOKEN_RE.findall(COMMENT_RE.sub("", source)))
+
+
+def nearest_known(source: str, known: dict[str, set[str]], threshold: float) -> str:
+    """The known PoC whose token set is most similar (Jaccard), as name:score, if at least @threshold"""
+    if not known:
+        return ""
+    t = tokens(source)
+    name, score = max(((n, len(t & k) / max(1, len(t | k))) for n, k in known.items()), key=lambda x: x[1])
+    return f"{name}:{score:.2f}" if score >= threshold else ""
 
 
 def bucket_of(diff_cat: str, output: str) -> str:
@@ -297,11 +335,13 @@ def bucket_of(diff_cat: str, output: str) -> str:
         return msg
     sig = calls.get(int(call.group(1)), "?")
     params = sig[sig.find("("):] if "(" in sig else sig
-    return f"{call.group(2)} @ {params}"
+    decoded = decoded_outputs(output)
+    return f"{call.group(2)}{f' [{decoded}]' if decoded else ''} @ {params}"
 
 
 def process_one(crash: Path, findings_root: Path, out_dir: Path,
-                per_config_timeout: int, outer_timeout: int) -> dict:
+                per_config_timeout: int, outer_timeout: int,
+                known: dict[str, set[str]], known_threshold: float) -> dict:
     campaign = derive_campaign(crash, findings_root)
     key = safe_key(campaign, crash.name)
 
@@ -347,6 +387,8 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         "diff_detail": diff_detail.replace("\t", " ").replace("\n", " ")[:200],
         "noise": noise,
         "bucket": bucket_of(diff_cat, diff_out),
+        "outputs": decoded_outputs(diff_out),
+        "nearest_known": nearest_known(src.decode("utf-8", errors="replace"), known, known_threshold),
         "debug_rc": str(debug_rc),
         "debug_cat": debug_cat,
         "debug_detail": debug_detail.replace("\t", " ").replace("\n", " ")[:200],
@@ -355,7 +397,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
 
 HEADER = (
     "campaign", "crash", "size", "src_size", "calldata_size", "has_magic",
-    "diff_rc", "diff_cat", "diff_detail", "noise", "bucket",
+    "diff_rc", "diff_cat", "diff_detail", "noise", "bucket", "outputs", "nearest_known",
     "debug_rc", "debug_cat", "debug_detail",
 )
 
@@ -389,7 +431,8 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
             members.sort(key=lambda r: r["src_size"])
             fh.write(f"[{len(members)}] {name}\n")
             for r in members[:3]:
-                fh.write(f"      {r['src_size']:6d} B  sources/{r['key']}.sol\n")
+                near = f"  ~{r['nearest_known']}" if r.get("nearest_known") else ""
+                fh.write(f"      {r['src_size']:6d} B  sources/{r['key']}.sol{near}\n")
 
     out = out_dir / "by_category.txt"
     with out.open("w") as fh:
@@ -408,6 +451,16 @@ def write_summary(out_dir: Path, rows: list[dict], dropped: int = 0) -> None:
         for cat, n in sorted(debug_counts.items(), key=lambda kv: -kv[1]):
             fh.write(f"  {n:4d}  {cat}\n")
         fh.write("\n")
+
+        known_counts: dict[str, int] = {}
+        for r in rows:
+            name = r.get("nearest_known", "").rsplit(":", 1)[0] or "(none)"
+            known_counts[name] = known_counts.get(name, 0) + 1
+        if len(known_counts) > 1:
+            fh.write("## Nearest known PoC (--known)\n")
+            for name, n in sorted(known_counts.items(), key=lambda kv: -kv[1]):
+                fh.write(f"  {n:4d}  {name}\n")
+            fh.write("\n")
 
         fh.write("## Cross-tab (diff_cat x debug_cat)\n")
         for (a, b), n in sorted(cross.items(), key=lambda kv: -kv[1]):
@@ -454,6 +507,11 @@ def main() -> int:
     ap.add_argument("--mode", default=None,
                     help="runner the campaign used, e.g. sol_afl_diff_runner_viair (default: from a "
                          "findings_afl_<mode> path, else sol_afl_diff_runner)")
+    ap.add_argument("--known", type=Path, default=None,
+                    help="directory of .sol PoCs of already-known bugs: each crash gets the most similar one "
+                         "(token Jaccard on the comment-stripped source) in the nearest_known column")
+    ap.add_argument("--known-threshold", type=float, default=0.5,
+                    help="minimum similarity for --known (default: %(default)s)")
     ap.add_argument("--no-dedup", action="store_true",
                     help="process every crash file even if byte-identical to "
                          "another (by default duplicate inputs are collapsed)")
@@ -502,6 +560,8 @@ def main() -> int:
         crashes = crashes[: args.limit]
     total = len(crashes)
 
+    known = ({p.stem: tokens(p.read_text(errors="replace")) for p in sorted(args.known.glob("*.sol"))}
+             if args.known else {})
     tsv_path = out_dir / "per_crash.tsv"
     rows: list[dict] = []
     print_lock = threading.Lock()
@@ -510,7 +570,7 @@ def main() -> int:
         tsv.write("\t".join(HEADER) + "\n")
         with ThreadPoolExecutor(max_workers=max(1, args.threads)) as ex:
             futs = {ex.submit(process_one, c, root, out_dir,
-                              args.per_config_timeout, args.outer_timeout): c
+                              args.per_config_timeout, args.outer_timeout, known, args.known_threshold): c
                     for c, root in crashes}
             for fut in as_completed(futs):
                 r = fut.result()

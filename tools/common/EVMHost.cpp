@@ -513,8 +513,10 @@ evmc::Result EVMHost::call(evmc_message const& _message) noexcept
 		accounts = stateBackup;
 		recorded_logs = logsBackup;
 		// Stack use per internal call frame differs by config just like gas, so deep recursion overflows the
-		// 1024-item stack in one config only
-		if (result.status_code == EVMC_OUT_OF_GAS || result.status_code == EVMC_STACK_OVERFLOW)
+		// 1024-item stack in one config only. A store the optimizer drops as redundant (`x = x`, `x &= x`) fails a
+		// STATICCALL in unoptimized code only.
+		if (result.status_code == EVMC_OUT_OF_GAS || result.status_code == EVMC_STACK_OVERFLOW ||
+			result.status_code == EVMC_STATIC_MODE_VIOLATION)
 			m_subCallOutOfGas = true;
 	}
 

@@ -782,6 +782,7 @@ Execution afl::execute(
 		CallObservation observation{result.status_code, bytes(result.output_data, result.output_data + result.output_size),
 			_host.m_subCallOutOfGas, {}, std::move(_host.m_subCalls)};
 		_host.m_subCalls.clear();
+		observation.malformed = planned.signature.ends_with(" [malformed]");
 		for (auto const& [address, account]: _host.accounts)
 			if (!account.transient_storage.empty())
 				observation.transientStorage[address] = account.transient_storage;
@@ -846,7 +847,7 @@ std::vector<std::string> normalizedSubCalls(
 }
 }
 
-Comparison afl::compare(Execution const& _a, Execution const& _b)
+Comparison afl::compare(Execution const& _a, Execution const& _b, bool _legacyVsIR)
 {
 	Comparison out;
 	if (_a.readsDeployedCode || _b.readsDeployedCode)
@@ -872,13 +873,35 @@ Comparison afl::compare(Execution const& _a, Execution const& _b)
 		CallObservation const& b = _b.calls[i];
 		if (a.status == EVMC_OUT_OF_GAS || b.status == EVMC_OUT_OF_GAS || a.status == EVMC_STACK_OVERFLOW ||
 			b.status == EVMC_STACK_OVERFLOW || a.subCallOutOfGas || b.subCallOutOfGas)
-			return out.skipped = "out of gas or stack in call #" + std::to_string(i), out;
+			return out.skipped = "out of gas, stack overflow or static-call violation in call #" + std::to_string(i), out;
 		std::string const call = "call #" + std::to_string(i);
+		if (_legacyVsIR)
+		{
+			auto panics = [](CallObservation const& _c) {
+				return _c.output.size() == 36 &&
+					util::toHex(bytes(_c.output.begin(), _c.output.begin() + 4)) == "4e487b71";
+			};
+			// Both reverted, one with a panic: another operand may have reverted first. Or the legacy decoder got further.
+			bool const bothRevert = a.status == EVMC_REVERT && b.status == EVMC_REVERT;
+			if (bothRevert && (panics(a) || panics(b) || a.malformed))
+			{
+				if (std::getenv("AFL_RUNNER_VERBOSE"))
+					std::cerr << call << ": revert data not compared (panic or malformed calldata)\n";
+				continue;
+			}
+			if (a.malformed && b.status == EVMC_REVERT && a.status == EVMC_SUCCESS)
+				return out.skipped = "legacy accepted malformed calldata in call #" + std::to_string(i), out;
+		}
 		if (a.status != b.status)
 			out.differences.push_back(call + " status differs (" + std::to_string(a.status) + " vs " +
 				std::to_string(b.status) + ")");
 		else if (!outputEqual(a.output.data(), a.output.size(), orderA, b.output.data(), b.output.size(), orderB))
+		{
 			out.differences.push_back(call + (a.status == EVMC_SUCCESS ? " output differs" : " revert data differs"));
+			if (std::getenv("AFL_RUNNER_VERBOSE"))
+				for (auto const* output: {&a.output, &b.output})
+					std::cerr << call << " output: " << util::toHex(*output) << "\n";
+		}
 		if (a.status == b.status && normalizedSubCalls(a.subCalls, orderA) != normalizedSubCalls(b.subCalls, orderB))
 		{
 			out.differences.push_back(call + " outgoing calls differ");
@@ -1030,12 +1053,25 @@ struct Accesses: ASTConstVisitor
 	{
 		if (auto const* identifier = dynamic_cast<Identifier const*>(&_e))
 			return identifier->annotation().referencedDeclaration;
+		// `A.x` for a state variable of a base contract
+		if (auto const* member = dynamic_cast<MemberAccess const*>(&_e))
+			return member->annotation().referencedDeclaration;
 		return nullptr;
+	}
+	static bool isStateVariable(Declaration const* _declaration)
+	{
+		auto const* var = dynamic_cast<VariableDeclaration const*>(_declaration);
+		return var && var->isStateVariable() && !var->isConstant();
+	}
+	void write(Declaration const* _var)
+	{
+		written.insert(_var);
+		writesStateVariable = writesStateVariable || isStateVariable(_var);
 	}
 	bool visit(Assignment const& _assignment) override
 	{
 		if (auto const* var = variable(_assignment.leftHandSide()))
-			written.insert(var);
+			write(var);
 		return true;
 	}
 	bool visit(UnaryOperation const& _operation) override
@@ -1043,19 +1079,57 @@ struct Accesses: ASTConstVisitor
 		if (_operation.getOperator() == langutil::Token::Inc || _operation.getOperator() == langutil::Token::Dec ||
 			_operation.getOperator() == langutil::Token::Delete)
 			if (auto const* var = variable(_operation.subExpression()))
-				written.insert(var);
+				write(var);
 		return true;
 	}
 	bool visit(Identifier const& _identifier) override
 	{
 		if (!_identifier.annotation().willBeWrittenTo)
+		{
 			read.insert(_identifier.annotation().referencedDeclaration);
+			readsStateVariable = readsStateVariable || isStateVariable(_identifier.annotation().referencedDeclaration);
+		}
 		return false;
 	}
+	/// Calls a user or low-level function that may write (or, if only view, read) any state
+	bool visit(FunctionCall const& _call) override
+	{
+		if (*_call.annotation().kind != FunctionCallKind::FunctionCall)
+			return true;
+		auto const* type = dynamic_cast<FunctionType const*>(_call.expression().annotation().type);
+		if (!type)
+			return true;
+		switch (type->kind())
+		{
+		case FunctionType::Kind::Internal:
+		case FunctionType::Kind::External:
+		case FunctionType::Kind::DelegateCall:
+			if (type->stateMutability() > StateMutability::View)
+				callsMutating = true;
+			else if (type->stateMutability() == StateMutability::View)
+				callsView = true;
+			break;
+		case FunctionType::Kind::BareCall:
+		case FunctionType::Kind::BareCallCode:
+		case FunctionType::Kind::BareDelegateCall:
+			callsMutating = true;
+			break;
+		case FunctionType::Kind::BareStaticCall:
+			callsView = true;
+			break;
+		default:
+			break;
+		}
+		return true;
+	}
+	bool callsMutating = false;
+	bool callsView = false;
+	bool readsStateVariable = false;
+	bool writesStateVariable = false;
 };
 
 /// Legacy and IR evaluate operands, arguments and tuple components in different orders (the order is unspecified),
-/// which is observable when one of them writes a variable another one reads
+/// which is observable when one of them writes a variable another one reads, directly or in a called function
 struct OrderSensitive: ASTConstVisitor
 {
 	bool found = false;
@@ -1068,13 +1142,24 @@ struct OrderSensitive: ASTConstVisitor
 		for (std::size_t i = 0; i < _parts.size(); ++i)
 			for (std::size_t j = 0; j < _parts.size(); ++j)
 				if (i != j)
+				{
+					Accesses const& w = accesses[i];
+					Accesses const& r = accesses[j];
+					if (
+						(w.callsMutating && (r.callsMutating || r.callsView || r.readsStateVariable || r.writesStateVariable)) ||
+						(w.writesStateVariable && r.callsView)
+					)
+						found = true;
 					for (auto const* var: accesses[i].written)
 						if (accesses[j].read.contains(var) || accesses[j].written.contains(var))
 							found = true;
+				}
 	}
 	bool visit(BinaryOperation const& _operation) override
 	{
-		check({&_operation.leftExpression(), &_operation.rightExpression()});
+		// Short-circuiting operators evaluate left to right in both codegens
+		if (_operation.getOperator() != langutil::Token::And && _operation.getOperator() != langutil::Token::Or)
+			check({&_operation.leftExpression(), &_operation.rightExpression()});
 		return !found;
 	}
 	bool visit(FunctionCall const& _call) override
@@ -1103,18 +1188,13 @@ struct OrderSensitive: ASTConstVisitor
 
 namespace
 {
-/// `x = x` on a state variable: optimized code drops the store, and with it the revert it causes inside a STATICCALL
-struct StateSelfAssignment: ASTConstVisitor
+struct GasLeft: ASTConstVisitor
 {
 	bool found = false;
-	bool visit(Assignment const& _assignment) override
+	bool visit(FunctionCall const& _call) override
 	{
-		auto const* lhs = dynamic_cast<Identifier const*>(&_assignment.leftHandSide());
-		auto const* rhs = dynamic_cast<Identifier const*>(&_assignment.rightHandSide());
-		if (lhs && rhs && _assignment.assignmentOperator() == langutil::Token::Assign &&
-			lhs->annotation().referencedDeclaration == rhs->annotation().referencedDeclaration)
-			if (auto const* var = dynamic_cast<VariableDeclaration const*>(lhs->annotation().referencedDeclaration))
-				found = found || var->isStateVariable();
+		if (auto const* type = dynamic_cast<FunctionType const*>(_call.expression().annotation().type))
+			found = found || type->kind() == FunctionType::Kind::GasLeft;
 		return !found;
 	}
 };
@@ -1127,10 +1207,11 @@ std::optional<std::string> afl::configDependentSemantics(
 		return "reachable inline assembly";
 	for (std::string const& source: _compiler.sourceNames())
 	{
-		StateSelfAssignment selfAssignment;
-		_compiler.ast(source).accept(selfAssignment);
-		if (selfAssignment.found)
-			return "state variable assigned to itself (optimizer drops the store)";
+		// The runner's substring check misses a gasleft() that undeclared-identifier repair put in
+		GasLeft gasLeft;
+		_compiler.ast(source).accept(gasLeft);
+		if (gasLeft.found)
+			return "gasleft()";
 	}
 	if (_legacyOptimizer)
 		for (auto const& error: _compiler.errors())
@@ -1140,6 +1221,9 @@ std::optional<std::string> afl::configDependentSemantics(
 		return std::nullopt;
 	for (std::string const& source: _compiler.sourceNames())
 	{
+		// IR always uses ABI coder v2, whose decoder validates what v1 lets through
+		if (auto const& v2 = _compiler.ast(source).annotation().useABICoderV2; v2.set() && !*v2)
+			return "ABI coder v1 (" + source + ")";
 		OrderSensitive order;
 		_compiler.ast(source).accept(order);
 		if (order.found)
@@ -1147,9 +1231,35 @@ std::optional<std::string> afl::configDependentSemantics(
 	}
 	for (std::string const& name: _compiler.contractNames())
 	{
+		auto const& linearized = _compiler.contractDefinition(name).annotation().linearizedBaseContracts;
+		auto sideEffects = [](std::vector<ASTPointer<Expression>> const* _arguments) {
+			if (_arguments)
+				for (auto const& argument: *_arguments)
+				{
+					Accesses accesses;
+					argument->accept(accesses);
+					if (reads(*argument, true) || !accesses.written.empty())
+						return true;
+				}
+			return false;
+		};
+		bool argumentSideEffects = false;
+		bool initializers = false;
+		for (ContractDefinition const* contract: linearized)
+		{
+			for (auto const& base: contract->baseContracts())
+				argumentSideEffects = argumentSideEffects || sideEffects(base->arguments());
+			if (FunctionDefinition const* constructor = contract->constructor())
+				for (auto const& modifier: constructor->modifiers())
+					if (dynamic_cast<ContractDefinition const*>(modifier->name().annotation().referencedDeclaration))
+						argumentSideEffects = argumentSideEffects || sideEffects(modifier->arguments());
+			for (VariableDeclaration const* var: contract->stateVariables())
+				initializers = initializers || var->value();
+		}
+		if (argumentSideEffects && initializers)
+			return "base constructor arguments with side effects vs state variable initializers (" + name + ")";
 		// Legacy runs each contract's initializers right before its constructor, base first; IR runs all
 		// initializers, then all constructors
-		auto const& linearized = _compiler.contractDefinition(name).annotation().linearizedBaseContracts;
 		bool baseConstructorRan = false;
 		bool baseConstructorCalls = false;
 		for (auto it = linearized.rbegin(); it != linearized.rend(); ++it)

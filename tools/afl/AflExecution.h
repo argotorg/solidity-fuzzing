@@ -103,6 +103,8 @@ struct CallObservation
 	std::vector<EVMHost::SubCall> subCalls;
 	/// After a successful call: a later call can overwrite what this one wrote wrongly
 	std::optional<std::map<evmc::address, StorageMap>> storage;
+	/// Its arguments were corrupted on purpose
+	bool malformed = false;
 };
 
 struct Execution
@@ -140,8 +142,10 @@ struct Comparison
 	bool storageUnmaskable = false;
 };
 
-/// The differential oracle. `storageLayouts` must be set on both states.
-Comparison compare(Execution const& _a, Execution const& _b);
+/// The differential oracle. `storageLayouts` must be set on both states. With @param _legacyVsIR, @a _a is legacy
+/// and @a _b IR, and their documented runtime differences are not reported: which revert comes first when one is a panic
+/// (the operand evaluation order is unspecified), and the legacy decoder accepting malformed calldata that IR rejects.
+Comparison compare(Execution const& _a, Execution const& _b, bool _legacyVsIR = false);
 
 /// Why the compiled sources may legitimately behave differently across configs, or nullopt:
 /// with @param _legacyVsIR the documented semantic changes (docs/ir-breaking-changes.rst); with

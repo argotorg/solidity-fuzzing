@@ -13,10 +13,14 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.."  # repo root
 
 RUNNER="${RUNNER:-build/tools/afl/sol_afl_diff_runner}"
-if [[ ! -x "$RUNNER" ]]; then
-    echo "runner not found: $RUNNER (build it with 'make -C build sol_afl_diff_runner')" >&2
-    exit 2
-fi
+# viair_*.sol: legacy-vs-IR skips, which only that mode applies
+RUNNER_VIAIR="${RUNNER_VIAIR:-build/tools/afl/sol_afl_diff_runner_viair}"
+for r in "$RUNNER" "$RUNNER_VIAIR"; do
+    if [[ ! -x "$r" ]]; then
+        echo "runner not found: $r (build it with 'make -C build $(basename "$r")')" >&2
+        exit 2
+    fi
+done
 
 shopt -s nullglob
 inputs=(tools/afl/tests/inputs/*.sol)
@@ -27,7 +31,9 @@ fi
 
 fails=0
 for f in "${inputs[@]}"; do
-    if "$RUNNER" "$f" >/dev/null 2>&1; then
+    runner="$RUNNER"
+    [[ $(basename "$f") == viair_* ]] && runner="$RUNNER_VIAIR"
+    if "$runner" "$f" >/dev/null 2>&1; then
         echo "PASS  $f"
     else
         rc=$?

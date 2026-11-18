@@ -30,10 +30,14 @@ A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` re
 | `sol_afl_ice_runner` | compiles only, under all four legacy/IR × opt configs; ICEs crash (bucketed by throw site) |
 
 Skipped as config-dependent by design: sources with `assembly`, `gas()`, `creationCode`/`runtimeCode`;
-in the viaIR mode also `abicoder v1`, isoltest `compileViaYul:` tests and the documented legacy/IR semantic
-changes (state variable initialization order, a modifier placeholder that can run twice; checked on the AST);
+in the viaIR mode also `abicoder v1`, isoltest `compileViaYul:` tests, a library deployed with value, the
+documented legacy/IR semantic changes (state variable initialization order, also against base constructor
+arguments with side effects; a modifier placeholder that can run twice) and operands whose evaluation order is
+observable (one writes, directly or through a called function, what another reads), all checked on the AST; at
+run time there, revert data when one side panicked, and malformed calldata that legacy accepts and IR rejects;
 with the legacy optimizer, internal function pointer comparison (warning 3075);
-runs that EXTCODECOPY/EXTCODEHASH a deployed contract; anything after an out-of-gas. EXTCODESIZE of a
+runs that EXTCODECOPY/EXTCODEHASH a deployed contract; anything after an out-of-gas, a stack overflow or a
+failed STATICCALL (an optimizer-dropped redundant store, `x &= x`, avoids the violation). EXTCODESIZE of a
 deployed contract reports a fixed size instead (solc checks it before every external call).
 
 For the protobuf fuzzers (`*_proto_ossfuzz_*`) see
@@ -137,4 +141,4 @@ tools/afl/afl_sweep.py --build build_old -o sweep_pocs pocs/   # build_old: same
 
 `tools/afl/tests/inputs/*.sol` pin past false-positive fixes (each must
 exit 0): `tools/afl/tests/run.sh`. Add inputs with a header comment
-explaining what they exercise.
+explaining what they exercise; `viair_*.sol` run through `sol_afl_diff_runner_viair`.

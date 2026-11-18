@@ -382,6 +382,9 @@ static void runOneInput(std::string_view _input)
 		return stop("compile B");
 
 	afl::CallPlan const plan = afl::planCalls(input, afl::interfaceOf(*outA));
+	// IR library creation code rejects value, legacy accepts it
+	if (s_legacyVsIR && outA->isLibrary && plan.constructorValue != 0)
+		return stop("library deployed with value");
 	if (verbose() && s_configs[1].oldEVM)
 		std::cerr << "EVM versions: " << evmVersion(s_configs[0], util::keccak256(input.source)).name() << " / "
 			<< evmVersion(s_configs[1], util::keccak256(input.source)).name() << "\n";
@@ -406,7 +409,7 @@ static void runOneInput(std::string_view _input)
 	}
 	execA.state.storageLayouts = outA->storageLayoutByRuntimeCode;
 	execB.state.storageLayouts = outB->storageLayoutByRuntimeCode;
-	afl::Comparison const comparison = afl::compare(execA, execB);
+	afl::Comparison const comparison = afl::compare(execA, execB, s_legacyVsIR);
 	if (std::getenv("AFL_RUNNER_VERBOSE") && comparison.skipped)
 		std::cerr << "not compared further: " << *comparison.skipped << "\n";
 	solAssert(
