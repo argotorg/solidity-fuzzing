@@ -4,7 +4,7 @@ import re
 ASSIGN_OP_RE = re.compile(r"<<=|>>=|[+\-*/%&|^]=|(?<![=!<>+\-*/%&|^])=(?![=>])")
 INCDEC_RE = re.compile(r"\+\+|--")
 SOLO_INCDEC_RE = re.compile(r"^(?:[\w.\[\]]+(?:\+\+|--)|(?:\+\+|--)[\w.\[\]]+)$")
-MEM_DECL_RE = re.compile(r"^\s*\w[\w.\[\]]*\s+memory\s+(\w+)\s*[;=]", re.M)
+MEM_DECL_RE = re.compile(r"\bmemory\s+(\w+)\s*[;=,)]")  # locals, parameters and return variables
 TUPLE_LHS_RE = re.compile(r"^\(([^()]*)\)\s*=\s*\(")
 STUB_PRECOMPILE_RE = re.compile(r"\bripemd160\b")
 

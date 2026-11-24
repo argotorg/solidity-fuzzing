@@ -299,12 +299,19 @@ def decode_output(hex_output: str) -> str:
 
 
 def decoded_outputs(output: str) -> str:
-    """The two configs' revert data, decoded; empty unless revert data differs"""
+    """The two configs' revert data, decoded ("ok" for a config that succeeded); empty unless the first difference is
+    in revert data or status"""
     m = WHAT_RE.search(output)
-    if not m or "revert data differs" not in m.group(1):
+    if not m:
+        return ""
+    status = re.search(r"status differs \((\d+) vs (\d+)\)", m.group(1))
+    if not status and "revert data differs" not in m.group(1):
         return ""
     outs = OUTPUT_LINE_RE.findall(output)[:2]
-    return " vs ".join(decode_output(o) for o in outs) if len(outs) == 2 else ""
+    if len(outs) != 2:
+        return ""
+    succeeded = [status and status.group(i) == "0" for i in (1, 2)]
+    return " vs ".join("ok" if ok else decode_output(o) for ok, o in zip(succeeded, outs))
 
 
 def tokens(source: str) -> set[str]:
@@ -356,14 +363,18 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
 
     # 1. Diff runner — this is the one AFL ran when it found the crash.
     # The runner may repair undeclared identifiers first; keep the source it actually compiled
+    compiled_path = out_dir / "sources" / f"{key}.compiled.sol"
     diff_rc, diff_out = run_with_timeout([str(DIFF_RUNNER), str(crash)], outer_timeout,
                                          {**os.environ, "AFL_RUNNER_VERBOSE": "1",
-                                          "AFL_RUNNER_DUMP_SOURCE": str(out_dir / "sources" / f"{key}.compiled.sol")})
+                                          "AFL_RUNNER_DUMP_SOURCE": str(compiled_path)})
     (out_dir / "logs" / f"{key}.diff.log").write_text(diff_out)
     diff_cat, diff_detail = parse_diff_runner_outcome(diff_rc, diff_out)
+    # Label what was compiled: repair can turn `(x, y) = (y, x)` into a known pattern over real variables
+    text = (compiled_path.read_text(errors="replace") if compiled_path.is_file()
+            else src.decode("utf-8", errors="replace"))
     noise = ""
     if diff_cat.startswith("crash:abort:diff:"):
-        noise = sol_noise_classes.noise_class("", src.decode("utf-8", errors="replace"))
+        noise = sol_noise_classes.noise_class("", text)
         noise = "" if noise == sol_noise_classes.CANDIDATE else noise
 
     # 2. Debug runner — multi-config cross-check.
@@ -388,7 +399,7 @@ def process_one(crash: Path, findings_root: Path, out_dir: Path,
         "noise": noise,
         "bucket": bucket_of(diff_cat, diff_out),
         "outputs": decoded_outputs(diff_out),
-        "nearest_known": nearest_known(src.decode("utf-8", errors="replace"), known, known_threshold),
+        "nearest_known": nearest_known(text, known, known_threshold),
         "debug_rc": str(debug_rc),
         "debug_cat": debug_cat,
         "debug_detail": debug_detail.replace("\t", " ").replace("\n", " ")[:200],

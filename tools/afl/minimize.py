@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Minimize an AFL diff-runner crash by line-level ddmin, keeping its bucket signature (see run_afl_crashes.py).
+"""Minimize an AFL diff-runner crash by line-level ddmin, keeping its bucket signature (see run_afl_crashes.py): the
+difference, or for sol_afl_ice_runner the ICE's throw site.
 
 Usage: tools/afl/minimize.py --mode sol_afl_diff_runner_viair [-j 4] <crash> -o min.sol
 The calldata region and trailer are kept as they are; only source lines are removed.
@@ -39,7 +40,8 @@ class Oracle:
                                env={**os.environ, "AFL_RUNNER_VERBOSE": "1"})
             out = (p.stdout + p.stderr).decode(errors="replace")
             category, _ = parse_diff_runner_outcome(p.returncode, out)
-            return bucket_of(category, out) if category.startswith("crash:abort:diff:") else "no difference"
+            return (bucket_of(category, out) if category.startswith(("crash:abort:diff:", "crash:abort:ice:"))
+                    else "no difference")
         except subprocess.TimeoutExpired:
             return "timeout"
         finally:
@@ -82,7 +84,7 @@ def main() -> int:
         oracle = Oracle(runner, calldata, had_trailer, Path(tmp))
         target = oracle.signature(source)
         if target in ("no difference", "timeout"):
-            print(f"input does not abort with a difference ({target})", file=sys.stderr)
+            print(f"input does not abort with a difference or an ICE ({target})", file=sys.stderr)
             return 1
         print(f"bucket: {target}", file=sys.stderr)
         keeps = lambda lines: oracle.signature(b"".join(lines)) == target  # noqa: E731
