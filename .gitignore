@@ -16,6 +16,10 @@ crash-*
 fuzz-*.log
 /build_afl
 /build_old
+/build_cov
+/coverage.info
+/coverage_filtered.info
+/coverage_html
 /corpus_afl
 /my_corpus*
 /realworld_cache

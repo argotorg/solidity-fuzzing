@@ -1,6 +1,6 @@
 # Additional Fuzzing Opportunities
 
-Beyond the existing Yul and Solidity end-to-end (evmone) proto fuzzers, these are
+Beyond the existing Yul proto fuzzers and the afl-ts Solidity harness (`tools/afl/`), these are
 areas worth fuzzing. Ordered by expected ROI.
 
 ## Priority 1: High-confidence targets with clear oracles
@@ -59,8 +59,9 @@ inputs.
 
 `Parser::parse()` takes arbitrary `CharStream`. Crash-only fuzzer — feed random
 bytes/strings, ensure no crashes or hangs. The parser has error recovery logic
-exercised far less than the happy path. Complements existing proto fuzzers which
-only generate *valid* Solidity.
+exercised far less than the happy path. `sol_afl_ice_runner` already feeds afl-ts
+mutants (often unparsable) through the whole pipeline; a parser-only target would
+mostly be faster.
 
 ### 6. SMTChecker Crash/Timeout Fuzzing
 

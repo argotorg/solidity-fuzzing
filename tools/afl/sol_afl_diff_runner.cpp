@@ -74,7 +74,7 @@ using namespace solidity::util;
 /// LD_LIBRARY_PATH nor an absolute path is needed at runtime.
 static evmc::VM& evmone() { return EVMHost::getVM("libevmone.so"); }
 
-/// afl-ts splices keep growing inputs; real-world corpus entries routinely exceed the proto fuzzer's 3 KB
+/// afl-ts splices keep growing inputs; real-world corpus entries routinely exceed 3 KB
 static constexpr size_t s_maxSourceBytes = 16 * 1024;
 static constexpr size_t s_maxCalldataBytes = 64 * 1024;
 
