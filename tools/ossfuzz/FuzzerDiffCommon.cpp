@@ -656,3 +656,22 @@ bool solidity::test::fuzzer::outputEqual(RunResult const& _a, RunResult const& _
 		_b.result.output_data, _b.result.output_size, _b.contractCreationOrder
 	);
 }
+
+bool solidity::test::fuzzer::maskInternalFunctionPointers(
+	std::map<evmc::address, TransientStorageMap>& _storage,
+	std::map<h256, solidity::Json> const& _layoutByRuntimeCode,
+	std::map<evmc::address, h256> const& _accountCodeHashes
+)
+{
+	std::map<evmc::address, StorageMap> asStorage;
+	for (auto const& [address, slots]: _storage)
+		for (auto const& [slot, value]: slots)
+			asStorage[address][slot].current = value;
+	if (!maskInternalFunctionPointers(asStorage, _layoutByRuntimeCode, _accountCodeHashes))
+		return false;
+	_storage.clear();
+	for (auto const& [address, slots]: asStorage)
+		for (auto const& [slot, value]: slots)
+			_storage[address][slot] = value.current;
+	return true;
+}

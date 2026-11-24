@@ -47,6 +47,7 @@ struct CompilerOutput
 	/// the right layout for contracts the main one deploys via `new`, which
 	/// need masking just as much as the main contract itself.
 	std::map<util::h256, Json> storageLayoutByRuntimeCode;
+	std::map<util::h256, Json> transientStorageLayoutByRuntimeCode;
 	/// Canonical ABI signature of the constructor, e.g. "constructor(uint256,(address,bool))"; empty if it takes
 	/// no arguments
 	std::string constructorSignature;

@@ -93,13 +93,18 @@ std::optional<CompilerOutput> SolidityCompilationFramework::compileContract()
 		Json storageLayout = m_compiler.storageLayout(contractName);
 
 		std::map<util::h256, Json> layoutByRuntimeCode;
+		std::map<util::h256, Json> transientLayoutByRuntimeCode;
 		for (std::string const& name: m_compiler.contractNames())
 		{
 			solidity::bytes const& runtimeCode = m_compiler.runtimeObject(name).bytecode;
 			if (!runtimeCode.empty())
+			{
 				layoutByRuntimeCode.emplace(util::keccak256(runtimeCode), m_compiler.storageLayout(name));
+				transientLayoutByRuntimeCode.emplace(util::keccak256(runtimeCode), m_compiler.transientStorageLayout(name));
+			}
 		}
 		CompilerOutput output{obj.bytecode, methodIdentifiers, storageLayout, std::move(layoutByRuntimeCode)};
+		output.transientStorageLayoutByRuntimeCode = std::move(transientLayoutByRuntimeCode);
 		output.linkReferences = obj.linkReferences;
 		output.isLibrary = m_compiler.contractDefinition(contractName).isLibrary();
 		// Every library, not just the referenced ones: which libraries a bytecode references depends on the optimizer

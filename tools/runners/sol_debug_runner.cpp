@@ -97,6 +97,7 @@ struct ConfigRunResult
 	/// runtime bytecode, plus the code hash of each account that has one — used
 	/// to mask internal-function-pointer fields in the differential check.
 	std::map<h256, Json> storageLayouts;
+	std::map<h256, Json> transientStorageLayouts;
 	std::map<size_t, std::string> linkReferences;
 	std::map<std::string, CompilerOutput::Library> libraries;
 	std::map<evmc::address, h256> accountCodeHashes;
@@ -272,6 +273,7 @@ static ConfigRunResult runOnce(
 		{
 			result.bytecode = compOutput->byteCode;
 			result.storageLayouts = compOutput->storageLayoutByRuntimeCode;
+			result.transientStorageLayouts = compOutput->transientStorageLayoutByRuntimeCode;
 			result.linkReferences = compOutput->linkReferences;
 			result.libraries = compOutput->libraries;
 			actualContractName = compiler.deployedContractName();
@@ -299,6 +301,7 @@ static ConfigRunResult runOnce(
 	{
 		afl::Execution execution = afl::execute(hostContext, result.bytecode, *_aflPlan, result.linkReferences, result.libraries);
 		execution.state.storageLayouts = result.storageLayouts;
+		execution.state.transientStorageLayouts = result.transientStorageLayouts;
 		evmResult = evmc::Result{execution.deployStatus};
 		result.aflExecution = std::move(execution);
 	}

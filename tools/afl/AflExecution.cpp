@@ -789,8 +789,9 @@ Execution afl::execute(
 		if (result.status_code == EVMC_SUCCESS)
 		{
 			observation.storage.emplace();
+			// No code: a contract that self-destructed in its constructor, whose storage goes with the transaction
 			for (auto const& [address, account]: _host.accounts)
-				if (!account.storage.empty())
+				if (!account.storage.empty() && !account.code.empty())
 					(*observation.storage)[address] = account.storage;
 		}
 		out.calls.push_back(std::move(observation));
@@ -803,7 +804,7 @@ Execution afl::execute(
 	out.state.logs.assign(_host.recorded_logs.begin(), _host.recorded_logs.end());
 	for (auto const& [address, account]: _host.accounts)
 	{
-		if (!account.storage.empty())
+		if (!account.storage.empty() && !account.code.empty())
 			out.state.storage[address] = account.storage;
 		if (!account.code.empty())
 			out.state.accountCodeHashes[address] = keccak256(bytes(account.code.begin(), account.code.end()));
@@ -844,6 +845,36 @@ std::vector<std::string> normalizedSubCalls(
 	}
 	std::sort(out.begin(), out.end());
 	return out;
+}
+
+void printSlots(std::string const& _what, std::map<size_t, std::map<std::string, std::string>> const& _slots)
+{
+	if (!std::getenv("AFL_RUNNER_VERBOSE"))
+		return;
+	std::cerr << _what << " (contract by creation order: slot = value):\n";
+	for (auto const& [contract, slots]: _slots)
+		for (auto const& [slot, value]: slots)
+			std::cerr << "  " << contract << ": " << slot << " = " << value << "\n";
+}
+
+void printTransientStorage(std::string const& _what, std::map<evmc::address, TransientStorageMap> const& _storage,
+	std::vector<evmc::address> const& _creationOrder)
+{
+	std::map<size_t, std::map<std::string, std::string>> slots;
+	for (auto const& [contract, map]: normalizeTransientStorageByCreationOrder(_storage, _creationOrder))
+		for (auto const& [slot, value]: map)
+			slots[contract][EVMHost::convertFromEVMC(slot).hex()] = EVMHost::convertFromEVMC(value).hex();
+	printSlots(_what, slots);
+}
+
+void printStorage(std::string const& _what, std::map<evmc::address, StorageMap> const& _storage,
+	std::vector<evmc::address> const& _creationOrder)
+{
+	std::map<size_t, std::map<std::string, std::string>> slots;
+	for (auto const& [contract, map]: normalizeStorageByCreationOrder(_storage, _creationOrder))
+		for (auto const& [slot, value]: map)
+			slots[contract][EVMHost::convertFromEVMC(slot).hex()] = EVMHost::convertFromEVMC(value.current).hex();
+	printSlots(_what, slots);
 }
 }
 
@@ -892,16 +923,15 @@ Comparison afl::compare(Execution const& _a, Execution const& _b, bool _legacyVs
 			if (a.malformed && b.status == EVMC_REVERT && a.status == EVMC_SUCCESS)
 				return out.skipped = "legacy accepted malformed calldata in call #" + std::to_string(i), out;
 		}
-		if (a.status != b.status)
+		bool const statusDiffers = a.status != b.status;
+		if (statusDiffers)
 			out.differences.push_back(call + " status differs (" + std::to_string(a.status) + " vs " +
 				std::to_string(b.status) + ")");
 		else if (!outputEqual(a.output.data(), a.output.size(), orderA, b.output.data(), b.output.size(), orderB))
-		{
 			out.differences.push_back(call + (a.status == EVMC_SUCCESS ? " output differs" : " revert data differs"));
-			if (std::getenv("AFL_RUNNER_VERBOSE"))
-				for (auto const* output: {&a.output, &b.output})
-					std::cerr << call << " output: " << util::toHex(*output) << "\n";
-		}
+		if (std::getenv("AFL_RUNNER_VERBOSE") && !out.differences.empty() && out.differences.back().starts_with(call + " "))
+			for (auto const* output: {&a.output, &b.output})
+				std::cerr << call << " output: " << util::toHex(*output) << "\n";
 		if (a.status == b.status && normalizedSubCalls(a.subCalls, orderA) != normalizedSubCalls(b.subCalls, orderB))
 		{
 			out.differences.push_back(call + " outgoing calls differ");
@@ -913,8 +943,18 @@ Comparison afl::compare(Execution const& _a, Execution const& _b, bool _legacyVs
 						std::cerr << "  " << key << "\n";
 				}
 		}
-		if (!transientStorageEqual(a.transientStorage, orderA, b.transientStorage, orderB))
+		auto transientA = a.transientStorage;
+		auto transientB = b.transientStorage;
+		if (
+			maskInternalFunctionPointers(transientA, _a.state.transientStorageLayouts, _a.state.accountCodeHashes) &&
+			maskInternalFunctionPointers(transientB, _b.state.transientStorageLayouts, _b.state.accountCodeHashes) &&
+			!transientStorageEqual(transientA, orderA, transientB, orderB)
+		)
+		{
 			out.differences.push_back(call + " transient storage differs");
+			printTransientStorage(call + " transient storage A", transientA, orderA);
+			printTransientStorage(call + " transient storage B", transientB, orderB);
+		}
 		if (a.storage && b.storage)
 		{
 			auto storageA = *a.storage;
@@ -924,7 +964,11 @@ Comparison afl::compare(Execution const& _a, Execution const& _b, bool _legacyVs
 				maskInternalFunctionPointers(storageB, _b.state.storageLayouts, _b.state.accountCodeHashes) &&
 				!storageEqual(storageA, orderA, storageB, orderB)
 			)
+			{
 				out.differences.push_back(call + " storage differs");
+				printStorage(call + " storage A", storageA, orderA);
+				printStorage(call + " storage B", storageB, orderB);
+			}
 		}
 	}
 	if (_a.calls.size() != _b.calls.size())
@@ -954,7 +998,11 @@ Comparison afl::compare(Execution const& _a, Execution const& _b, bool _legacyVs
 		!maskInternalFunctionPointers(storageA, _a.state.storageLayouts, _a.state.accountCodeHashes) ||
 		!maskInternalFunctionPointers(storageB, _b.state.storageLayouts, _b.state.accountCodeHashes);
 	if (!out.storageUnmaskable && !storageEqual(storageA, orderA, storageB, orderB))
+	{
 		out.differences.push_back("storage differs");
+		printStorage("final storage A", storageA, orderA);
+		printStorage("final storage B", storageB, orderB);
+	}
 	return out;
 }
 
@@ -1053,9 +1101,19 @@ struct Accesses: ASTConstVisitor
 	{
 		if (auto const* identifier = dynamic_cast<Identifier const*>(&_e))
 			return identifier->annotation().referencedDeclaration;
-		// `A.x` for a state variable of a base contract
 		if (auto const* member = dynamic_cast<MemberAccess const*>(&_e))
-			return member->annotation().referencedDeclaration;
+		{
+			// `A.x` for a state variable of a base contract, else a struct member: the struct is written
+			if (auto const* var = dynamic_cast<VariableDeclaration const*>(member->annotation().referencedDeclaration);
+				var && var->isStateVariable())
+				return var;
+			return variable(member->expression());
+		}
+		if (auto const* index = dynamic_cast<IndexAccess const*>(&_e))
+			return variable(index->baseExpression());
+		if (auto const* tuple = dynamic_cast<TupleExpression const*>(&_e);
+			tuple && !tuple->isInlineArray() && tuple->components().size() == 1 && tuple->components()[0])
+			return variable(*tuple->components()[0]);
 		return nullptr;
 	}
 	static bool isStateVariable(Declaration const* _declaration)
@@ -1070,7 +1128,14 @@ struct Accesses: ASTConstVisitor
 	}
 	bool visit(Assignment const& _assignment) override
 	{
-		if (auto const* var = variable(_assignment.leftHandSide()))
+		if (auto const* tuple = dynamic_cast<TupleExpression const*>(&_assignment.leftHandSide()))
+		{
+			for (auto const& component: tuple->components())
+				if (component)
+					if (auto const* var = variable(*component))
+						write(var);
+		}
+		else if (auto const* var = variable(_assignment.leftHandSide()))
 			write(var);
 		return true;
 	}

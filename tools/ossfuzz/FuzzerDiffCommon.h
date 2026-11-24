@@ -62,6 +62,7 @@ struct RunResult
 	/// function-pointer fields whose encoding is not portable across
 	/// optimiser/codegen modes. Empty if compilation didn't run.
 	std::map<solidity::util::h256, solidity::Json> storageLayouts;
+	std::map<solidity::util::h256, solidity::Json> transientStorageLayouts;
 	/// keccak256 of the deployed runtime code of every account that holds
 	/// storage, so each account can be matched to its layout above.
 	std::map<evmc::address, solidity::util::h256> accountCodeHashes;
@@ -215,6 +216,13 @@ void applyStorageMasks(
 /// comparison entirely rather than report a false positive.
 bool maskInternalFunctionPointers(
 	std::map<evmc::address, StorageMap>& _storage,
+	std::map<solidity::util::h256, solidity::Json> const& _layoutByRuntimeCode,
+	std::map<evmc::address, solidity::util::h256> const& _accountCodeHashes
+);
+
+/// Same for transient storage, with the transient storage layouts.
+bool maskInternalFunctionPointers(
+	std::map<evmc::address, TransientStorageMap>& _storage,
 	std::map<solidity::util::h256, solidity::Json> const& _layoutByRuntimeCode,
 	std::map<evmc::address, solidity::util::h256> const& _accountCodeHashes
 );

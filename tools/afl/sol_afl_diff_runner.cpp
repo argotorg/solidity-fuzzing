@@ -409,6 +409,8 @@ static void runOneInput(std::string_view _input)
 	}
 	execA.state.storageLayouts = outA->storageLayoutByRuntimeCode;
 	execB.state.storageLayouts = outB->storageLayoutByRuntimeCode;
+	execA.state.transientStorageLayouts = outA->transientStorageLayoutByRuntimeCode;
+	execB.state.transientStorageLayouts = outB->transientStorageLayoutByRuntimeCode;
 	afl::Comparison const comparison = afl::compare(execA, execB, s_legacyVsIR);
 	if (std::getenv("AFL_RUNNER_VERBOSE") && comparison.skipped)
 		std::cerr << "not compared further: " << *comparison.skipped << "\n";

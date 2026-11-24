@@ -13,6 +13,7 @@ the yul proto ones.
 """
 import argparse
 import os
+import resource
 import shutil
 import signal
 import subprocess
@@ -29,6 +30,14 @@ STAT_KEYS = ["execs_done", "execs_per_sec", "corpus_count", "bitmap_cvg", "saved
 
 
 NO_ASLR = ["setarch", "-R"] if shutil.which("setarch") else []
+
+
+def larger_stack() -> None:
+    # Instrumented frames are several times larger: an expression chain release solc compiles overflows 8 MB
+    soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+    want = 64 << 20
+    if soft != resource.RLIM_INFINITY and soft < want and (hard == resource.RLIM_INFINITY or hard >= want):
+        resource.setrlimit(resource.RLIMIT_STACK, (want, hard))
 
 
 def base_env() -> dict:
@@ -143,7 +152,8 @@ def main() -> int:
             log_path = out / f"{name}.{i:02d}.log"
             with log_path.open("wb") as log:
                 procs.append((log_path, subprocess.Popen(cmd, env={**os.environ, **extra_env}, stdout=log,
-                                                         stderr=subprocess.STDOUT, start_new_session=True)))
+                                                         stderr=subprocess.STDOUT, start_new_session=True,
+                                                         preexec_fn=larger_stack)))
     print(f"launched {len(procs)} afl-fuzz instances for {args.duration}s; logs in {out}", flush=True)
 
     time.sleep(min(60, args.duration))

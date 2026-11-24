@@ -14,7 +14,9 @@ configs of the runner's mode, and both builds run the same call plan (`AflExecut
 5. send the raw calldata region itself.
 
 Per call the status, output/revert data, outgoing calls (normalized, as a multiset) and transient storage
-must agree; at the end, logs and storage. `pragma solidity` version constraints are dropped before compiling.
+must agree; at the end, logs and storage. Internal function pointers in storage and transient storage are masked
+(code offsets in legacy, IDs in IR), and so is the storage of an account without code (a contract that
+self-destructed in its constructor, which EIP-6780 wipes with the transaction). `pragma solidity` version constraints are dropped before compiling.
 A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` replays the identical plan.
 
 | Binary | Compares |
@@ -106,7 +108,7 @@ diffs (needs `--afl`, since the file embeds calldata):
 ```bash
 build/tools/runners/sol_debug_runner --afl findings_afl/default/crashes/id:...
 # 0 match, 1 mismatch, 2 compile fail, 3 ICE
-tools/afl/minimize.py --mode sol_afl_diff_runner_viair <crash> -o min.sol   # line ddmin, keeps the bucket
+tools/afl/minimize.py --mode sol_afl_diff_runner_viair <crash> -o min.sol   # line ddmin, keeps the bucket (or the ICE throw site)
 ```
 
 A hang is just an input slower than the 2 s timeout; many don't
@@ -121,7 +123,8 @@ python3 run_afl_crashes.py results/run1/sol_afl_diff_runner_viair --mode sol_afl
 ```
 
 `AFL_RUNNER_VERBOSE=1 <runner> <input>...` prints where the input stopped, per-phase times, the plan and every
-call's status per config; `=2` adds each call's calldata. `AFL_RUNNER_LOOP=N` sets the persistent-loop count
+call's status per config, and for a differing call both outputs and the differing storage or transient storage
+slots; `=2` adds each call's calldata. `AFL_RUNNER_LOOP=N` sets the persistent-loop count
 (default 1: a fresh child per input, which makes coverage deterministic; solc iterates pointer-keyed
 containers, so a long-lived child's heap layout changes ~20% of the edges, and AFL then spends most of its time
 calibrating).
