@@ -51,7 +51,8 @@ skipped_imports=0
 # We filter at the file level (anywhere in the source) — slightly over-
 # inclusive (a Solidity variable named "msize" gets dropped too) but far
 # safer than letting one slip through.
-ORACLE_UNSAFE_REGEX='\bgasleft[[:space:]]*\(|\bgas[[:space:]]*\(|\bpc[[:space:]]*\(|\bmsize\b|\bcodesize\b|\.gas[[:space:]]*:|\{[[:space:]]*gas[[:space:]]*:|tx\.gasprice|\bgasprice\b'
+# gasleft(), gas options and assembly builtins (gas(), pc(), msize...) are fine: the runner skips them only if reachable
+ORACLE_UNSAFE_REGEX='tx\.gasprice|\bgasprice\b'
 
 # Path components we never want to walk into. Catches typical JS/Foundry/
 # Hardhat build outputs and re-vendored dependency trees that would just add

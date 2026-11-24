@@ -33,9 +33,8 @@ IMPORT_RE = re.compile(r'\bimport\b[^;"\']*["\']([^"\']+)["\'][^;]*;')
 # Strings first so that comment markers inside them survive
 TOKEN_RE = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'|//[^\n]*|/\*.*?\*/', re.S)
 CONCRETE_CONTRACT_RE = re.compile(r"(?<!abstract )\bcontract\s+\w+[^;]*?\{")
-# Inline assembly is fine: the runner skips only assembly a call graph reaches
-ORACLE_UNSAFE_RE = re.compile(r"\bgasleft\s*\(|\bgas\s*\(|\.gas\s*:|\{\s*gas\s*:|tx\.gasprice|"
-                              r"creationCode|runtimeCode")
+# Inline assembly, gasleft() and gas options are fine: the runner skips them only if a call graph reaches them
+ORACLE_UNSAFE_RE = re.compile(r"tx\.gasprice|creationCode|runtimeCode")
 
 
 def strip_comments(src: str) -> str:
@@ -144,6 +143,7 @@ def main() -> int:
     ap.add_argument("--max-bytes", type=int, default=16384)
     ap.add_argument("-o", "--out", type=Path, required=True)
     args = ap.parse_args()
+    args.cache = args.cache.resolve()
 
     files = sol_files(args.cache)
     resolver = Resolver(args.cache, files)
@@ -163,7 +163,7 @@ def main() -> int:
         (args.out / ("rwb_" + "__".join(rel.parts))).write_text(text)
         written += 1
     print(f"{len(files)} files: {written} bundles written, {rejected} rejected "
-          "(unresolved import, too big, no concrete contract, or gas/bytecode introspection)")
+          "(unresolved import, too big, no concrete contract, or bytecode introspection)")
     return 0
 
 

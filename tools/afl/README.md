@@ -33,7 +33,9 @@ A mismatch aborts (SIGABRT) and AFL records a crash. `sol_debug_runner --afl` re
 | `sol_afl_ice_runner` | compiles only, under all four legacy/IR × opt configs; ICEs crash (bucketed by throw site) |
 | `sol_afl_ice_runner_ssacfg` | the same under ssacfg and ssacfg-opt (`--experimental --via-ssa-cfg`); the diff modes only stop on an ICE |
 
-Skipped as config-dependent by design: sources with `assembly`, `gas()`, `creationCode`/`runtimeCode`;
+Skipped as config-dependent by design: sources with `creationCode`/`runtimeCode`; inline assembly, `gasleft()`
+and `{gas: ...}` call options only if a call graph reaches them (or they are in an initializer or base
+constructor argument), so unused library helpers do not cost the input (the ICE runners skip none of these);
 in the viaIR mode also `abicoder v1`, isoltest `compileViaYul:` tests, a library deployed with value, the
 documented legacy/IR semantic changes (state variable initialization order, also against base constructor
 arguments with side effects; a modifier placeholder that can run twice) and operands whose evaluation order is

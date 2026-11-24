@@ -1063,28 +1063,39 @@ struct HasInlineAssembly: ASTConstVisitor
 	bool visit(InlineAssembly const&) override { found = true; return false; }
 };
 
-/// Inline assembly can break the invariants solc's codegen and optimizer rely on (memory safety, stack layout), so
-/// differences it causes are not compiler bugs. Only code a call graph reaches counts: libraries such as OpenZeppelin's
-/// carry assembly in helpers most contracts never call.
-bool reachesInlineAssembly(CompilerStack const& _compiler)
+/// Functions and modifiers some contract's call graph reaches; nullopt if a graph is missing
+std::optional<std::set<CallableDeclaration const*>> reachableCallables(CompilerStack const& _compiler)
 {
+	std::set<CallableDeclaration const*> out;
 	for (std::string const& name: _compiler.contractNames())
 	{
 		auto const& annotation = _compiler.contractDefinition(name).annotation();
 		for (auto const* graph: {&annotation.creationCallGraph, &annotation.deployedCallGraph})
 		{
 			if (!graph->set())
-				return true;
+				return std::nullopt;
 			for (auto const& [caller, callees]: (**graph)->edges)
 				for (auto const& node: callees)
 					if (auto const* const* callable = std::get_if<CallableDeclaration const*>(&node))
-					{
-						HasInlineAssembly visitor;
-						(*callable)->accept(visitor);
-						if (visitor.found)
-							return true;
-					}
+						out.insert(*callable);
 		}
+	}
+	return out;
+}
+
+/// Inline assembly can break the invariants solc's codegen and optimizer rely on (memory safety, stack layout), so
+/// differences it causes are not compiler bugs. Only code a call graph reaches counts: libraries such as OpenZeppelin's
+/// carry assembly in helpers most contracts never call.
+bool reachesInlineAssembly(std::optional<std::set<CallableDeclaration const*>> const& _reachable)
+{
+	if (!_reachable)
+		return true;
+	for (auto const* callable: *_reachable)
+	{
+		HasInlineAssembly visitor;
+		callable->accept(visitor);
+		if (visitor.found)
+			return true;
 	}
 	return false;
 }
@@ -1253,13 +1264,26 @@ struct OrderSensitive: ASTConstVisitor
 
 namespace
 {
-struct GasLeft: ASTConstVisitor
+/// gasleft() and `{gas: ...}` observe how much gas a config's code used. Function and modifier bodies count only if
+/// reachable; initializers and base constructor arguments always do. Inline assembly gas() is reachesInlineAssembly's.
+struct ReadsGas: ASTConstVisitor
 {
+	explicit ReadsGas(std::optional<std::set<CallableDeclaration const*>> const& _reachable): reachable(_reachable) {}
+	std::optional<std::set<CallableDeclaration const*>> const& reachable;
 	bool found = false;
+	bool body(CallableDeclaration const& _callable) const { return !reachable || reachable->contains(&_callable); }
+	bool visit(FunctionDefinition const& _function) override { return !found && body(_function); }
+	bool visit(ModifierDefinition const& _modifier) override { return !found && body(_modifier); }
 	bool visit(FunctionCall const& _call) override
 	{
 		if (auto const* type = dynamic_cast<FunctionType const*>(_call.expression().annotation().type))
 			found = found || type->kind() == FunctionType::Kind::GasLeft;
+		return !found;
+	}
+	bool visit(FunctionCallOptions const& _options) override
+	{
+		for (auto const& name: _options.names())
+			found = found || *name == "gas";
 		return !found;
 	}
 };
@@ -1268,15 +1292,15 @@ struct GasLeft: ASTConstVisitor
 std::optional<std::string> afl::configDependentSemantics(
 	CompilerStack const& _compiler, bool _legacyVsIR, bool _legacyOptimizer)
 {
-	if (reachesInlineAssembly(_compiler))
+	auto const reachable = reachableCallables(_compiler);
+	if (reachesInlineAssembly(reachable))
 		return "reachable inline assembly";
 	for (std::string const& source: _compiler.sourceNames())
 	{
-		// The runner's substring check misses a gasleft() that undeclared-identifier repair put in
-		GasLeft gasLeft;
-		_compiler.ast(source).accept(gasLeft);
-		if (gasLeft.found)
-			return "gasleft()";
+		ReadsGas gas(reachable);
+		_compiler.ast(source).accept(gas);
+		if (gas.found)
+			return "reachable gasleft() or gas option";
 	}
 	if (_legacyOptimizer)
 		for (auto const& error: _compiler.errors())
