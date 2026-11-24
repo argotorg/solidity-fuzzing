@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODES = ["sol_afl_diff_runner", "sol_afl_diff_runner_viair", "sol_afl_diff_runner_viair_opt",
-         "sol_afl_diff_runner_ssacfg", "sol_afl_diff_runner_optseq", "sol_afl_diff_runner_evmversion",
+         "sol_afl_diff_runner_ssacfg", "sol_afl_diff_runner_ssacfg_noopt", "sol_afl_diff_runner_optseq", "sol_afl_diff_runner_evmversion",
          "sol_afl_diff_runner_metamorphic", "sol_afl_diff_runner_legacy_knobs"]
 WHAT_RE = re.compile(r"what\(\):\s*(.*)")
 CALL_RE = re.compile(r"^call #\d+ (.*?): (\S+) / (\S+)", re.MULTILINE)
@@ -66,7 +66,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs", nargs="+", type=Path)
     ap.add_argument("-o", "--out", type=Path, required=True)
-    ap.add_argument("--mode", action="append", choices=MODES + ["sol_afl_ice_runner"],
+    ap.add_argument("--mode", action="append", choices=MODES + ["sol_afl_ice_runner", "sol_afl_ice_runner_ssacfg"],
                     help="runner binary (repeatable; default: all diff modes)")
     ap.add_argument("--build", type=Path, default=REPO_ROOT / "build", help="build tree holding tools/afl/")
     ap.add_argument("--sample", type=int, default=0, help="random sample of this many inputs (0 = all)")

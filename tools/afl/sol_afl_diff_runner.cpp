@@ -90,7 +90,9 @@ struct Config
 	bool oldEVM = false;
 };
 
-#if defined(AFL_MODE_ICE)
+#if defined(AFL_MODE_ICE) && defined(AFL_ICE_SSACFG)
+static constexpr Config s_configs[] = {{"ssacfg", true, false, true}, {"ssacfg-opt", true, true, true}};
+#elif defined(AFL_MODE_ICE)
 static constexpr Config s_configs[] = {
 	{"legacy", false, false}, {"legacy-opt", false, true}, {"ir", true, false}, {"ir-opt", true, true}};
 #elif defined(AFL_MODE_VIAIR)
@@ -99,6 +101,8 @@ static constexpr Config s_configs[] = {{"legacy-opt", false, true}, {"ir-opt", t
 static constexpr Config s_configs[] = {{"ir", true, false}, {"ir-opt", true, true}};
 #elif defined(AFL_MODE_SSACFG)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ssacfg-opt", true, true, true}};
+#elif defined(AFL_MODE_SSACFG_NOOPT)
+static constexpr Config s_configs[] = {{"ir", true, false}, {"ssacfg", true, false, true}};
 #elif defined(AFL_MODE_OPTSEQ)
 static constexpr Config s_configs[] = {{"ir-opt", true, true}, {"ir-opt-random-steps", true, true, false, true}};
 #elif defined(AFL_MODE_LEGACY_KNOBS)
